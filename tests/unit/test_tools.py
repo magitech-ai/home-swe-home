@@ -104,21 +104,41 @@ def test_grep_files_caps_at_fifty_matches(tmp_path):
     assert len(lines) == 50
 
 
-def test_run_command_success():
+def test_run_command_success(monkeypatch):
+    from magecode.sandbox import SandboxResult
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        return SandboxResult(
+            stdout="out\n", stderr="err\n", exit_code=3, timed_out=False
+        )
+
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
     result = run_command(command="sh -c 'echo out; echo err >&2; exit 3'")
     assert "stdout:\nout\n" in result
     assert "stderr:\nerr\n" in result
     assert "exit code: 3" in result
 
 
-def test_run_command_no_output():
+def test_run_command_no_output(monkeypatch):
+    from magecode.sandbox import SandboxResult
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        return SandboxResult(stdout="", stderr="", exit_code=0, timed_out=False)
+
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
     assert run_command(command="true") == "exit code: 0"
 
 
-def test_run_command_timeout():
-    arguments = json.dumps({"command": "sleep 10", "timeout": 1})
-    result = execute_tool("run_command", arguments)
-    assert result.startswith("Error: TimeoutExpired")
+def test_run_command_timeout(monkeypatch):
+    from magecode.sandbox import SandboxResult
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        return SandboxResult(stdout="", stderr="", exit_code=124, timed_out=True)
+
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+    result = run_command(command="sleep 10", timeout=1)
+    assert "timed out" in result
+    assert "exit code: 124" in result
 
 
 def test_execute_tool_unknown_tool():
