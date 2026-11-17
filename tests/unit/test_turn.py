@@ -44,11 +44,27 @@ def test_run_turn_final_text(capsys):
         model="nvidia/nemotron-3.5-lightning-30b-a3b", messages=messages, client=client
     )
     out = capsys.readouterr().out
-    assert out.startswith("< hi there friend\n")
+    assert out == "hi there friend\n"
     assert messages == [
         {"role": "user", "content": "say hi in three words"},
         {"role": "assistant", "content": "hi there friend"},
     ]
+
+
+def test_run_turn_reply_prefix(capsys):
+    message = assistant_message("hi there friend")
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create(message)))
+    )
+    messages = [{"role": "user", "content": "say hi in three words"}]
+    run_turn(
+        model="nvidia/nemotron-3.5-lightning-30b-a3b",
+        messages=messages,
+        client=client,
+        reply_prefix="< ",
+    )
+    out = capsys.readouterr().out
+    assert out == "< hi there friend\n"
 
 
 def test_run_turn_tool_call_then_final(capsys, monkeypatch):

@@ -104,9 +104,10 @@ def test_repl_user_message_reaches_turn():
 
     seen = {}
 
-    def capture_turn(*, model, messages, client=None):
+    def capture_turn(*, model, messages, client=None, reply_prefix=""):
         seen["messages"] = messages
         seen["model"] = model
+        seen["reply_prefix"] = reply_prefix
 
     with (
         patch("mini_claude.repl.input", side_effect=["hello world", EOFError]),
@@ -115,3 +116,4 @@ def test_repl_user_message_reaches_turn():
         run_repl(model="m", client=FakeClient())
     assert seen["model"] == "m"
     assert seen["messages"] == [{"role": "user", "content": "hello world"}]
+    assert seen["reply_prefix"] == "< "

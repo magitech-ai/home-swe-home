@@ -45,12 +45,15 @@ def run_turn(
     model: str,
     messages: list[dict[str, Any]],
     client: OpenAI | None = None,
+    reply_prefix: str = "",
 ) -> list[dict[str, Any]]:
     """Run one turn until the model stops asking for tools.
 
     ``messages`` is mutated and returned. Model replies are appended exactly as
     they came back; tool results are appended as ``tool`` messages. Raises
     ``TurnInterrupted`` if the user hits Ctrl-C during this turn.
+    ``reply_prefix`` is printed before assistant content (chat mode uses "< ";
+    headless leaves it empty so output stays raw).
     """
     client = client or create_client()
     try:
@@ -66,7 +69,7 @@ def run_turn(
             messages.append(_assistant_message_dict(assistant_message))
 
             if assistant_message.content:
-                print(f"< {assistant_message.content}", end="")
+                print(f"{reply_prefix}{assistant_message.content}", end="")
 
             tool_calls = getattr(assistant_message, "tool_calls", None) or []
             if not tool_calls:

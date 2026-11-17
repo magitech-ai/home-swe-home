@@ -43,7 +43,12 @@ def run_repl(*, model: str, client: OpenAI | None = None) -> None:
 
         messages.append({"role": "user", "content": text})
         try:
-            run_turn(model=model, messages=messages, client=client)
+            run_turn(
+                model=model,
+                messages=messages,
+                client=client,
+                reply_prefix="< ",
+            )
         except TurnInterrupted:
             print("\nTurn interrupted.")
         except MiniClaudeError as error:
