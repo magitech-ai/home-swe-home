@@ -1,42 +1,36 @@
-# Plan: mini-claude — a small coding agent (mini Claude Code)
+# Plan: add file tools + web search with manuals and strict rules
 
-Goal: a Python coding agent with a core loop — send task to model, run requested
-tools, send results back, repeat until the model stops asking. Model replies are
-printed exactly as they came back.
+Goal: give mini-claude hands — read, write, edit, delete files; run commands;
+search the project; search the web. Every tool has a manual (schema
+description) the model reads, strict input rules, and errors that say what to
+try next. Edits replace exact text only in files the model has read. Every tool
+call returns an answer, even on failure.
 
-## Conventions (Claude Code-style)
-- Default mode: interactive chat REPL.
-- Headless mode: `-p "task"` runs one task and exits.
-- API key: `NVIDIA_API_KEY` from environment only. Never printed, never saved in
-  the project, no `.env` handling.
-- Model: `--model <id>` on the command line; `/model <id>` inside chat. Default: `nvidia/nemotron-3.5-lightning-30b-a3b` (Nemotron 3.5 Lightning, NVIDIA's agentic-task model; free tier).
-- Ctrl-C: aborts the current turn, not the program (returns to REPL; headless
-  exits cleanly with a message).
-- NVIDIA API is OpenAI-compatible: base URL
-  `https://integrate.api.nvidia.com/v1`.
+## New / changed tools (schemas in tools.py)
+- read_file — returns contents; marks path as read (required before edit)
+- write_file — create/overwrite; also marks path writable/editable
+- edit_file (NEW) — exact old_string→new_string replace; only in read files
+- delete_file (NEW) — remove a file; confirm what was deleted
+- run_command (exists) — shell command with timeout
+- grep_files (exists) — regex search across files
+- web_search (NEW) — DuckDuckGo HTML endpoint, no API key
 
-## Repo layout (new git repo at /mnt/storage/projects/magitech/mini-claude)
-- `pyproject.toml` — project metadata + deps (`openai` client; pytest/mypy/ruff
-  as dev deps). uv-managed; lockfile committed.
-- `src/mini_claude/__init__.py`
-- `src/mini_claude/client.py` — NVIDIA/OpenAI-compatible client wrapper; key
-  validation; clear error messages for missing key / bad model / network errors.
-- `src/mini_claude/turn.py` — core turn loop (model call -> tool exec -> repeat).
-- `src/mini_claude/tools.py` — tool registry: read_file, write_file,
-  list_directory, grep_files, run_command.
-- `src/mini_claude/repl.py` — interactive chat with `/model` command.
-- `src/mini_claude/cli.py` — argparse: `-p`/`--prompt`, `--model`.
-- `DESIGN.md` — how to run + every decision (kept up to date).
-- `tests/unit/*.py` — flat test files, no `__init__.py`, AsyncMock seams.
+## Rules enforced by code
+- edit_file refuses unless the path was read via read_file (tracked per turn)
+- old_string must match exactly; otherwise error says what to try next
+- Every tool failure returns text (never crashes); error includes next step
+- Tool results go back to the model as `tool` messages; turn repeats
 
-## Tests to run
-1. Headless: `uv run mini-claude -p "say hi in three words"` (needs user's key;
-   mocked version in unit tests).
-2. No key: unset `NVIDIA_API_KEY` → clear message, exit non-zero, no crash.
-3. Bad model: `--model nope/nope` → clear API error message, no crash.
+## Design doc updates
+- Add every tool's manual (schema description) + strict input rules
+- Document read-before-edit constraint and web search choice
 
-## Standards
-- Follow shared uv / ruff skills; line length 88; strict mypy on `src/`;
-- `uv run pytest --cov-fail-under=100` where achievable.
+## Live tests (user runs with their key)
+1. "create a script that prints hi, run it, and tell me the output"
+   → write hi.py, run python hi.py, report "hi"
+2. "replace a line that isn't in the script"
+   → error: old_string not found; try read_file + exact text
+3. "delete the file and check that it deleted the one file and nothing else"
+   → delete_file hi.py, then list_directory to confirm only hi.py is gone
 
 Unresolved questions: none.

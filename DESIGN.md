@@ -19,7 +19,7 @@ uv run mini-claude -p "say hi in three words"
 uv run mini-claude
 
 # Pick a model
-uv run mini-claude --model meta/llama-3.1-8b-instruct -p "..."
+uv run mini-claude --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 ```
 
 Inside chat, `/model meta/llama-3.1-8b-instruct` switches models for the rest of
@@ -50,10 +50,41 @@ the session. Ctrl-C aborts the current turn only.
 | Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
 | Core loop | Non-streaming: call model → append assistant message verbatim → if tool calls, execute each and append tool results → repeat; stop when the model returns a final text message | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
-| Tool set | `read_file`, `write_file`, `list_directory`, `grep_files`, `run_command` | Minimal useful coding-agent tools; `run_command` runs with a timeout in the current working directory (not sandboxed — local personal agent, use with care) |
+| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search` | `edit_file` only works on paths read via `read_file` (tracked per turn); `run_command` runs with a timeout in the CWD (not sandboxed — local personal agent, use with care); `web_search` uses DuckDuckGo HTML, no API key |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
 | Testing | Flat unit tests under `tests/unit/` (no `__init__.py`), `AsyncMock` at the OpenAI client seam; `uv run pytest --cov-fail-under=100` | Shared Magitech testing discipline; no real API calls in tests |
+
+## Tool manuals
+
+Each tool's schema `description` is the manual the model reads before calling it.
+Every tool returns text to the model — even failures — and every error says
+what to try next.
+
+| Tool | Manual / strict rules |
+|---|---|
+| `read_file` | Read a file's text. Provide the exact path. Marks the path as readable (required before `edit_file`). On error: fix the path/permissions, retry. |
+| `write_file` | Create/overwrite a file. Provide path and full content. Overwrites existing. On error: check path and directory permissions, retry. Marks the path readable. |
+| `edit_file` | Replace the first exact `old_string` with `new_string` in a file. **Strict:** the path must have been read via `read_file` first, otherwise refused. `old_string` must match exactly (whitespace/indentation included). If not found: re-read the file to see exact text, retry. |
+| `delete_file` | Delete a file. Provide the exact path. Returns confirmation naming the deleted file. On error: check the path, retry. |
+| `list_directory` | List directory entries (defaults to `.`). Directories end with `/`. On error: check the path, retry. |
+| `grep_files` | Search files for a regex. Provide pattern; optional directory (defaults to `.`). Skips binary/unreadable files. Capped at 50 matches. Returns "No matches." if none. On error: check the directory path, retry. |
+| `run_command` | Run a shell command with timeout (default 30s). Returns stdout, stderr, exit code. On timeout/failure: check the command, retry. |
+| `web_search` | Search the web via DuckDuckGo (no API key). Provide a query. Returns up to 8 "title: url" results, or "No web results found." On network failure: check connection, retry. |
+
+## Read-before-edit rule
+
+The turn loop tracks a `read_files` set per turn. `edit_file` is refused for any
+path not in that set. The model must call `read_file` on a path before it can
+`edit_file` that path. `write_file` also marks a path readable (the model
+authored the content).
+
+## Error contract
+
+Every tool call gets an answer. Failures return text starting with "Error:" or
+"Refused:" plus a "what to try next" instruction. The turn never crashes on a
+tool error; the result is fed back to the model as a `tool` message and the
+loop continues.
 
 ## File layout
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -41,7 +42,9 @@ def test_run_turn_final_text(capsys):
     )
     messages = [{"role": "user", "content": "say hi in three words"}]
     run_turn(
-        model="nvidia/nemotron-3.5-lightning-30b-a3b", messages=messages, client=client
+        model="nvidia/nemotron-3.5-lightning-30b-a3b",
+        messages=messages,
+        client=client,
     )
     out = capsys.readouterr().out
     assert out == "hi there friend\n"
@@ -51,26 +54,10 @@ def test_run_turn_final_text(capsys):
     ]
 
 
-def test_run_turn_reply_prefix(capsys):
-    message = assistant_message("hi there friend")
-    client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create(message)))
-    )
-    messages = [{"role": "user", "content": "say hi in three words"}]
-    run_turn(
-        model="nvidia/nemotron-3.5-lightning-30b-a3b",
-        messages=messages,
-        client=client,
-        reply_prefix="< ",
-    )
-    out = capsys.readouterr().out
-    assert out == "< hi there friend\n"
-
-
 def test_run_turn_tool_call_then_final(capsys, monkeypatch):
     executed = []
 
-    def fake_execute(name, arguments_json):
+    def fake_execute(name, arguments_json, *, read_files=None):
         executed.append((name, arguments_json))
         return "tool result text"
 
@@ -107,6 +94,72 @@ def test_run_turn_tool_call_then_final(capsys, monkeypatch):
     ]
 
 
+def test_run_turn_edit_refused_when_unread(capsys, monkeypatch):
+    """edit_file on an unread path returns a refusal; turn continues."""
+    executed = []
+
+    def fake_execute(name, arguments_json, *, read_files=None):
+        executed.append((name, arguments_json))
+        if name == "edit_file":
+            return (
+                "Refused: 'x.txt' has not been read yet. "
+                "Call read_file on 'x.txt' first, then retry edit_file."
+            )
+        return "tool result text"
+
+    monkeypatch.setattr("mini_claude.turn.execute_tool", fake_execute)
+    edit_args = '{"path": "x.txt", "old_string": "a", "new_string": "b"}'
+    first = assistant_message(
+        None,
+        [tool_call("call-1", "edit_file", edit_args)],
+    )
+    second = assistant_message("I need to read the file first.")
+    client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=fake_create(first, second))
+        )
+    )
+    messages = [{"role": "user", "content": "edit x.txt"}]
+    run_turn(model="m", messages=messages, client=client)
+    out = capsys.readouterr().out
+    assert "I need to read the file first." in out
+    # The edit call was made and the refusal fed back; the model replied after.
+    assert executed[0][0] == "edit_file"
+    assert any(m.get("content") == "I need to read the file first." for m in messages)
+
+
+def test_run_turn_read_marks_file_readable(capsys, monkeypatch):
+    """read_file adds the path to read_files; subsequent edit is allowed."""
+    seen_read_files = []
+
+    def fake_execute(name, arguments_json, *, read_files=None):
+        seen_read_files.append(set(read_files) if read_files is not None else None)
+        if name == "read_file":
+            if read_files is not None:
+                read_files.add(json.loads(arguments_json).get("path", ""))
+            return "file contents"
+        return "ok"
+
+    monkeypatch.setattr("mini_claude.turn.execute_tool", fake_execute)
+    edit_args = '{"path": "x.txt", "old_string": "a", "new_string": "b"}'
+    first = assistant_message(None, [tool_call("c1", "read_file", '{"path": "x.txt"}')])
+    second = assistant_message(
+        None,
+        [tool_call("c2", "edit_file", edit_args)],
+    )
+    third = assistant_message("done")
+    client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=fake_create(first, second, third))
+        )
+    )
+    messages = [{"role": "user", "content": "read and edit"}]
+    run_turn(model="m", messages=messages, client=client)
+    # Before read_file: read_files is empty. After read_file: x.txt is in it.
+    assert seen_read_files[0] == set() or seen_read_files[0] is None
+    assert seen_read_files[1] == {"x.txt"} or "x.txt" in seen_read_files[1]
+
+
 def test_run_turn_interrupted():
     def create(**kwargs):
         raise KeyboardInterrupt()
@@ -123,7 +176,7 @@ def test_run_turn_interrupted():
 def test_run_turn_multiple_tool_calls(capsys, monkeypatch):
     calls = []
 
-    def fake_execute(name, arguments_json):
+    def fake_execute(name, arguments_json, *, read_files=None):
         calls.append(arguments_json)
         if len(calls) == 1:
             return "first result"

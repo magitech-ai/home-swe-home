@@ -3,6 +3,10 @@
 Ask the model, append its reply exactly as it came back, run any tools it
 requests, feed the results back, and repeat until the model stops asking for
 tools. Ctrl-C aborts the current turn only.
+
+The loop tracks which files the model has read (``read_files`` set) and passes
+that set to ``execute_tool`` so ``edit_file`` can enforce its read-before-edit
+rule.
 """
 
 from __future__ import annotations
@@ -12,7 +16,7 @@ from typing import Any
 from openai import OpenAI
 
 from .client import chat_complete, create_client
-from .tools import CHAT_COMPLETION_TOOLS, execute_tool
+from .tools import execute_tool, tool_schemas
 
 
 class TurnInterrupted(Exception):
@@ -56,13 +60,14 @@ def run_turn(
     headless leaves it empty so output stays raw).
     """
     client = client or create_client()
+    read_files: set[str] = set()
     try:
         while True:
             response = chat_complete(
                 client,
                 model=model,
                 messages=messages,
-                tools=CHAT_COMPLETION_TOOLS,
+                tools=tool_schemas(),
             )
 
             assistant_message = response.choices[0].message
@@ -80,7 +85,9 @@ def run_turn(
             for tool_call in tool_calls:
                 name = tool_call.function.name
                 print(f"[tool: {name}]")
-                result = execute_tool(name, tool_call.function.arguments)
+                result = execute_tool(
+                    name, tool_call.function.arguments, read_files=read_files
+                )
                 messages.append(
                     {
                         "role": "tool",

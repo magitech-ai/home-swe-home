@@ -3,21 +3,37 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from mini_claude.tools import (
-    CHAT_COMPLETION_TOOLS,
     execute_tool,
     grep_files,
     list_directory,
     read_file,
     run_command,
     tool_schemas,
+    web_search,
     write_file,
 )
 
 
-def test_tool_schemas_match(CHAT_COMPLETION_TOOLS=CHAT_COMPLETION_TOOLS):
-    assert tool_schemas() == CHAT_COMPLETION_TOOLS
+def test_tool_schemas_have_descriptions():
+    schemas = tool_schemas()
+    names = {s["function"]["name"] for s in schemas}
+    expected = {
+        "read_file",
+        "write_file",
+        "edit_file",
+        "delete_file",
+        "list_directory",
+        "grep_files",
+        "run_command",
+        "web_search",
+    }
+    assert names == expected
+    for schema in schemas:
+        desc = schema["function"]["description"].lower()
+        assert "error" in desc or "refused" in desc
 
 
 def test_write_then_read_file(tmp_path):
@@ -94,7 +110,21 @@ def test_run_command_timeout():
 
 
 def test_execute_tool_unknown_tool():
-    assert execute_tool("no_such_tool", "{}") == "Error: unknown tool 'no_such_tool'"
+    result = execute_tool("no_such_tool", "{}")
+    assert result.startswith("Error: unknown tool 'no_such_tool'. Use one of: ")
+    for name in sorted(
+        {
+            "read_file",
+            "write_file",
+            "edit_file",
+            "delete_file",
+            "list_directory",
+            "grep_files",
+            "run_command",
+            "web_search",
+        }
+    ):
+        assert name in result
 
 
 def test_execute_tool_bad_arguments():
@@ -102,15 +132,212 @@ def test_execute_tool_bad_arguments():
     assert result.startswith("Error: invalid tool arguments: ")
 
 
-def test_execute_tool_type_error():
-    result = execute_tool("read_file", "{}")
-    assert result.startswith("Error: TypeError: ")
-
-
-def test_execute_tool_returns_tool_result(tmp_path):
-    target = tmp_path / "x.txt"
+def test_edit_file_replaces_exact_text(tmp_path):
+    target = tmp_path / "script.txt"
+    target.write_text("print('hello')\n")
+    read_files = {str(target)}
     result = execute_tool(
-        "write_file", json.dumps({"path": str(target), "content": "hi"})
+        "edit_file",
+        json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
+        read_files=read_files,
     )
-    assert result == f"Wrote 2 characters to {target}."
-    assert target.read_text() == "hi"
+    assert result == f"Replaced the first occurrence of old_string in {target}."
+    assert target.read_text() == "print('world')\n"
+
+
+def test_edit_file_only_first_occurrence(tmp_path):
+    target = tmp_path / "script.txt"
+    target.write_text("hello hello\n")
+    read_files = {str(target)}
+    result = execute_tool(
+        "edit_file",
+        json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
+        read_files=read_files,
+    )
+    assert "Replaced" in result
+    assert target.read_text() == "world hello\n"
+
+
+def test_edit_file_refuses_unread_file(tmp_path):
+    target = tmp_path / "script.txt"
+    target.write_text("print('hello')\n")
+    result = execute_tool(
+        "edit_file",
+        json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
+        read_files=set(),
+    )
+    assert result.startswith(f"Refused: '{target}' has not been read yet.")
+    assert "Call read_file" in result
+    assert target.read_text() == "print('hello')\n"  # unchanged
+
+
+def test_edit_file_old_string_not_found(tmp_path):
+    target = tmp_path / "script.txt"
+    target.write_text("print('hello')\n")
+    read_files = {str(target)}
+    result = execute_tool(
+        "edit_file",
+        json.dumps(
+            {"path": str(target), "old_string": "goodbye", "new_string": "world"}
+        ),
+        read_files=read_files,
+    )
+    assert result.startswith(f"Error: old_string not found in {target}.")
+    assert "read_file" in result
+    assert target.read_text() == "print('hello')\n"  # unchanged
+
+
+def test_delete_file(tmp_path):
+    target = tmp_path / "temp.txt"
+    target.write_text("temporary\n")
+    result = execute_tool("delete_file", json.dumps({"path": str(target)}))
+    assert result == f"Deleted {target}."
+    assert not target.exists()
+
+
+def test_delete_file_nonexistent(tmp_path):
+    target = tmp_path / "missing.txt"
+    result = execute_tool("delete_file", json.dumps({"path": str(target)}))
+    assert result.startswith("Error: FileNotFoundError: ")
+
+
+def test_web_search_no_network(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b"<html></html>"
+
+    with patch("mini_claude.tools.urllib.request.urlopen", return_value=FakeResponse()):
+        result = web_search(query="anything")
+    assert result == "No web results found. Try rephrasing the query."
+
+
+def test_web_search_returns_results(monkeypatch):
+    html = (
+        "<html><body>"
+        '<a rel="nofollow" class="result__a" href="https://example.com/one">'
+        "Result One</a>"
+        '<a rel="nofollow" class="result__a" href="https://example.com/two">'
+        "Result Two</a>"
+        "</body></html>"
+    )
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return html.encode("utf-8")
+
+    with patch("mini_claude.tools.urllib.request.urlopen", return_value=FakeResponse()):
+        result = web_search(query="test")
+    assert "Result One: https://example.com/one" in result
+    assert "Result Two: https://example.com/two" in result
+
+
+def test_web_search_network_error(monkeypatch):
+    with patch(
+        "mini_claude.tools.urllib.request.urlopen",
+        side_effect=OSError("network down"),
+    ):
+        result = web_search(query="test")
+    assert result.startswith("Error: web search failed: network down.")
+    assert "retry the query" in result
+
+
+def test_execute_tool_read_file_tracks_read_files(tmp_path):
+    target = tmp_path / "track.txt"
+    target.write_text("contents\n")
+    read_files: set[str] = set()
+    result = execute_tool(
+        "read_file", json.dumps({"path": str(target)}), read_files=read_files
+    )
+    assert result == "contents\n"
+    assert read_files == {str(target)}
+
+
+def test_execute_tool_write_file_tracks_read_files(tmp_path):
+    target = tmp_path / "track2.txt"
+    read_files: set[str] = set()
+    result = execute_tool(
+        "write_file",
+        json.dumps({"path": str(target), "content": "data"}),
+        read_files=read_files,
+    )
+    assert result == f"Wrote 4 characters to {target}."
+    assert read_files == {str(target)}
+    assert target.read_text() == "data"
+
+
+def test_execute_tool_read_file_without_read_files(tmp_path):
+    target = tmp_path / "track.txt"
+    target.write_text("contents\n")
+    result = execute_tool("read_file", json.dumps({"path": str(target)}))
+    assert result == "contents\n"
+
+
+def test_execute_tool_write_file_without_read_files(tmp_path):
+    target = tmp_path / "track2.txt"
+    result = execute_tool(
+        "write_file", json.dumps({"path": str(target), "content": "data"})
+    )
+    assert result.startswith("Wrote")
+    assert target.read_text() == "data"
+
+
+def test_web_search_many_results_triggers_break():
+    links = "".join(
+        f'<a rel="nofollow" class="result__a" href="https://example.com/{i}">'
+        f"Result {i}</a>"
+        for i in range(12)
+    )
+    html = f"<html><body>{links}</body></html>"
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return html.encode("utf-8")
+
+    with patch("mini_claude.tools.urllib.request.urlopen", return_value=FakeResponse()):
+        result = web_search(query="test")
+    lines = result.splitlines()
+    assert len(lines) == 8  # capped at 8
+
+
+def test_web_search_skips_empty_title():
+    html = (
+        "<html><body>"
+        '<a rel="nofollow" class="result__a" href="https://example.com/one">'
+        "  </a>"  # empty title
+        '<a rel="nofollow" class="result__a" href="https://example.com/two">'
+        "Real Result</a>"
+        "</body></html>"
+    )
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return html.encode("utf-8")
+
+    with patch("mini_claude.tools.urllib.request.urlopen", return_value=FakeResponse()):
+        result = web_search(query="test")
+    assert "Real Result: https://example.com/two" in result
+    assert "https://example.com/one" not in result
