@@ -9,9 +9,9 @@ from typing import Any
 from dotenv import load_dotenv
 
 from .client import ConfigurationError, MiniClaudeError, create_client
+from .core_loop import TurnInterrupted, TurnLimitReached, run_core_loop
 from .instructions import build_system_instructions
 from .repl import run_repl
-from .turn import TurnInterrupted, TurnLimitReached, run_turn
 
 DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
 
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.prompt is not None:
         messages.append({"role": "user", "content": args.prompt})
         try:
-            run_turn(model=args.model, messages=messages, client=client)
+            run_core_loop(model=args.model, messages=messages, client=client)
         except TurnInterrupted:
             print("\nTurn interrupted.", file=sys.stderr)
             return 130

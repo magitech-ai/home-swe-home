@@ -6,8 +6,8 @@ from typing import Any
 from unittest.mock import patch
 
 from mini_claude.client import MiniClaudeError
+from mini_claude.core_loop import TurnInterrupted
 from mini_claude.repl import _show_context, run_repl
-from mini_claude.turn import TurnInterrupted
 
 
 class FakeClient:
@@ -54,7 +54,7 @@ def test_repl_blank_lines_are_ignored():
 def test_repl_turn_interrupted_is_swallowed(capsys):
     with (
         patch("mini_claude.repl.input", side_effect=["say hi", EOFError]),
-        patch("mini_claude.repl.run_turn", side_effect=TurnInterrupted()),
+        patch("mini_claude.repl.run_core_loop", side_effect=TurnInterrupted()),
     ):
         run_repl(model="m", client=FakeClient())
     assert "Turn interrupted." in capsys.readouterr().out
@@ -64,7 +64,7 @@ def test_repl_api_error_prints_and_continues(capsys):
     with (
         patch("mini_claude.repl.input", side_effect=["say hi", EOFError]),
         patch(
-            "mini_claude.repl.run_turn",
+            "mini_claude.repl.run_core_loop",
             side_effect=MiniClaudeError("The model does not exist"),
         ),
     ):
@@ -96,7 +96,7 @@ def test_repl_user_message_reaches_turn():
 
     with (
         patch("mini_claude.repl.input", side_effect=["hello world", EOFError]),
-        patch("mini_claude.repl.run_turn", side_effect=capture_turn),
+        patch("mini_claude.repl.run_core_loop", side_effect=capture_turn),
     ):
         run_repl(model="m", client=FakeClient())
     assert seen["model"] == "m"
@@ -111,14 +111,14 @@ def test_repl_user_message_reaches_turn():
 
 def test_repl_turn_limit_reached(capsys):
     """REPL should report TurnLimitReached error when run_turn raises it."""
-    from mini_claude.turn import TurnLimitReached
+    from mini_claude.core_loop import TurnLimitReached
 
     def capture_turn(*, model, messages, client=None, reply_prefix="", max_turns=20):
         raise TurnLimitReached("Turn limit reached")
 
     with (
         patch("mini_claude.repl.input", side_effect=["hello world", EOFError]),
-        patch("mini_claude.repl.run_turn", side_effect=capture_turn),
+        patch("mini_claude.repl.run_core_loop", side_effect=capture_turn),
     ):
         run_repl(model="m", client=FakeClient())
     out = capsys.readouterr().out

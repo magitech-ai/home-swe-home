@@ -7,8 +7,8 @@ from typing import Any
 from openai import OpenAI
 
 from .client import MiniClaudeError, create_client
+from .core_loop import TurnInterrupted, TurnLimitReached, run_core_loop
 from .instructions import build_system_instructions, count_tokens
-from .turn import TurnInterrupted, TurnLimitReached, run_turn
 
 PROMPT = "> "
 
@@ -54,7 +54,7 @@ def run_repl(
 
         messages.append({"role": "user", "content": text})
         try:
-            run_turn(
+            run_core_loop(
                 model=model,
                 messages=messages,
                 client=client,

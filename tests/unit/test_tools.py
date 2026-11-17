@@ -857,7 +857,7 @@ def test_turn_limit_reached():
     """run_turn should raise TurnLimitReached when max_turns exceeded."""
     from types import SimpleNamespace
 
-    from mini_claude.turn import TurnLimitReached, run_turn
+    from mini_claude.core_loop import TurnLimitReached, run_core_loop
 
     def create(**kwargs):
         return SimpleNamespace(
@@ -885,7 +885,7 @@ def test_turn_limit_reached():
     )
     messages = [{"role": "user", "content": "keep going forever"}]
     try:
-        run_turn(
+        run_core_loop(
             model="test/model",
             messages=messages,
             client=client,

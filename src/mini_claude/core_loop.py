@@ -49,7 +49,7 @@ def _assistant_message_dict(message: Any) -> dict[str, Any]:
     return result
 
 
-def run_turn(
+def run_core_loop(
     *,
     model: str,
     messages: list[dict[str, Any]],

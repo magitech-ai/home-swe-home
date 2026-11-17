@@ -1,4 +1,4 @@
-"""Tests for mini_claude.turn."""
+"""Tests for mini_claude.core_loop."""
 
 from __future__ import annotations
 
@@ -7,7 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_claude.turn import TurnInterrupted, run_turn
+from mini_claude.core_loop import (
+    TurnInterrupted,
+    run_core_loop,
+)
 
 
 def assistant_message(content=None, tool_calls=None):
@@ -35,13 +38,13 @@ def fake_create(*responses):
     return create
 
 
-def test_run_turn_final_text(capsys):
+def test_run_core_loop_final_text(capsys):
     message = assistant_message("hi there friend")
     client = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create(message)))
     )
     messages = [{"role": "user", "content": "say hi in three words"}]
-    run_turn(
+    run_core_loop(
         model="nvidia/nemotron-3.5-lightning-30b-a3b",
         messages=messages,
         client=client,
@@ -55,14 +58,14 @@ def test_run_turn_final_text(capsys):
     ]
 
 
-def test_run_turn_tool_call_then_final(capsys, monkeypatch):
+def test_run_core_loop_tool_call_then_final(capsys, monkeypatch):
     executed = []
 
     def fake_execute(name, arguments_json, *, read_files=None):
         executed.append((name, arguments_json))
         return "tool result text"
 
-    monkeypatch.setattr("mini_claude.turn.execute_tool", fake_execute)
+    monkeypatch.setattr("mini_claude.core_loop.execute_tool", fake_execute)
     first = assistant_message(
         None, [tool_call("call-1", "read_file", '{"path": "x.txt"}')]
     )
@@ -74,7 +77,7 @@ def test_run_turn_tool_call_then_final(capsys, monkeypatch):
         )
     )
     messages = [{"role": "user", "content": "read x.txt"}]
-    run_turn(model="m", messages=messages, client=client)
+    run_core_loop(model="m", messages=messages, client=client)
     out = capsys.readouterr().out
     assert "all done" in out
     assert executed == [("read_file", '{"path": "x.txt"}')]
@@ -95,7 +98,7 @@ def test_run_turn_tool_call_then_final(capsys, monkeypatch):
     ]
 
 
-def test_run_turn_edit_refused_when_unread(capsys, monkeypatch):
+def test_run_core_loop_edit_refused_when_unread(capsys, monkeypatch):
     """edit_file on an unread path returns a refusal; turn continues."""
     executed = []
 
@@ -108,7 +111,7 @@ def test_run_turn_edit_refused_when_unread(capsys, monkeypatch):
             )
         return "tool result text"
 
-    monkeypatch.setattr("mini_claude.turn.execute_tool", fake_execute)
+    monkeypatch.setattr("mini_claude.core_loop.execute_tool", fake_execute)
     edit_args = '{"path": "x.txt", "old_string": "a", "new_string": "b"}'
     first = assistant_message(
         None,
@@ -121,7 +124,7 @@ def test_run_turn_edit_refused_when_unread(capsys, monkeypatch):
         )
     )
     messages = [{"role": "user", "content": "edit x.txt"}]
-    run_turn(model="m", messages=messages, client=client)
+    run_core_loop(model="m", messages=messages, client=client)
     out = capsys.readouterr().out
     assert "I need to read the file first." in out
     # The edit call was made and the refusal fed back; the model replied after.
@@ -129,7 +132,7 @@ def test_run_turn_edit_refused_when_unread(capsys, monkeypatch):
     assert any(m.get("content") == "I need to read the file first." for m in messages)
 
 
-def test_run_turn_read_marks_file_readable(capsys, monkeypatch):
+def test_run_core_loop_read_marks_file_readable(capsys, monkeypatch):
     """read_file adds the path to read_files; subsequent edit is allowed."""
     seen_read_files = []
 
@@ -141,7 +144,7 @@ def test_run_turn_read_marks_file_readable(capsys, monkeypatch):
             return "file contents"
         return "ok"
 
-    monkeypatch.setattr("mini_claude.turn.execute_tool", fake_execute)
+    monkeypatch.setattr("mini_claude.core_loop.execute_tool", fake_execute)
     edit_args = '{"path": "x.txt", "old_string": "a", "new_string": "b"}'
     first = assistant_message(None, [tool_call("c1", "read_file", '{"path": "x.txt"}')])
     second = assistant_message(
@@ -155,13 +158,13 @@ def test_run_turn_read_marks_file_readable(capsys, monkeypatch):
         )
     )
     messages = [{"role": "user", "content": "read and edit"}]
-    run_turn(model="m", messages=messages, client=client)
+    run_core_loop(model="m", messages=messages, client=client)
     # Before read_file: read_files is empty. After read_file: x.txt is in it.
     assert seen_read_files[0] == set() or seen_read_files[0] is None
     assert seen_read_files[1] == {"x.txt"} or "x.txt" in seen_read_files[1]
 
 
-def test_run_turn_interrupted():
+def test_run_core_loop_interrupted():
     def create(**kwargs):
         raise KeyboardInterrupt()
 
@@ -170,7 +173,7 @@ def test_run_turn_interrupted():
     )
     messages = [{"role": "user", "content": "do something"}]
     with pytest.raises(TurnInterrupted):
-        run_turn(model="m", messages=messages, client=client)
+        run_core_loop(model="m", messages=messages, client=client)
     assert messages == [{"role": "user", "content": "do something"}]
 
 
@@ -183,7 +186,7 @@ def test_run_turn_multiple_tool_calls(capsys, monkeypatch):
             return "first result"
         return "second result"
 
-    monkeypatch.setattr("mini_claude.turn.execute_tool", fake_execute)
+    monkeypatch.setattr("mini_claude.core_loop.execute_tool", fake_execute)
     first = assistant_message(None, [tool_call("c1", "read_file", '{"path": "a.txt"}')])
     second = assistant_message(
         None, [tool_call("c2", "read_file", '{"path": "b.txt"}')]
@@ -196,6 +199,6 @@ def test_run_turn_multiple_tool_calls(capsys, monkeypatch):
         )
     )
     messages = [{"role": "user", "content": "read two files"}]
-    run_turn(model="m", messages=messages, client=client)
+    run_core_loop(model="m", messages=messages, client=client)
     assert calls == ['{"path": "a.txt"}', '{"path": "b.txt"}']
     assert any(message.get("content") == "combined" for message in messages)

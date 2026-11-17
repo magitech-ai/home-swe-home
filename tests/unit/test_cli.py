@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from mini_claude.cli import DEFAULT_MODEL, main
 from mini_claude.client import MiniClaudeError
-from mini_claude.turn import TurnInterrupted
+from mini_claude.core_loop import TurnInterrupted, TurnLimitReached
 
 
 def test_main_no_api_key(monkeypatch, capsys):
@@ -25,12 +25,12 @@ def test_main_dotenv_fallback(monkeypatch, capsys):
     def fake_load_dotenv(*args, **kwargs):
         monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-from-dotenv")
 
-    def fake_turn(*, model, messages, client=None):
+    def fake_core_loop(*, model, messages, client=None):
         print("hello there friend")
 
     with (
         patch("mini_claude.cli.load_dotenv", side_effect=fake_load_dotenv),
-        patch("mini_claude.cli.run_turn", side_effect=fake_turn),
+        patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop),
     ):
         code = main(["-p", "say hi in three words"])
     assert code == 0
@@ -40,12 +40,12 @@ def test_main_headless_runs_one_turn(monkeypatch, capsys):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
     seen = {}
 
-    def fake_turn(*, model, messages, client=None):
+    def fake_core_loop(*, model, messages, client=None):
         seen["model"] = model
         seen["messages"] = messages
         print("hello there friend")
 
-    with patch("mini_claude.cli.run_turn", side_effect=fake_turn):
+    with patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop):
         code = main(
             ["-p", "say hi in three words", "--model", "meta/llama-3.1-8b-instruct"]
         )
@@ -61,10 +61,10 @@ def test_main_headless_runs_one_turn(monkeypatch, capsys):
 def test_main_headless_interrupted(monkeypatch, capsys):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
 
-    def fake_turn(**kwargs):
+    def fake_core_loop(**kwargs):
         raise TurnInterrupted()
 
-    with patch("mini_claude.cli.run_turn", side_effect=fake_turn):
+    with patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop):
         code = main(["-p", "do something"])
     assert code == 130
     assert "Turn interrupted." in capsys.readouterr().err
@@ -73,10 +73,10 @@ def test_main_headless_interrupted(monkeypatch, capsys):
 def test_main_headless_api_error(monkeypatch, capsys):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
 
-    def fake_turn(**kwargs):
+    def fake_core_loop(**kwargs):
         raise MiniClaudeError("The model does not exist")
 
-    with patch("mini_claude.cli.run_turn", side_effect=fake_turn):
+    with patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop):
         code = main(["-p", "do something"])
     assert code == 1
     assert "mini-claude: The model does not exist" in capsys.readouterr().err
@@ -85,12 +85,10 @@ def test_main_headless_api_error(monkeypatch, capsys):
 def test_main_headless_turn_limit_reached(monkeypatch, capsys):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
 
-    from mini_claude.turn import TurnLimitReached
-
-    def fake_turn(**kwargs):
+    def fake_core_loop(**kwargs):
         raise TurnLimitReached("Turn limit reached")
 
-    with patch("mini_claude.cli.run_turn", side_effect=fake_turn):
+    with patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop):
         code = main(["-p", "do something"])
     assert code == 1
     assert "Turn limit reached" in capsys.readouterr().err

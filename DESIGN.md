@@ -204,7 +204,7 @@ count (cl100k_base encoding) before each model call.
     `list_directory.py`, `grep_files.py`, `run_command.py`,
     `web_search.py`, `code_metrics.py`, `find_duplicates.py`,
     `generate_docs.py`, `reload_module.py` — one file per tool
-- `src/mini_claude/turn.py` — core model ↔ tool loop
+- `src/mini_claude/core_loop.py` — core model ↔ tool loop
 - `src/mini_claude/repl.py` — interactive chat + `/model` + `/context`
 - `src/mini_claude/cli.py` — argparse: `-p`, `--model`
 - `DESIGN.md` — this file
