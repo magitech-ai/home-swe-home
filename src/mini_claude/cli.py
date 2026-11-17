@@ -10,7 +10,7 @@ from .client import ConfigurationError, MiniClaudeError, create_client
 from .repl import run_repl
 from .turn import TurnInterrupted, run_turn
 
-DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+DEFAULT_MODEL = "nvidia/nemotron-3-super-vl-120b-a12b"
 
 
 def build_parser() -> argparse.ArgumentParser:

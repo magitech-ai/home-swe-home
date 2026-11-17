@@ -41,7 +41,7 @@ def test_run_turn_final_text(capsys):
     )
     messages = [{"role": "user", "content": "say hi in three words"}]
     run_turn(
-        model="nvidia/nemotron-3-super-120b-a12b", messages=messages, client=client
+        model="nvidia/nemotron-3-super-vl-120b-a12b", messages=messages, client=client
     )
     out = capsys.readouterr().out
     assert "hi there friend" in out

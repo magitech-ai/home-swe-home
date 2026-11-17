@@ -22,7 +22,7 @@ uv run mini-claude -p "say hi in three words"
 uv run mini-claude
 
 # Pick a model
-uv run mini-claude --model nvidia/nemotron-3-super-120b-a12b -p "..."
+uv run mini-claude --model nvidia/nemotron-3-super-vl-120b-a12b -p "..."
 ```
 
 In chat, `/model <id>` switches models; Ctrl-C aborts the current turn only;
