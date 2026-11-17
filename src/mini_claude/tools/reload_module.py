@@ -9,7 +9,7 @@ from mini_claude.tools import tool
 
 @tool(
     name="reload_module",
-    manual=(
+    instructions=(
         "Hot-reload a Python module from disk, picking up any changes "
         "made since the last import.  The module file must be a valid "
         ".py file importable by importlib.  If the file's mtime has\n"

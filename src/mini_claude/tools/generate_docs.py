@@ -8,7 +8,7 @@ from mini_claude.tools import tool
 
 @tool(
     name="generate_docs",
-    manual=(
+    instructions=(
         "Generate documentation from Python docstrings and "
         "comments.\n"
         "Creates a markdown summary of all public functions and "

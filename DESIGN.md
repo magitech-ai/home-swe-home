@@ -100,7 +100,7 @@ execution registry (``_TOOLS``) and the schema registry (``tool_schemas()``):
 ```python
 @tool(
     name="my_tool",
-    manual="""What the tool does.
+    instructions="""What the tool does.
 
 Manual:
   - Provide the exact argument...
@@ -150,7 +150,7 @@ The decorator infers:
 
 All inferred values can be overridden by passing arguments to the decorator::
 
-    @tool(name="custom_name", manual="Custom description.")
+    @tool(name="custom_name", instructions="Custom description.")
     def my_tool(*, argument: str) -> str:
         """Original docstring.
 

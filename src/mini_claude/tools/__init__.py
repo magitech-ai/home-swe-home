@@ -1,15 +1,15 @@
-"""Tool registry: JSON schemas (manuals) plus execution.
+"""Tool registry: JSON schemas (instructions) plus execution.
 
 Every tool is defined as a Python function decorated with ``@tool``.  The
 decorator infers the tool schema from the function itself:
 
 * ``func.__name__`` becomes the tool name
-* ``func.__doc__`` becomes the tool manual (first paragraph = description,
+* ``func.__doc__`` becomes the tool instructions (first paragraph = description,
   ``Args:`` section = parameter descriptions)
 * ``inspect.signature(func)`` provides parameter names, types, and which are
   required (no default value)
 
-This follows the Google ADK convention: no redundant manual or parameters
+This follows the Google ADK convention: no redundant instructions or parameters
 arguments needed on the decorator.
 """
 
@@ -95,7 +95,7 @@ def tool(
     func: Callable[..., str] | None = None,
     *,
     name: str | None = None,
-    manual: str | None = None,
+    instructions: str | None = None,
     parameters: dict[str, Any] | None = None,
 ) -> Callable[..., str] | Callable[[Callable[..., str]], Callable[..., str]]:
     """Register a Python function as an agent tool.
@@ -103,7 +103,7 @@ def tool(
     The decorator infers everything from the function itself:
 
     * ``func.__name__`` -> tool name
-    * ``func.__doc__`` -> tool manual (description + Args section)
+    * ``func.__doc__`` -> tool instructions (description + Args section)
     * ``inspect.signature(func)`` -> parameter names, types, requiredness
 
     All inferred values can be overridden by passing arguments to the
@@ -128,8 +128,8 @@ def tool(
     ----------
     name:
         Override the tool name (defaults to the function name).
-    manual:
-        Override the tool manual (defaults to the function docstring).
+    instructions:
+        Override the tool instructions (defaults to the function docstring).
     parameters:
         Override the JSON Schema parameters (defaults to inference from the
         function signature).
@@ -141,8 +141,8 @@ def tool(
 
         doc_description, param_descs = _parse_docstring(f.__doc__)
 
-        if manual is not None:
-            description = manual
+        if instructions is not None:
+            description = instructions
         else:
             description = doc_description
 

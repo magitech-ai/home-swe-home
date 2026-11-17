@@ -575,7 +575,7 @@ def test_tool_decorator_registers_schema_and_execution():
 
     @tool(
         name="my_test_tool",
-        manual="""My test tool.\nManual:\n  - Provide a name.\n""",
+        instructions="""My test tool.\nManual:\n  - Provide a name.\n""",
         parameters={
             "type": "object",
             "properties": {
@@ -677,10 +677,10 @@ def test_tool_optional_parameter():
     assert props["name"]["type"] == "string"
 
 
-def test_tool_override_manual():
-    """Test that manual= overrides docstring."""
+def test_tool_override_instructions():
+    """Test that instructions= overrides docstring."""
 
-    @tool(manual="Custom manual description.")
+    @tool(instructions="Custom instructions description.")
     def my_tool(*, name: str) -> str:
         """Original docstring description.
 
@@ -691,7 +691,7 @@ def test_tool_override_manual():
 
     schemas = tool_schemas()
     schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
-    assert schema["function"]["description"] == "Custom manual description."
+    assert schema["function"]["description"] == "Custom instructions description."
 
 
 def test_tool_override_parameters():
