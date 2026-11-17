@@ -182,7 +182,6 @@ count (cl100k_base encoding) before each model call.
     `list_directory.py`, `grep_files.py`, `run_command.py`,
     `web_search.py`, `code_metrics.py`, `find_duplicates.py`,
     `generate_docs.py`, `reload_module.py` — one `Service` per tool
-- `src/magecode/anima_greeter.py` — demo Service showing `inject` dependency injection
 - `src/magecode/repl.py` — interactive chat + `/model` + `/context`
 - `src/magecode/cli.py` — argparse: `-p`, `--model`, `--sandbox`
 - `DESIGN.md` — this file
