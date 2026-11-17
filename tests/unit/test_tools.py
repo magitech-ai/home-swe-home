@@ -630,41 +630,62 @@ def test_reload_module_no_changes(tmp_path):
     assert "No changes detected" in result2
 
 
-def test_reload_module_getmtime_oserror(tmp_path):
-    """getmtime OSError is defensive: reload still proceeds."""
+def test_reload_module_stat_oserror(tmp_path):
+    """os.stat OSError returns a clear error message."""
     target = tmp_path / "mymodule.py"
     target.write_text("VALUE = 1\n")
-    read_files = {str(target)}
-    result1 = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": "test_oserr_module", "file_path": str(target)}),
-        read_files=read_files,
-    )
-    assert "Reloaded module" in result1
-
-    call_count = {"n": 0}
-
-    def flaky_getmtime(path):
-        call_count["n"] += 1
-        if call_count["n"] == 1:
-            raise OSError("no access")
-        return 1234567890.0
 
     import magecode.tools.reload_module as reload_mod
 
-    orig = reload_mod.os.path.getmtime
+    orig = reload_mod.os.stat
+
+    def failing_stat(path):
+        raise OSError("no access")
+
     try:
-        reload_mod.os.path.getmtime = flaky_getmtime
-        result2 = execute_tool(
+        reload_mod.os.stat = failing_stat
+        result = execute_tool(
             _build_context(),
             "reload_module",
-            json.dumps({"module_name": "test_oserr_module", "file_path": str(target)}),
-            read_files=read_files,
+            json.dumps({"module_name": "test_stat_err", "file_path": str(target)}),
+            read_files={str(target)},
         )
     finally:
-        reload_mod.os.path.getmtime = orig
-    assert "Reloaded module" in result2
+        reload_mod.os.stat = orig
+    assert result.startswith("Error: could not stat")
+
+
+def test_reload_module_same_size_same_second_not_stale(tmp_path):
+    """Regression: same-size edits in one second must not run stale bytecode."""
+    marker = tmp_path / "marker.txt"
+    target = tmp_path / "spike_mod.py"
+    # Import writes the marker; AAAA/BBBB are same length so the bytecode
+    # cache key (mtime seconds, size) is identical across edits.
+    source = f"from pathlib import Path\nPath({str(marker)!r}).write_text('AAAA')\n"
+    target.write_text(source)
+    module_name = "spike_reload_mod"
+    read_files = {str(target)}
+
+    first = execute_tool(
+        _build_context(),
+        "reload_module",
+        json.dumps({"module_name": module_name, "file_path": str(target)}),
+        read_files=read_files,
+    )
+    assert "Reloaded module" in first
+    assert marker.read_text() == "AAAA"
+
+    # Same byte length, same second -> without cache invalidation the tool
+    # would execute the stale 'AAAA' bytecode instead of 'BBBB'.
+    target.write_text(source.replace("AAAA", "BBBB"))
+    second = execute_tool(
+        _build_context(),
+        "reload_module",
+        json.dumps({"module_name": module_name, "file_path": str(target)}),
+        read_files=read_files,
+    )
+    assert "Reloaded module" in second
+    assert marker.read_text() == "BBBB"  # proves fresh bytecode ran
 
 
 def test_grep_files_with_file_path(tmp_path):
@@ -695,6 +716,82 @@ def test_web_search_bot_detection(monkeypatch):
     with patch(mock_urlopen, return_value=FakeResponse()):
         result = _tool(_build_context(), "web_search")(query="anything")
     assert "bot detection" in result.lower()
+
+
+def test_web_search_decodes_uddg_wrapper(monkeypatch):
+    """DDG's uddg= redirect wrapper is decoded to the real target URL."""
+    from magecode.tools.web_search import _decode_href
+
+    wrapped = "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpage%3Fa%3D1"
+    assert _decode_href(wrapped) == "https://example.com/page?a=1"
+    # uddg= not the first query param
+    wrapped2 = "//duckduckgo.com/l/?foo=bar&uddg=https%3A%2F%2Fexample.com%2Fx"
+    assert _decode_href(wrapped2) == "https://example.com/x"
+    # "uddg=" present but not a query param -> falls through to normalize
+    assert _decode_href("https://example.com/path?uddgx=1") == (
+        "https://example.com/path?uddgx=1"
+    )
+    # "uddg=" with no '?' at all -> falls through
+    assert _decode_href("https://example.com/uddg=thing") == (
+        "https://example.com/uddg=thing"
+    )
+
+
+def test_web_search_protocol_relative_href(monkeypatch):
+    """Protocol-relative result links are normalized to https."""
+    from magecode.tools.web_search import _decode_href
+
+    assert _decode_href("//example.com/path") == "https://example.com/path"
+
+
+def test_web_search_lite_fallback(monkeypatch):
+    """When the HTML endpoint is bot-blocked, the Lite endpoint is tried."""
+    calls = []
+
+    class ChallengeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"<html><p>unusual traffic detected</p></html>"
+
+    lite_html = (
+        "<html><body>"
+        '<a class="result-link" href="https://lite.example.com/one">Lite One</a>'
+        "</body></html>"
+    )
+
+    class LiteResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return lite_html.encode()
+
+    def fake_urlopen(req, timeout):
+        calls.append(req.full_url)
+        if "html.duckduckgo.com" in req.full_url:
+            return ChallengeResponse()
+        return LiteResponse()
+
+    with patch("magecode.tools.web_search.urllib.request.urlopen", new=fake_urlopen):
+        result = _tool(_build_context(), "web_search")(query="test")
+    assert "Lite One: https://lite.example.com/one" in result
+    assert len(calls) == 2  # both endpoints tried
+
+
+def test_web_search_bot_signal_anomaly(monkeypatch):
+    """The 'anomaly' bot signal is detected."""
+    from magecode.tools.web_search import _is_bot_challenge
+
+    assert _is_bot_challenge("<html><p>Anomaly detected</p></html>") is True
+    assert _is_bot_challenge("<html><body>nothing special</body></html>") is False
 
 
 @pytest.mark.asyncio

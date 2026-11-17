@@ -3,8 +3,16 @@
 import importlib
 import importlib.util
 import os
+from contextlib import suppress
+from pathlib import Path
 
 from anima import Context, Service
+
+# (mtime, size) of the last reload per module. importlib's bytecode cache is
+# keyed on (integer mtime seconds, size), so tracking both avoids treating a
+# same-size edit within the same second as "no change", and deleting the cache
+# below avoids executing the stale bytecode in that case.
+_module_stats: dict[str, tuple[float, int]] = {}
 
 
 class ReloadModuleService(Service):
@@ -43,29 +51,29 @@ class ReloadModuleService(Service):
         path = os.path.abspath(file_path)
         if not path.endswith(".py"):
             path = path + ".py"
-        # Optional optimisation: skip if mtime hasn't changed since last reload.
-        cached = _module_mtimes.get(module_name)
-        if cached is not None:
-            try:
-                current_mtime = os.path.getmtime(path)
-            except OSError:
-                current_mtime = None
-            if current_mtime is not None and current_mtime == cached:
-                return (
-                    f"No changes detected for module '{module_name}' "
-                    f"since last reload (mtime={cached:.1f})."
-                )
+        try:
+            stat = os.stat(path)
+        except OSError:
+            return f"Error: could not stat {path}."
+        current = (stat.st_mtime, stat.st_size)
+
+        # Skip if unchanged since last reload (mtime AND size).
+        cached = _module_stats.get(module_name)
+        if cached is not None and cached == current:
+            return (
+                f"No changes detected for module '{module_name}' "
+                f"since last reload (mtime={cached[0]:.1f})."
+            )
+
         spec = importlib.util.spec_from_file_location(module_name, path)
         if spec is None or spec.loader is None:
             return f"Error: could not create spec for {path}."
-        _module_mtimes.pop(module_name, None)
+        # importlib reuses cached bytecode when (mtime seconds, size) match,
+        # so two same-size edits in one second would silently run stale code.
+        # Delete the cache before executing the module.
+        with suppress(ValueError, OSError):
+            Path(importlib.util.cache_from_source(path)).unlink(missing_ok=True)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        _module_mtimes[module_name] = os.path.getmtime(path)
-        return (
-            f"Reloaded module '{module_name}' from {path} "
-            f"(mtime={_module_mtimes[module_name]:.1f})."
-        )
-
-
-_module_mtimes: dict[str, float] = {}
+        _module_stats[module_name] = current
+        return f"Reloaded module '{module_name}' from {path} (mtime={current[0]:.1f})."
