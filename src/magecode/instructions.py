@@ -42,11 +42,7 @@ def system_line(*, model: str, cwd: str) -> str:
 
 def agents_md() -> str:
     """Return the project's AGENTS.md content if it exists."""
-    candidates = [
-        os.path.join(cwd_for_agents(), "AGENTS.md"),
-        "AGENTS.md",
-    ]
-    for path in candidates:
+    for path in (os.path.join(os.getcwd(), "AGENTS.md"), "AGENTS.md"):
         try:
             with open(path, encoding="utf-8") as handle:
                 content = handle.read()
@@ -57,15 +53,10 @@ def agents_md() -> str:
     return ""
 
 
-def cwd_for_agents() -> str:
-    """Return the current working directory (or repo root if run from a child)."""
-    return os.getcwd()
-
-
 def build_system_instructions(*, model: str) -> str:
     """Build the full system message content."""
     parts: list[str] = [RULES]
-    parts.append(system_line(model=model, cwd=cwd_for_agents()))
+    parts.append(system_line(model=model, cwd=os.getcwd()))
     parts.append(agents_md())
     return "\n".join(parts)
 

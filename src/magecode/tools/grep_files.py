@@ -5,7 +5,7 @@ file:line:content, capped at 50 matches.
 import re
 from pathlib import Path
 
-from magecode.tools import tool
+from magecode.tools.registry import tool
 
 
 @tool

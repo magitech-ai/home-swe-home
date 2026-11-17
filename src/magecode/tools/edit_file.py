@@ -2,11 +2,19 @@
 occurrence of old_string with new_string.
 """
 
-from magecode.tools import tool
+from pathlib import Path
+
+from magecode.tools.registry import tool
 
 
 @tool
-def edit_file(*, path: str, old_string: str, new_string: str) -> str:
+def edit_file(
+    *,
+    path: str,
+    old_string: str,
+    new_string: str,
+    read_files: set[str] | None = None,
+) -> str:
     """Replace exact text in a file you have already read.
 
     Replaces the first occurrence of old_string with new_string.
@@ -23,8 +31,11 @@ def edit_file(*, path: str, old_string: str, new_string: str) -> str:
         FileNotFoundError: If the file does not exist.
         ValueError: If old_string is not found in the file.
     """
-    from pathlib import Path
-
+    if read_files is not None and path not in read_files:
+        return (
+            f"Refused: '{path}' has not been read yet. "
+            f"Call read_file on '{path}' first, then retry edit_file."
+        )
     target = Path(path)
     text = target.read_text(encoding="utf-8")
     if old_string not in text:

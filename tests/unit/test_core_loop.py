@@ -177,7 +177,7 @@ def test_run_core_loop_interrupted():
     assert messages == [{"role": "user", "content": "do something"}]
 
 
-def test_run_turn_multiple_tool_calls(capsys, monkeypatch):
+def test_run_core_loop_multiple_tool_calls(capsys, monkeypatch):
     calls = []
 
     def fake_execute(name, arguments_json, *, read_files=None):

@@ -570,6 +570,34 @@ def test_reload_module_no_changes(tmp_path):
     assert "No changes detected" in result2
 
 
+def test_reload_module_getmtime_oserror(tmp_path):
+    """getmtime OSError is defensive: reload still proceeds."""
+    target = tmp_path / "mymodule.py"
+    target.write_text("VALUE = 1\n")
+    read_files = {str(target)}
+    result1 = execute_tool(
+        "reload_module",
+        json.dumps({"module_name": "test_module_oserr", "file_path": str(target)}),
+        read_files=read_files,
+    )
+    assert "Reloaded module" in result1
+    calls = {"n": 0}
+
+    def flaky_getmtime(path):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("no access")
+        return 1234567890.0
+
+    with patch("os.path.getmtime", side_effect=flaky_getmtime):
+        result2 = execute_tool(
+            "reload_module",
+            json.dumps({"module_name": "test_module_oserr", "file_path": str(target)}),
+            read_files=read_files,
+        )
+    assert "Reloaded module" in result2
+
+
 def test_tool_decorator_registers_schema_and_execution():
     """A new tool decorated with @tool is auto-registered in both registries."""
 
@@ -854,7 +882,7 @@ def test_web_search_bot_detection():
 
 
 def test_turn_limit_reached():
-    """run_turn should raise TurnLimitReached when max_turns exceeded."""
+    """run_core_loop should raise TurnLimitReached when max_turns exceeded."""
     from types import SimpleNamespace
 
     from magecode.core_loop import TurnLimitReached, run_core_loop

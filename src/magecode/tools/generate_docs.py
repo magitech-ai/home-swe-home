@@ -3,7 +3,7 @@
 import ast
 from pathlib import Path
 
-from magecode.tools import tool
+from magecode.tools.registry import tool
 
 
 @tool

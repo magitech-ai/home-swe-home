@@ -5,7 +5,7 @@ arbitrary programs in the current directory.
 import shlex
 import subprocess
 
-from magecode.tools import tool
+from magecode.tools.registry import tool
 
 
 @tool

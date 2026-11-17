@@ -5,8 +5,7 @@ requests, feed the results back, and repeat until the model stops asking for
 tools. Ctrl-C aborts the current turn only.
 
 The loop tracks which files the model has read (``read_files`` set) and passes
-that set to ``execute_tool`` so ``edit_file`` can enforce its read-before-edit
-rule.
+that set to ``execute_tool`` so tools can enforce read-before-edit preconditions.
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from .client import chat_complete, create_client
+from .client import chat_complete
 from .instructions import count_tokens
 from .tools import execute_tool, tool_schemas
 
@@ -53,7 +52,7 @@ def run_core_loop(
     *,
     model: str,
     messages: list[dict[str, Any]],
-    client: OpenAI | None = None,
+    client: OpenAI,
     reply_prefix: str = "",
     max_turns: int = 20,
 ) -> list[dict[str, Any]]:
@@ -61,15 +60,14 @@ def run_core_loop(
 
     ``messages`` is mutated and returned. Model replies are appended exactly as
     they came back; tool results are appended as ``tool`` messages. Raises
-    ``TurnInterrupted`` if the user hits Ctrl-C during this turn.
-    Raises ``TurnLimitReached`` if ``max_turns`` model calls are made without
-    a final answer.
+    ``TurnInterrupted`` if the user hits Ctrl-C during this turn. Raises
+    ``TurnLimitReached`` if ``max_turns`` model calls are made without a final
+    answer.
 
     ``reply_prefix`` is printed before assistant content (chat mode uses "< ";
     headless leaves it empty so output stays raw).  The token count is printed
     only in headless mode (``reply_prefix == ""``).
     """
-    client = client or create_client()
     read_files: set[str] = set()
     turn_count = 0
     is_headless = reply_prefix == ""

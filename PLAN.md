@@ -11,7 +11,7 @@ new information is appended at the end so the prompt cache stays valid.
 - `src/magecode/cli.py`: prepend system message to headless messages
 - `src/magecode/repl.py`: prepend system message to chat messages;
   `/context` command prints context window + token counts
-- `src/magecode/turn.py`: print token count before each model call
+- `src/magecode/core_loop.py`: print token count before each model call
 - `pyproject.toml`: add tiktoken dependency
 - `DESIGN.md`: document instructions + /context rule
 

@@ -110,7 +110,7 @@ def test_repl_user_message_reaches_turn():
 
 
 def test_repl_turn_limit_reached(capsys):
-    """REPL should report TurnLimitReached error when run_turn raises it."""
+    """REPL should report TurnLimitReached error when run_core_loop raises it."""
     from magecode.core_loop import TurnLimitReached
 
     def capture_turn(*, model, messages, client=None, reply_prefix="", max_turns=20):

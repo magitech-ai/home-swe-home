@@ -2,7 +2,7 @@
 writing or deleting.
 """
 
-from magecode.tools import tool
+from magecode.tools.registry import tool
 
 
 @tool

@@ -1,6 +1,6 @@
 """Delete a file. Only files that exist can be deleted."""
 
-from magecode.tools import tool
+from magecode.tools.registry import tool
 
 
 @tool

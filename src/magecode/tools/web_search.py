@@ -5,7 +5,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from magecode.tools import tool
+from magecode.tools.registry import tool
 
 
 @tool
