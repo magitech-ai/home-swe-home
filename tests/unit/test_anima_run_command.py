@@ -1,0 +1,233 @@
+"""Tests for the anima RunCommandService component."""
+
+from __future__ import annotations
+
+import subprocess
+from types import SimpleNamespace
+
+import pytest
+from anima import Context
+
+from magecode.anima_run_command import RunCommandService, mount_run_command
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_mounts_and_is_accessible():
+    """RunCommandService mounts on a Context and is accessible as ctx.run_command."""
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+    assert hasattr(ctx, "run_command")
+    assert ctx.run_command is not None
+    assert isinstance(ctx.run_command, RunCommandService)
+    assert ctx.run_command.name == "run_command"
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_host_default(monkeypatch):
+    """run_command runs on the host by default (no sandbox)."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+
+    calls = []
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="out\n", stderr="err\n")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    result = ctx.run_command("echo out; echo err >&2", timeout=10)
+    assert "stdout:\nout\n" in result
+    assert "stderr:\nerr\n" in result
+    assert "exit code: 0" in result
+    assert calls[0] == ["echo", "out;", "echo", "err", ">&2"]
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_host_timeout(monkeypatch):
+    """Host execution handles subprocess timeout."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        raise subprocess.TimeoutExpired(cmd, 1)
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    result = ctx.run_command("sleep 10", timeout=1)
+    assert "exit code: 124" in result
+    assert "timed out" in result
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_host_command_not_found(monkeypatch):
+    """Host execution reports missing commands clearly."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        raise FileNotFoundError("no such file")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    result = ctx.run_command("no_such_cmd", timeout=10)
+    assert "command not found" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_sandbox_opt_in_env(monkeypatch):
+    """MAGECODE_SANDBOX=1 routes to the Docker sandbox."""
+    from magecode.sandbox import SandboxResult
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        return SandboxResult(
+            stdout="sandboxed\n", stderr="", exit_code=0, timed_out=False
+        )
+
+    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    result = ctx.run_command("echo hi", timeout=10)
+    assert "sandboxed" in result
+    assert "exit code: 0" in result
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_mount_run_command_helper():
+    """mount_run_command() helper registers the service on a Context."""
+    ctx = Context()
+    mount_run_command(ctx)
+    await ctx.flush()
+    assert hasattr(ctx, "run_command")
+    assert ctx.run_command("echo helper", timeout=10) is not None
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_host_timeout_with_output(monkeypatch):
+    """Host timeout includes stdout and stderr when present."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        raise subprocess.TimeoutExpired(
+            cmd, 1, output=b"partial out", stderr="partial err"
+        )
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    result = ctx.run_command("sleep 10", timeout=1)
+    assert "partial out" in result
+    assert "partial err" in result
+    assert "exit code: 124" in result
+    assert "timed out" in result
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_host_stdout_only(monkeypatch):
+    """Host execution with stdout but no stderr."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        return SimpleNamespace(returncode=0, stdout="just stdout\n", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    result = ctx.run_command("echo just stdout", timeout=10)
+    assert "stdout:\njust stdout\n" in result
+    assert "stderr:" not in result
+    assert "exit code: 0" in result
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_host_stderr_only(monkeypatch):
+    """Host execution with stderr but no stdout."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        return SimpleNamespace(returncode=1, stdout="", stderr="oops\n")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    result = ctx.run_command("false", timeout=10)
+    assert "stdout:" not in result
+    assert "stderr:\noops\n" in result
+    assert "exit code: 1" in result
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_sandbox_with_stderr_and_timeout(monkeypatch):
+    """Sandbox mode passes through stderr and timed_out flag."""
+    from magecode.sandbox import SandboxResult
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        return SandboxResult(
+            stdout="", stderr="sandbox err", exit_code=1, timed_out=True
+        )
+
+    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    result = ctx.run_command("bad cmd", timeout=10)
+    assert "sandbox err" in result
+    assert "exit code: 1" in result
+    assert "timed out" in result
+
+
+def test_decode_text_none():
+    """_decode_text handles None input."""
+    from magecode.anima_run_command import _decode_text
+
+    assert _decode_text(None) == ""
+
+
+def test_decode_text_bytes():
+    """_decode_text decodes bytes input."""
+    from magecode.anima_run_command import _decode_text
+
+    assert _decode_text(b"hello bytes") == "hello bytes"
+
+
+def test_decode_text_str():
+    """_decode_text passes through str input."""
+    from magecode.anima_run_command import _decode_text
+
+    assert _decode_text("already str") == "already str"
+
+
+@pytest.mark.asyncio
+async def test_run_command_service_is_singleton_per_context():
+    """Mounting twice returns the same service instance."""
+    ctx = Context()
+    ctx.use(RunCommandService)
+    ctx.use(RunCommandService)
+    await ctx.flush()
+    assert ctx.run_command is ctx.run_command
