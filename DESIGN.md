@@ -91,6 +91,41 @@ what to try next.
 | `find_duplicates` | Find duplicate code blocks across Python files. Provide a directory path (defaults to `.`) and optional `min_lines` (defaults to 3). Returns matching blocks with file paths and line numbers. On error: check the directory path, retry. |
 | `generate_docs` | Generate markdown documentation from Python docstrings and comments. Provide a directory path (defaults to `.`). Lists classes and public functions with their docstrings. On error: check the directory path, retry. |
 
+## Tool registration decorator
+
+New tools are registered with the ``@tool`` decorator instead of being manually
+added to three places. The decorator registers the function in both the
+execution registry (``_TOOLS``) and the schema registry (``tool_schemas()``):
+
+```python
+@tool(
+    name="my_tool",
+    manual="""What the tool does.
+
+Manual:
+  - Provide the exact argument...
+  - On error: check the input, retry.""",
+    parameters={
+        "type": "object",
+        "properties": {
+            "argument": {
+                "type": "string",
+                "description": "What the argument is for.",
+            }
+        },
+        "required": ["argument"],
+        "additionalProperties": False,
+    },
+)
+def my_tool(*, argument: str) -> str:
+    return f"Did something with {argument}"
+```
+
+The ``manual`` string becomes the tool schema ``description`` that the model
+reads. The function name becomes the tool name (overridable with ``name=``).
+This keeps schemas and execution in sync — adding a new tool requires only
+writing the function and decorating it.
+
 ## Read-before-edit rule
 
 The turn loop tracks a `read_files` set per turn. `edit_file` and `reload_module` are refused for any path not in that set. The model must call `read_file` on a path before it can `edit_file` that path or `reload_module` a module at that path. `write_file` also marks a path readable (the model authored the content).

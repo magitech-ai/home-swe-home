@@ -7,6 +7,7 @@ import os
 from unittest.mock import patch
 
 from mini_claude.tools import (
+    _TOOLS,
     code_metrics,
     execute_tool,
     find_duplicates,
@@ -16,6 +17,7 @@ from mini_claude.tools import (
     list_directory,
     read_file,
     run_command,
+    tool,
     tool_schemas,
     web_search,
     write_file,
@@ -557,3 +559,46 @@ def test_reload_module_no_changes(tmp_path):
         read_files=read_files,
     )
     assert "No changes detected" in result2
+
+
+def test_tool_decorator_registers_schema_and_execution():
+    """A new tool decorated with @tool is auto-registered in both registries."""
+
+    @tool(
+        name="my_test_tool",
+        manual="""My test tool.\nManual:\n  - Provide a name.\n""",
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "A name.",
+                }
+            },
+            "required": ["name"],
+            "additionalProperties": False,
+        },
+    )
+    def my_test_tool(*, name: str) -> str:
+        return f"Hello, {name}!"
+
+    # Registered for execution
+    assert "my_test_tool" in _TOOLS
+    assert _TOOLS["my_test_tool"] is my_test_tool
+    assert my_test_tool(name="world") == "Hello, world!"
+
+    # Registered in schemas
+    schemas = tool_schemas()
+    schema_names = {s["function"]["name"] for s in schemas}
+    assert "my_test_tool" in schema_names
+
+    my_schema = next(s for s in schemas if s["function"]["name"] == "my_test_tool")
+    assert my_schema["function"]["description"].startswith("My test tool.")
+    assert my_schema["function"]["parameters"]["required"] == ["name"]
+
+    # Execute through execute_tool
+    result = execute_tool(
+        "my_test_tool",
+        json.dumps({"name": "Alice"}),
+    )
+    assert result == "Hello, Alice!"
