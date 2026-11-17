@@ -7,7 +7,7 @@ from mini_claude.tools import tool
 
 @tool(
     name="find_duplicates",
-    instructions=(
+    description=(
         "Find duplicate code blocks across Python files.\n"
         "Uses simple line-based comparison to find "
         "near-identical code sequences.\n"

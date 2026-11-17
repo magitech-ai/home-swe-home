@@ -95,7 +95,7 @@ def tool(
     func: Callable[..., str] | None = None,
     *,
     name: str | None = None,
-    instructions: str | None = None,
+    description: str | None = None,
     parameters: dict[str, Any] | None = None,
 ) -> Callable[..., str] | Callable[[Callable[..., str]], Callable[..., str]]:
     """Register a Python function as an agent tool.
@@ -128,7 +128,7 @@ def tool(
     ----------
     name:
         Override the tool name (defaults to the function name).
-    instructions:
+    description:
         Override the tool instructions (defaults to the function docstring).
     parameters:
         Override the JSON Schema parameters (defaults to inference from the
@@ -141,10 +141,10 @@ def tool(
 
         doc_description, param_descs = _parse_docstring(f.__doc__)
 
-        if instructions is not None:
-            description = instructions
+        if description is None:
+            tool_description = doc_description
         else:
-            description = doc_description
+            tool_description = description
 
         if parameters is not None:
             param_schema = parameters
@@ -174,7 +174,7 @@ def tool(
             "type": "function",
             "function": {
                 "name": tool_name,
-                "description": description,
+                "description": tool_description,
                 "parameters": param_schema,
             },
         }

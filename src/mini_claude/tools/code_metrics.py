@@ -8,7 +8,7 @@ from mini_claude.tools import tool
 
 @tool(
     name="code_metrics",
-    instructions=(
+    description=(
         "Calculate code quality metrics for Python files in a "
         "directory.\n"
         "Returns lines of code, cyclomatic complexity estimates, "
