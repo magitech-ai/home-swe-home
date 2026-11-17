@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import patch
 
 from mini_claude.tools import (
+    code_metrics,
     execute_tool,
+    find_duplicates,
+    generate_docs,
+    get_module_mtime,
     grep_files,
     list_directory,
     read_file,
@@ -29,6 +34,10 @@ def test_tool_schemas_have_descriptions():
         "grep_files",
         "run_command",
         "web_search",
+        "reload_module",
+        "code_metrics",
+        "find_duplicates",
+        "generate_docs",
     }
     assert names == expected
     for schema in schemas:
@@ -341,3 +350,210 @@ def test_web_search_skips_empty_title():
         result = web_search(query="test")
     assert "Real Result: https://example.com/two" in result
     assert "https://example.com/one" not in result
+
+
+def test_code_metrics(tmp_path):
+    a_py = (
+        "def foo():\n"
+        "    if x:\n"
+        "        pass\n"
+        "    return 1\n"
+        "\n"
+        "class Bar:\n"
+        "    def method(self):\n"
+        "        pass\n"
+    )
+    b_py = "# comment\n\ntry:\n    pass\nexcept Exception:\n    pass\n"
+    (tmp_path / "a.py").write_text(a_py)
+    (tmp_path / "b.py").write_text(b_py)
+    result = code_metrics(path=str(tmp_path))
+    assert "file_count: 2" in result
+    assert "function_count: 1" in result  # only foo() at module level
+    assert "class_count: 1" in result
+    assert "total_lines:" in result
+    assert "estimated_complexity:" in result
+
+
+def test_code_metrics_binary_file(tmp_path):
+    (tmp_path / "binary.py").write_bytes(b"\x00\x01\x02\xff\xfe")
+    result = code_metrics(path=str(tmp_path))
+    assert "file_count: 1" in result
+    assert "total_lines: 0" in result
+
+
+def test_code_metrics_empty_dir(tmp_path):
+    result = code_metrics(path=str(tmp_path))
+    assert "file_count: 0" in result
+    assert "total_lines: 0" in result
+
+
+def test_find_duplicates(tmp_path):
+    (tmp_path / "a.py").write_text("shared = 1\nshared = 2\nx = 3\n")
+    (tmp_path / "b.py").write_text("shared = 1\nshared = 2\ny = 4\n")
+    result = find_duplicates(path=str(tmp_path), min_lines=2)
+    assert "Duplicate block" in result
+
+
+def test_find_duplicates_empty_path(tmp_path):
+    (tmp_path / "a.py").write_text("shared = 1\nshared = 2\nx = 3\n")
+    result = find_duplicates(path="", min_lines=2)
+    assert "Duplicate block" in result
+
+
+def test_find_duplicates_binary_file(tmp_path):
+    (tmp_path / "binary.py").write_bytes(b"\x00\x01\x02\xff\xfe")
+    result = find_duplicates(path=str(tmp_path), min_lines=2)
+    assert result == "No duplicate code blocks found."
+
+
+def test_find_duplicates_no_duplicates(tmp_path):
+    (tmp_path / "a.py").write_text("x = 1\ny = 2\nz = 3\n")
+    result = find_duplicates(path=str(tmp_path), min_lines=2)
+    assert result == "No duplicate code blocks found."
+
+
+def test_find_duplicates_empty_dir(tmp_path):
+    result = find_duplicates(path=str(tmp_path))
+    assert result == "No duplicate code blocks found."
+
+
+def test_generate_docs(tmp_path):
+    (tmp_path / "mymod.py").write_text(
+        '"""Module docstring."""\n\n\n'
+        'def hello():\n    """Say hello."""\n    pass\n\n\n'
+        "def no_doc():\n    pass\n\n\n"
+        'class Person:\n    """A person."""\n'
+        '    def greet(self):\n        """Greet someone."""\n        pass\n\n'
+        "    def silent(self):\n        pass\n\n\n"
+        "class SilentClass:\n    pass\n"
+    )
+    result = generate_docs(path=str(tmp_path))
+    assert "# Auto-generated Documentation" in result
+    assert "## mymod.py" in result
+    assert "### Person" in result
+    assert "### SilentClass" in result
+    assert "- **hello(...)**" in result
+    assert "*Say hello.*" in result
+    assert "*A person.*" in result
+    assert "*Greet someone.*" in result
+    assert "- **no_doc(...)**" in result
+    assert "  _No docstring_" in result
+    assert "- **silent(...)**" in result
+
+
+def test_generate_docs_syntax_error(tmp_path):
+    (tmp_path / "broken.py").write_text("def ::\n  not valid python")
+    result = generate_docs(path=str(tmp_path))
+    assert "# Auto-generated Documentation" in result
+
+
+def test_generate_docs_empty_dir(tmp_path):
+    result = generate_docs(path=str(tmp_path))
+    assert "# Auto-generated Documentation" in result
+
+
+def test_reload_module(tmp_path):
+    target = tmp_path / "mymodule.py"
+    target.write_text("VALUE = 1\n")
+    result = execute_tool(
+        "reload_module",
+        json.dumps({"module_name": "test_module", "file_path": str(target)}),
+        read_files={str(target)},
+    )
+    assert "Reloaded module" in result
+    assert str(target) in result
+
+
+def test_reload_module_no_py_extension(tmp_path):
+    target = tmp_path / "mymodule.py"
+    target.write_text("VALUE = 1\n")
+    no_ext = str(tmp_path / "mymodule")
+    result = execute_tool(
+        "reload_module",
+        json.dumps({"module_name": "test_module", "file_path": no_ext}),
+        read_files={no_ext},
+    )
+    assert "Reloaded module" in result
+
+
+def test_reload_module_invalid_path(tmp_path):
+    # Directory with .py extension - spec_from_file_location returns None spec
+    os.mkdir(tmp_path / "notamodule.py")
+    result = execute_tool(
+        "reload_module",
+        json.dumps(
+            {"module_name": "bad_module", "file_path": str(tmp_path / "notamodule.py")}
+        ),
+        read_files={str(tmp_path / "notamodule.py")},
+    )
+    assert result.startswith("Error:")
+
+
+def test_reload_module_self(tmp_path):
+    import shutil
+
+    target = tmp_path / "tools_copy.py"
+    shutil.copy("src/mini_claude/tools.py", target)
+    result = execute_tool(
+        "reload_module",
+        json.dumps({"module_name": "mini_claude.tools", "file_path": str(target)}),
+        read_files={str(target)},
+    )
+    assert "Reloaded module" in result
+
+
+def test_reload_module_spec_none(tmp_path):
+    target = tmp_path / "mymodule.py"
+    target.write_text("VALUE = 1\n")
+
+    with patch("importlib.util.spec_from_file_location", return_value=None):
+        result = execute_tool(
+            "reload_module",
+            json.dumps({"module_name": "test_module", "file_path": str(target)}),
+            read_files={str(target)},
+        )
+    assert result.startswith("Error:")
+
+
+def test_reload_module_not_read(tmp_path):
+    target = tmp_path / "mymodule.py"
+    target.write_text("VALUE = 1\n")
+    result = execute_tool(
+        "reload_module",
+        json.dumps({"module_name": "test_module", "file_path": str(target)}),
+        read_files=set(),
+    )
+    assert result.startswith("Refused:")
+
+
+def test_get_module_mtime():
+    assert get_module_mtime("never_loaded") is None
+
+
+def test_reload_module_no_read_files_tracker(tmp_path):
+    target = tmp_path / "mymodule.py"
+    target.write_text("VALUE = 1\n")
+    result = execute_tool(
+        "reload_module",
+        json.dumps({"module_name": "test_module", "file_path": str(target)}),
+        read_files=None,
+    )
+    assert result.startswith("Refused:")
+
+
+def test_reload_module_no_changes(tmp_path):
+    target = tmp_path / "mymodule.py"
+    target.write_text("VALUE = 1\n")
+    read_files = {str(target)}
+    result1 = execute_tool(
+        "reload_module",
+        json.dumps({"module_name": "test_module", "file_path": str(target)}),
+        read_files=read_files,
+    )
+    assert "Reloaded module" in result1
+    result2 = execute_tool(
+        "reload_module",
+        json.dumps({"module_name": "test_module", "file_path": str(target)}),
+        read_files=read_files,
+    )
+    assert "No changes detected" in result2

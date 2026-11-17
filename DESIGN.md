@@ -64,7 +64,7 @@ the session. Ctrl-C aborts the current turn only.
 | Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes. Each model call prints `[context: N tokens]` before sending. | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
 | Core loop | Non-streaming: call model → append assistant message verbatim → if tool calls, execute each and append tool results → repeat; stop when the model returns a final text message | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
-| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search` | `edit_file` only works on paths read via `read_file` (tracked per turn); `run_command` runs with a timeout in the CWD (not sandboxed — local personal agent, use with care); `web_search` uses DuckDuckGo HTML, no API key |
+| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs` | `edit_file` and `reload_module` only work on paths read via `read_file` (tracked per turn); `run_command` runs with a timeout in the CWD (not sandboxed — local personal agent, use with care); `web_search` uses DuckDuckGo HTML, no API key |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
 | Testing | Flat unit tests under `tests/unit/` (no `__init__.py`), `AsyncMock` at the OpenAI client seam; `uv run pytest --cov-fail-under=100` | Shared Magitech testing discipline; no real API calls in tests |
@@ -86,13 +86,14 @@ what to try next.
 | `grep_files` | Search files for a regex. Provide pattern; optional directory (defaults to `.`). Skips binary/unreadable files. Capped at 50 matches. Returns "No matches." if none. On error: check the directory path, retry. |
 | `run_command` | Run a shell command with timeout (default 30s). Returns stdout, stderr, exit code. On timeout/failure: check the command, retry. |
 | `web_search` | Search the web via DuckDuckGo (no API key). Provide a query. Returns up to 8 "title: url" results, or "No web results found." On network failure: check connection, retry. |
+| `reload_module` | Hot-reload a Python module from disk. **Strict:** the path must have been read via `read_file` first. Re-executes the module's source file via `importlib`; if reloading `mini_claude.tools`, updates `_TOOLS` in place so the running harness picks up new tool registrations. On error: check the module name and file path, retry. |
+| `code_metrics` | Calculate code quality metrics for Python files in a directory. Provide a directory path (defaults to `.`). Returns lines of code, blank/comment lines, function/class counts, estimated cyclomatic complexity. On error: check the directory path, retry. |
+| `find_duplicates` | Find duplicate code blocks across Python files. Provide a directory path (defaults to `.`) and optional `min_lines` (defaults to 3). Returns matching blocks with file paths and line numbers. On error: check the directory path, retry. |
+| `generate_docs` | Generate markdown documentation from Python docstrings and comments. Provide a directory path (defaults to `.`). Lists classes and public functions with their docstrings. On error: check the directory path, retry. |
 
 ## Read-before-edit rule
 
-The turn loop tracks a `read_files` set per turn. `edit_file` is refused for any
-path not in that set. The model must call `read_file` on a path before it can
-`edit_file` that path. `write_file` also marks a path readable (the model
-authored the content).
+The turn loop tracks a `read_files` set per turn. `edit_file` and `reload_module` are refused for any path not in that set. The model must call `read_file` on a path before it can `edit_file` that path or `reload_module` a module at that path. `write_file` also marks a path readable (the model authored the content).
 
 ## Error contract
 
