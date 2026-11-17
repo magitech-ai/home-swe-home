@@ -8,36 +8,19 @@ from pathlib import Path
 from mini_claude.tools import tool
 
 
-@tool(
-    name="grep_files",
-    manual=(
-        "Search files for a regex pattern. Returns matching lines "
-        "with file:line:content, capped at 50 matches.\n"
-        "Manual:\n"
-        "  - Provide a regular expression pattern.\n"
-        "  - Optionally provide a directory to search (defaults to '.').\n"
-        "  - Binary and unreadable files are skipped.\n"
-        "  - Returns 'No matches.' if nothing is found.\n"
-        "  - On error the result starts with 'Error:'; check the path\n"
-        "    and try again.\n"
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "pattern": {
-                "type": "string",
-                "description": "Regular expression to search for.",
-            },
-            "path": {
-                "type": "string",
-                "description": "Directory to search (defaults to '.').",
-            },
-        },
-        "required": ["pattern"],
-        "additionalProperties": False,
-    },
-)
+@tool
 def grep_files(*, pattern: str, path: str = ".") -> str:
+    """Search files for a regex pattern.
+
+    Returns matching lines with file:line:content, capped at 50 matches.
+
+    Args:
+        pattern: Regular expression to search for.
+        path: Directory to search (defaults to '.').
+
+    Returns:
+        Matching lines, or 'No matches.' if nothing is found.
+    """
     regex = re.compile(pattern)
     root = Path(path)
     matches: list[str] = []

@@ -8,31 +8,18 @@ import urllib.request
 from mini_claude.tools import tool
 
 
-@tool(
-    name="web_search",
-    manual=(
-        "Search the web using DuckDuckGo (no API key required). "
-        "Returns result titles and URLs.\n"
-        "Manual:\n"
-        "  - Provide a search query string.\n"
-        "  - Returns up to 8 results as 'title: url' lines.\n"
-        "  - Returns 'No web results found.' if nothing matches.\n"
-        "  - On network failure the result starts with 'Error:';\n"
-        "    check your connection and retry the query.\n"
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "Search query string.",
-            }
-        },
-        "required": ["query"],
-        "additionalProperties": False,
-    },
-)
+@tool
 def web_search(*, query: str) -> str:
+    """Search the web using DuckDuckGo.
+
+    Returns result titles and URLs. No API key required.
+
+    Args:
+        query: Search query string.
+
+    Returns:
+        Up to 8 results as 'title: url' lines, or 'No web results found.'
+    """
     encoded = urllib.parse.urlencode({"q": query})
     url = f"https://html.duckduckgo.com/html/?{encoded}"
     req = urllib.request.Request(

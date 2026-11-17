@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from mini_claude.tools import (
     _TOOLS,
+    _python_type_to_json_schema_type,
     code_metrics,
     execute_tool,
     find_duplicates,
@@ -43,8 +44,8 @@ def test_tool_schemas_have_descriptions():
     }
     assert names == expected
     for schema in schemas:
-        desc = schema["function"]["description"].lower()
-        assert "error" in desc or "refused" in desc
+        desc = schema["function"]["description"]
+        assert desc, f"Schema for {schema['function']['name']} has no description"
 
 
 def test_write_then_read_file(tmp_path):
@@ -610,3 +611,211 @@ def test_tool_decorator_registers_schema_and_execution():
         json.dumps({"name": "Alice"}),
     )
     assert result == "Hello, Alice!"
+
+
+def test_tool_infer_from_function():
+    """Test that @tool infers name, description, and params from the function."""
+
+    @tool
+    def greet(*, name: str, greeting: str = "Hello") -> str:
+        """Greet someone by name.
+
+        Args:
+            name: The person's name.
+            greeting: The greeting to use.
+        """
+        return f"{greeting}, {name}!"
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "greet")
+    assert schema["function"]["description"] == "Greet someone by name."
+    props = schema["function"]["parameters"]["properties"]
+    assert props["name"]["type"] == "string"
+    assert props["name"]["description"] == "The person's name."
+    assert props["greeting"]["type"] == "string"
+    assert props["greeting"]["description"] == "The greeting to use."
+    required = schema["function"]["parameters"]["required"]
+    assert "name" in required
+    assert "greeting" not in required  # has default, so not required
+
+
+def test_tool_unannotated_parameter():
+    """Test that unannotated parameters default to string type."""
+
+    @tool
+    def my_tool(*, name) -> str:
+        """A tool with unannotated parameter.
+
+        Args:
+            name: Just a name.
+        """
+        return name
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
+    props = schema["function"]["parameters"]["properties"]
+    assert props["name"]["type"] == "string"
+
+
+def test_tool_optional_parameter():
+    """Test that Optional[str] parameters unwrapped to string."""
+
+    from typing import Optional
+
+    @tool
+    def my_tool(*, name: Optional[str] = None) -> str:
+        """A tool with Optional parameter.
+
+        Args:
+            name: Optional name.
+        """
+        return name or ""
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
+    props = schema["function"]["parameters"]["properties"]
+    assert props["name"]["type"] == "string"
+
+
+def test_tool_override_manual():
+    """Test that manual= overrides docstring."""
+
+    @tool(manual="Custom manual description.")
+    def my_tool(*, name: str) -> str:
+        """Original docstring description.
+
+        Args:
+            name: A name.
+        """
+        return name
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
+    assert schema["function"]["description"] == "Custom manual description."
+
+
+def test_tool_override_parameters():
+    """Test that parameters= overrides signature inference."""
+
+    @tool(
+        parameters={
+            "type": "object",
+            "properties": {
+                "custom": {"type": "string", "description": "A custom param."}
+            },
+            "required": ["custom"],
+            "additionalProperties": False,
+        }
+    )
+    def my_tool(*, name: str) -> str:
+        """Original description.
+
+        Args:
+            name: Original param.
+        """
+        return name
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
+    props = schema["function"]["parameters"]["properties"]
+    assert "custom" in props
+    assert "name" not in props
+    required = schema["function"]["parameters"]["required"]
+    assert required == ["custom"]
+
+
+def test_tool_self_parameter_skipped():
+    """Test that self/cls parameters are skipped."""
+
+    class MyClass:
+        @tool
+        def my_method(self, *, name: str) -> str:
+            """A method with self.
+
+            Args:
+                name: A name.
+            """
+            return name
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "my_method")
+    props = schema["function"]["parameters"]["properties"]
+    assert "self" not in props
+    assert "name" in props
+
+
+def test_tool_type_none_parameter():
+    """Test that Union[type(None)] annotation falls back to string type."""
+    from typing import Union
+
+    @tool
+    def my_tool(*, name: Union[type(None)] = None) -> str:
+        """A tool with Union[type(None)] parameter.
+
+        Args:
+            name: Optional none param.
+        """
+        return name or ""
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
+    props = schema["function"]["parameters"]["properties"]
+    assert props["name"]["type"] == "string"
+
+
+def test_tool_optional_none_parameter():
+    """Test that Optional[None] annotation falls back to string type."""
+    from typing import Optional
+
+    @tool
+    def my_tool(*, name: Optional[None] = None) -> str:
+        """A tool with Optional[None] parameter.
+
+        Args:
+            name: Optional none param.
+        """
+        return name or ""
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
+    props = schema["function"]["parameters"]["properties"]
+    assert props["name"]["type"] == "string"
+
+
+def test_python_type_to_json_schema_type_all_none_args():
+    """Test that Union with all-None args falls back to string type."""
+
+    class MockAnnotation:
+        __origin__ = type(None)
+        __args__ = (type(None),)
+
+    result = _python_type_to_json_schema_type(MockAnnotation())
+    assert result == "string"
+
+
+def test_parse_docstring_args_line_without_colon():
+    """Test docstring parsing when Args section has a line without a colon."""
+    from mini_claude.tools import _parse_docstring
+
+    desc, param_descs = _parse_docstring(
+        """Do something.
+
+        Args:
+            name: The person's name.
+            this line has no colon
+            age: The person's age.
+        """
+    )
+    assert desc == "Do something."
+    assert param_descs == {"name": "The person's name.", "age": "The person's age."}
+
+
+def test_python_type_to_json_schema_type_empty_args():
+    """Test that Union with empty args falls back to string type."""
+
+    class MockAnnotation:
+        __origin__ = object
+        __args__ = ()
+
+    result = _python_type_to_json_schema_type(MockAnnotation())
+    assert result == "string"

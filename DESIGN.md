@@ -124,38 +124,41 @@ def my_tool(*, argument: str) -> str:
 ## Tool registration decorator
 
 New tools are registered with the ``@tool`` decorator instead of being manually
-added to three places. Each tool lives in its own file under
+added to multiple places. Each tool lives in its own file under
 ``src/mini_claude/tools/``, with the filename matching the tool name
 (e.g. ``read_file.py`` defines the ``read_file`` tool). The decorator registers
 the function in both the execution registry (``_TOOLS``) and the schema
-registry (``tool_schemas()``):
+registry (``tool_schemas()``), inferring everything from the function itself:
 
 ```python
-@tool(
-    name="my_tool",
-    manual="""What the tool does.
-
-Manual:
-  - Provide the exact argument...
-  - On error: check the input, retry.""",
-    parameters={
-        "type": "object",
-        "properties": {
-            "argument": {
-                "type": "string",
-                "description": "What the argument is for.",
-            }
-        },
-        "required": ["argument"],
-        "additionalProperties": False,
-    },
-)
+@tool
 def my_tool(*, argument: str) -> str:
+    """Do something useful.
+
+    Args:
+        argument: What the argument is for.
+    """
     return f"Did something with {argument}"
 ```
 
-The ``manual`` string becomes the tool schema ``description`` that the model
-reads. The function name becomes the tool name (overridable with ``name=``).
+The decorator infers:
+
+* Tool name from ``func.__name__``
+* Tool description from the docstring summary (first paragraph)
+* Parameter descriptions from the docstring ``Args:`` section
+* Parameter types and requiredness from the function signature annotations
+
+All inferred values can be overridden by passing arguments to the decorator::
+
+    @tool(name="custom_name", manual="Custom description.")
+    def my_tool(*, argument: str) -> str:
+        """Original docstring.
+
+        Args:
+            argument: Original param description.
+        """
+        return argument
+
 This keeps schemas and execution in sync — adding a new tool requires only
 creating a new file and decorating the function. No manual registry edits.
 

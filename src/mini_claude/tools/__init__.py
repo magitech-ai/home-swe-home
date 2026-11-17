@@ -1,24 +1,21 @@
 """Tool registry: JSON schemas (manuals) plus execution.
 
-Every schema's ``description`` is the tool manual the model reads before
-calling the tool. Tools run in the current working directory. This is a local,
-personal agent: ``run_command`` can run arbitrary programs, so use it with
-care.
+Every tool is defined as a Python function decorated with ``@tool``.  The
+decorator infers the tool schema from the function itself:
 
-The turn loop tracks which files have been read (``read_files`` set).
-``edit_file`` and ``reload_module`` only work on paths read via ``read_file``.
-Every tool call returns text back to the model -- even failures -- and every
-error message says what to try next.
+* ``func.__name__`` becomes the tool name
+* ``func.__doc__`` becomes the tool manual (first paragraph = description,
+  ``Args:`` section = parameter descriptions)
+* ``inspect.signature(func)`` provides parameter names, types, and which are
+  required (no default value)
 
-Hot‑reload support:
-  - ``reload_module`` lets you re‑import a Python module that lives on disk,
-    picking up any changes made since the last import.
-  - The harness tracks module file‑mtimes in ``_module_mtimes`` so that
-    repeated calls without changes are cheap.
+This follows the Google ADK convention: no redundant manual or parameters
+arguments needed on the decorator.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 from typing import Any, Callable
@@ -31,47 +28,158 @@ _TOOLS: dict[str, Callable[..., str]] = {}
 _TOOL_SCHEMAS: list[dict[str, Any]] = []
 _module_mtimes: dict[str, float] = {}
 
+_TYPE_MAP: dict[type, str] = {
+    str: "string",
+    int: "integer",
+    float: "number",
+    bool: "boolean",
+}
+
+
+def _python_type_to_json_schema_type(annotation: Any) -> str:
+    """Map a Python type annotation to a JSON Schema type string."""
+    if annotation is inspect.Parameter.empty:
+        return "string"  # safest default
+    if annotation in _TYPE_MAP:
+        return _TYPE_MAP[annotation]
+    origin = getattr(annotation, "__origin__", None)
+    if origin is not None:
+        # Handle Optional[X] -> X, Union[str, None] -> str, etc.
+        args = getattr(annotation, "__args__", ())
+        for arg in args:
+            if arg is not type(None):
+                return _python_type_to_json_schema_type(arg)
+    return "string"
+
+
+def _parse_docstring(doc: str | None) -> tuple[str, dict[str, str]]:
+    """Parse a docstring into (description, param_descriptions).
+
+    Supports Google-style docstrings, e.g.:
+
+        Do something useful.
+
+        Args:
+            path: The file path to read.
+            timeout: Seconds before giving up.
+
+    If there is no ``Args:`` section, all parameter descriptions are empty.
+    """
+    if not doc:
+        return "", {}
+
+    lines = doc.strip().splitlines()
+    description_lines: list[str] = []
+    param_descriptions: dict[str, str] = {}
+    in_args = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "Args:" or stripped == "Arguments:":
+            in_args = True
+            continue
+        if in_args:
+            # Args section ends at a blank line or a new section header
+            if not stripped:
+                break
+            if ":" in stripped:
+                name, _, desc = stripped.partition(":")
+                param_descriptions[name.strip()] = desc.strip()
+        elif stripped:
+            description_lines.append(stripped)
+
+    return " ".join(description_lines), param_descriptions
+
 
 def tool(
+    func: Callable[..., str] | None = None,
     *,
     name: str | None = None,
-    manual: str,
+    manual: str | None = None,
     parameters: dict[str, Any] | None = None,
-) -> Callable[[Callable[..., str]], Callable[..., str]]:
+) -> Callable[..., str] | Callable[[Callable[..., str]], Callable[..., str]]:
     """Register a Python function as an agent tool.
 
-    The decorated function is automatically added to both ``_TOOLS``
-    (execution) and ``_TOOL_SCHEMAS`` (schema).  ``tool_schemas()`` returns
-    the accumulated schemas.
+    The decorator infers everything from the function itself:
+
+    * ``func.__name__`` -> tool name
+    * ``func.__doc__`` -> tool manual (description + Args section)
+    * ``inspect.signature(func)`` -> parameter names, types, requiredness
+
+    All inferred values can be overridden by passing arguments to the
+    decorator::
+
+        @tool(name="custom_name")
+        def read_file(*, path: str) -> str:
+            \"\"\"Read a file's text contents.
+
+            Args:
+                path: Exact path of the file to read.
+            \"\"\"
+            ...
+
+    Usage::
+
+        @tool
+        def read_file(*, path: str) -> str:
+            ...
 
     Parameters
     ----------
     name:
         Override the tool name (defaults to the function name).
     manual:
-        The tool manual the model reads.  Required.
+        Override the tool manual (defaults to the function docstring).
     parameters:
-        OpenAI-compatible JSON Schema for the tool's parameters.  Defaults to
-        an empty object schema.
+        Override the JSON Schema parameters (defaults to inference from the
+        function signature).
     """
 
-    def decorator(func: Callable[..., str]) -> Callable[..., str]:
-        tool_name = name or func.__name__
-        _TOOLS[tool_name] = func
+    def decorator(f: Callable[..., str]) -> Callable[..., str]:
+        sig = inspect.signature(f)
+        tool_name = name or f.__name__
+
+        doc_description, param_descs = _parse_docstring(f.__doc__)
+
+        if manual is not None:
+            description = manual
+        else:
+            description = doc_description
+
+        if parameters is not None:
+            param_schema = parameters
+        else:
+            properties: dict[str, Any] = {}
+            required: list[str] = []
+
+            for param_name, param in sig.parameters.items():
+                if param_name == "self" or param_name == "cls":
+                    continue
+                param_type = _python_type_to_json_schema_type(param.annotation)
+                properties[param_name] = {
+                    "type": param_type,
+                    "description": param_descs.get(param_name, ""),
+                }
+                if param.default is inspect.Parameter.empty:
+                    required.append(param_name)
+
+            param_schema = {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+                "additionalProperties": False,
+            }
+
         schema = {
             "type": "function",
             "function": {
                 "name": tool_name,
-                "description": manual or func.__doc__ or "",
-                "parameters": parameters
-                or {
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                    "additionalProperties": False,
-                },
+                "description": description,
+                "parameters": param_schema,
             },
         }
+
+        _TOOLS[tool_name] = f
         # Idempotent: replace an existing schema with the same name so that
         # hot-reloading a tool module doesn't append duplicates.
         for idx, existing in enumerate(_TOOL_SCHEMAS):
@@ -80,8 +188,11 @@ def tool(
                 break
         else:
             _TOOL_SCHEMAS.append(schema)
-        return func
+        return f
 
+    # Allow both @tool and @tool()
+    if func is not None:
+        return decorator(func)
     return decorator
 
 
@@ -105,7 +216,7 @@ from .generate_docs import generate_docs  # noqa: E402,F401  (side effects: @too
 from .grep_files import grep_files  # noqa: E402,F401  (side effects: @tool registration)
 from .list_directory import list_directory  # noqa: E402,F401  (side effects: @tool registration)
 from .read_file import read_file  # noqa: E402,F401  (side effects: @tool registration)
-from .reload_module import reload_module  # noqa: E402,F401  (side effects: @tool registration)
+from .reload_module import reload_module as _reload_module_fn  # noqa: E402,F401  (side effects: @tool registration)
 from .run_command import run_command  # noqa: E402,F401  (side effects: @tool registration)
 from .web_search import web_search  # noqa: E402,F401  (side effects: @tool registration)
 from .write_file import write_file  # noqa: E402,F401  (side effects: @tool registration)
@@ -179,7 +290,13 @@ def execute_tool(
                         f"No changes detected for module '{module_name}' "
                         f"since last reload (mtime={cached:.1f})."
                     )
-            return reload_module(module_name=module_name, file_path=file_path)
+            # Lazy import to avoid module/function name collision
+            import importlib
+
+            _reload_mod = importlib.import_module(".reload_module", "mini_claude.tools")
+            _reload_module_fn: Callable[..., str] = _reload_mod.reload_module
+
+            return _reload_module_fn(module_name=module_name, file_path=file_path)
         return func(**arguments)
     except Exception as error:  # report tool failure back to the model
         return (
