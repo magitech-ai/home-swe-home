@@ -47,7 +47,8 @@ def test_run_turn_final_text(capsys):
         client=client,
     )
     out = capsys.readouterr().out
-    assert out == "hi there friend\n"
+    assert out.endswith("hi there friend\n")
+    assert "[context:" in out
     assert messages == [
         {"role": "user", "content": "say hi in three words"},
         {"role": "assistant", "content": "hi there friend"},

@@ -16,6 +16,7 @@ from typing import Any
 from openai import OpenAI
 
 from .client import chat_complete, create_client
+from .instructions import count_tokens
 from .tools import execute_tool, tool_schemas
 
 
@@ -63,6 +64,8 @@ def run_turn(
     read_files: set[str] = set()
     try:
         while True:
+            tokens = count_tokens(messages)
+            print(f"[context: {tokens} tokens]")
             response = chat_complete(
                 client,
                 model=model,

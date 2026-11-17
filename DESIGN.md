@@ -61,13 +61,14 @@ the session. Ctrl-C aborts the current turn only.
 | API | NVIDIA build.nvidia.com, OpenAI-compatible, `https://integrate.api.nvidia.com/v1` | User's Nvidia API key; the `openai` Python client speaks this protocol natively |
 | Auth | `NVIDIA_API_KEY` environment variable only | Never print it, never save it in the project; checked up front so failure is a clear message, not a crash |
 | Default model | `nvidia/nemotron-3.5-lightning-30b-a3b` | Nemotron 3.5 Lightning — NVIDIA's 30B MoE model for agentic tasks; free tier available; overridable with `--model` or `/model`. (`nvidia/nemotron-3-super-vl-120b-a12b` was tried first but returned 404 on the integrate endpoint; it may need to be deployed on build.nvidia.com before it can be called.) |
-| Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
+| Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes. Each model call prints `[context: N tokens]` before sending. | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
 | Core loop | Non-streaming: call model → append assistant message verbatim → if tool calls, execute each and append tool results → repeat; stop when the model returns a final text message | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
 | Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search` | `edit_file` only works on paths read via `read_file` (tracked per turn); `run_command` runs with a timeout in the CWD (not sandboxed — local personal agent, use with care); `web_search` uses DuckDuckGo HTML, no API key |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
 | Testing | Flat unit tests under `tests/unit/` (no `__init__.py`), `AsyncMock` at the OpenAI client seam; `uv run pytest --cov-fail-under=100` | Shared Magitech testing discipline; no real API calls in tests |
+| Session instructions | System message written once per session (first message), never rewritten; new info appended at end. Includes rules, system line (OS/folder/date/model), and AGENTS.md if present. `/context` shows context window + token counts. | Keeps the prompt cache valid and the model's reasoning stable across the session |
 
 ## Tool manuals
 
@@ -100,14 +101,34 @@ Every tool call gets an answer. Failures return text starting with "Error:" or
 tool error; the result is fed back to the model as a `tool` message and the
 loop continues.
 
+## Session instructions
+
+The model sees a system message (`messages[0]`) on every call. It is written
+once per session and never rewritten; new information is appended at the end so
+the prompt cache stays valid and the model's reasoning remains stable.
+
+The system message contains:
+
+1. **Rules** — short behavioral rules for the coding agent.
+2. **System line** — OS, working folder, date, and model ID.
+3. **AGENTS.md** — if the project has an `AGENTS.md`, its full content is
+   appended after a separator.
+
+### `/context` command
+
+In interactive chat, `/context` prints the full context window: every message
+with its role, a content preview, and any tool calls, plus the total token
+count (cl100k_base encoding) before each model call.
+
 ## File layout
 
 - `pyproject.toml` — metadata, dependencies (`openai`), entry point `mini-claude`
 - `src/mini_claude/__init__.py`
 - `src/mini_claude/client.py` — NVIDIA/OpenAI-compatible client, key validation
+- `src/mini_claude/instructions.py` — system message builder, token counting
 - `src/mini_claude/tools.py` — tool registry + JSON schemas
 - `src/mini_claude/turn.py` — core model ↔ tool loop
-- `src/mini_claude/repl.py` — interactive chat + `/model`
+- `src/mini_claude/repl.py` — interactive chat + `/model` + `/context`
 - `src/mini_claude/cli.py` — argparse: `-p`, `--model`
 - `DESIGN.md` — this file
 - `tests/unit/*.py` — unit tests

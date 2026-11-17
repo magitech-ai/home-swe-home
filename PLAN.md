@@ -1,36 +1,25 @@
-# Plan: add file tools + web search with manuals and strict rules
+# Plan: session instructions + token counting + /context
 
-Goal: give mini-claude hands — read, write, edit, delete files; run commands;
-search the project; search the web. Every tool has a manual (schema
-description) the model reads, strict input rules, and errors that say what to
-try next. Edits replace exact text only in files the model has read. Every tool
-call returns an answer, even on failure.
+Goal: The model sees a system message (instructions) on every call, written once
+per session. It includes short rules, a system line (OS, folder, date, model),
+and the project's AGENTS.md if present. The system message is never rewritten;
+new information is appended at the end so the prompt cache stays valid.
 
-## New / changed tools (schemas in tools.py)
-- read_file — returns contents; marks path as read (required before edit)
-- write_file — create/overwrite; also marks path writable/editable
-- edit_file (NEW) — exact old_string→new_string replace; only in read files
-- delete_file (NEW) — remove a file; confirm what was deleted
-- run_command (exists) — shell command with timeout
-- grep_files (exists) — regex search across files
-- web_search (NEW) — DuckDuckGo HTML endpoint, no API key
+## Changes
+- `src/mini_claude/instructions.py` (NEW): build_system_instructions() — rules,
+  system line, AGENTS.md content; count_tokens() using tiktoken
+- `src/mini_claude/cli.py`: prepend system message to headless messages
+- `src/mini_claude/repl.py`: prepend system message to chat messages;
+  `/context` command prints context window + token counts
+- `src/mini_claude/turn.py`: print token count before each model call
+- `pyproject.toml`: add tiktoken dependency
+- `DESIGN.md`: document instructions + /context rule
 
-## Rules enforced by code
-- edit_file refuses unless the path was read via read_file (tracked per turn)
-- old_string must match exactly; otherwise error says what to try next
-- Every tool failure returns text (never crashes); error includes next step
-- Tool results go back to the model as `tool` messages; turn repeats
-
-## Design doc updates
-- Add every tool's manual (schema description) + strict input rules
-- Document read-before-edit constraint and web search choice
-
-## Live tests (user runs with their key)
-1. "create a script that prints hi, run it, and tell me the output"
-   → write hi.py, run python hi.py, report "hi"
-2. "replace a line that isn't in the script"
-   → error: old_string not found; try read_file + exact text
-3. "delete the file and check that it deleted the one file and nothing else"
-   → delete_file hi.py, then list_directory to confirm only hi.py is gone
+## Tests
+- Unit: build_system_instructions includes rules/system line/AGENTS.md
+- Unit: count_tokens returns positive int
+- Unit: system message is first and immutable in messages list
+- Live: AGENTS.md with "Always answer in French" → hello in French
+- Live: delete AGENTS.md, new session → hello in English
 
 Unresolved questions: none.

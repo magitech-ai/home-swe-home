@@ -2,26 +2,19 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import patch
 
 from mini_claude.client import MiniClaudeError
-from mini_claude.repl import run_repl
+from mini_claude.repl import _show_context, run_repl
 from mini_claude.turn import TurnInterrupted
 
 
-def inputs(*sequence):
-    iterator = iter(sequence)
-
-    def next_input(prompt=""):
-        return next(iterator)
-
-    return next_input
+class FakeClient:
+    pass
 
 
 def test_repl_exits_on_eof(capsys):
-    class FakeClient:
-        pass
-
     with patch("mini_claude.repl.input", side_effect=EOFError):
         run_repl(model="m", client=FakeClient())
     out = capsys.readouterr().out
@@ -29,9 +22,6 @@ def test_repl_exits_on_eof(capsys):
 
 
 def test_repl_keyboard_interrupt_continues(capsys):
-    class FakeClient:
-        pass
-
     with patch(
         "mini_claude.repl.input",
         side_effect=[KeyboardInterrupt, EOFError],
@@ -41,9 +31,6 @@ def test_repl_keyboard_interrupt_continues(capsys):
 
 
 def test_repl_model_switch(capsys):
-    class FakeClient:
-        pass
-
     with patch("mini_claude.repl.input", side_effect=["/model other/model", EOFError]):
         run_repl(model="m", client=FakeClient())
     out = capsys.readouterr().out
@@ -52,18 +39,12 @@ def test_repl_model_switch(capsys):
 
 
 def test_repl_model_command_without_id_shows_current(capsys):
-    class FakeClient:
-        pass
-
     with patch("mini_claude.repl.input", side_effect=["/model", EOFError]):
         run_repl(model="m", client=FakeClient())
     assert capsys.readouterr().out.count("model: m") == 2
 
 
 def test_repl_blank_lines_are_ignored():
-    class FakeClient:
-        pass
-
     with patch("mini_claude.repl.input") as mock_input:
         mock_input.side_effect = ["   ", "", EOFError]
         run_repl(model="m", client=FakeClient())
@@ -71,9 +52,6 @@ def test_repl_blank_lines_are_ignored():
 
 
 def test_repl_turn_interrupted_is_swallowed(capsys):
-    class FakeClient:
-        pass
-
     with (
         patch("mini_claude.repl.input", side_effect=["say hi", EOFError]),
         patch("mini_claude.repl.run_turn", side_effect=TurnInterrupted()),
@@ -83,9 +61,6 @@ def test_repl_turn_interrupted_is_swallowed(capsys):
 
 
 def test_repl_api_error_prints_and_continues(capsys):
-    class FakeClient:
-        pass
-
     with (
         patch("mini_claude.repl.input", side_effect=["say hi", EOFError]),
         patch(
@@ -98,10 +73,19 @@ def test_repl_api_error_prints_and_continues(capsys):
     assert "mini-claude: The model does not exist" in out
 
 
-def test_repl_user_message_reaches_turn():
-    class FakeClient:
-        pass
+def test_repl_context_command(capsys):
+    with patch(
+        "mini_claude.repl.input",
+        side_effect=["/context", EOFError],
+    ):
+        run_repl(model="m", client=FakeClient())
+    out = capsys.readouterr().out
+    assert "context window" in out
+    assert "tokens" in out
+    assert "[0] system" in out
 
+
+def test_repl_user_message_reaches_turn():
     seen = {}
 
     def capture_turn(*, model, messages, client=None, reply_prefix=""):
@@ -115,5 +99,35 @@ def test_repl_user_message_reaches_turn():
     ):
         run_repl(model="m", client=FakeClient())
     assert seen["model"] == "m"
-    assert seen["messages"] == [{"role": "user", "content": "hello world"}]
+    assert seen["messages"][0]["role"] == "system"
+    assert seen["messages"][1] == {
+        "role": "user",
+        "content": "hello world",
+    }
     assert seen["reply_prefix"] == "< "
+
+
+def test_repl_context_shows_tool_calls(capsys):
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": "You are mini-claude."},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"path": "x.txt"}',
+                    },
+                }
+            ],
+        },
+    ]
+    _show_context(messages)
+    out = capsys.readouterr().out
+    assert "context window" in out
+    assert "[0] system" in out
+    assert "[1] assistant (1 tool call(s))" in out
+    assert "tool: read_file" in out

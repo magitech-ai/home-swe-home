@@ -3,6 +3,7 @@ pyproject.toml
 src/mini_claude/__init__.py
 src/mini_claude/cli.py
 src/mini_claude/client.py
+src/mini_claude/instructions.py
 src/mini_claude/py.typed
 src/mini_claude/repl.py
 src/mini_claude/tools.py

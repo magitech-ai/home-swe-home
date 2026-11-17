@@ -9,6 +9,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from .client import ConfigurationError, MiniClaudeError, create_client
+from .instructions import build_system_instructions
 from .repl import run_repl
 from .turn import TurnInterrupted, run_turn
 
@@ -46,7 +47,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"mini-claude: {error}", file=sys.stderr)
         return 2
 
-    messages: list[dict[str, Any]] = []
+    system_content = build_system_instructions(model=args.model)
+
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     if args.prompt is not None:
         messages.append({"role": "user", "content": args.prompt})
@@ -60,5 +63,5 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return 0
 
-    run_repl(model=args.model, client=client)
+    run_repl(model=args.model, client=client, system_content=system_content)
     return 0

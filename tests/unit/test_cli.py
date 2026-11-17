@@ -51,7 +51,11 @@ def test_main_headless_runs_one_turn(monkeypatch, capsys):
         )
     assert code == 0
     assert seen["model"] == "meta/llama-3.1-8b-instruct"
-    assert seen["messages"] == [{"role": "user", "content": "say hi in three words"}]
+    assert seen["messages"][0]["role"] == "system"
+    assert seen["messages"][1] == {
+        "role": "user",
+        "content": "say hi in three words",
+    }
 
 
 def test_main_headless_interrupted(monkeypatch, capsys):
@@ -81,11 +85,15 @@ def test_main_headless_api_error(monkeypatch, capsys):
 def test_main_interactive(monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
     called = []
+    system_seen = []
 
-    def fake_repl(*, model, client=None):
+    def fake_repl(*, model, client=None, system_content=None):
         called.append(model)
+        system_seen.append(system_content)
 
     with patch("mini_claude.cli.run_repl", side_effect=fake_repl):
         code = main([])
     assert code == 0
     assert called == [DEFAULT_MODEL]
+    assert system_seen[0] is not None
+    assert "mini-claude" in system_seen[0]
