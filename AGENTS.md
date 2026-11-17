@@ -2,18 +2,28 @@
 
 ## Magecode Architecture & Invariants
 
-- **Repository Role**: `magecode` is a small coding agent: a mini Claude Code loop
-  over the NVIDIA API. It sends a task to the model, runs the tools the model
-  requests, feeds the results back, and repeats until the model stops asking.
-- **Core Loop** (`src/magecode/core_loop.py`): non-streaming turn loop with
-  `max_turns` (default 20). Model replies are appended verbatim; tool results
-  are appended as `tool` messages. `Ctrl-C` raises `TurnInterrupted` and
-  aborts the current turn only, not the program.
-- **Tool Set** (`src/magecode/tools/`): 12 self-registering tools via the
-  `@tool` decorator. `read_file` marks a path readable; `edit_file` and
-  `reload_module` are refused for unread paths (read-before-edit rule tracked
-  per turn via a `read_files` set). Every tool returns text — even failures —
-  so the turn never crashes on a tool error.
+- **Repository Role**: `magecode` is a small coding agent built on **anima**,
+  Magitech's Python micro-kernel (the Python implementation of Cordis). It
+  follows "everything is a component": every capability is an anima `Service`
+  mounted on a `Context`. The agent sends a task to the model, runs the tools
+  the model requests, feeds the results back, and repeats until the model
+  stops asking.
+- **Component Model**: `src/magecode/context.py` builds the session `Context`
+  and mounts all services (`build_context()`). Services are accessed by name
+  (`ctx.read_file`, `ctx.core_loop`) or injected via `inject = ["name"]`. The
+  mock `GreeterService` in `anima_greeter.py` demonstrates dependency injection.
+- **Core Loop** (`src/magecode/core_loop.py`): `CoreLoopService`, a non-streaming
+  turn loop with `max_turns` (default 20). Model replies are appended verbatim;
+  tool results are appended as `tool` messages. `Ctrl-C` raises
+  `TurnInterrupted` and aborts the current turn only, not the program. Tool
+  schemas are derived from each Service's `__call__` signature/docstring via
+  `service_schema()`.
+- **Tool Set** (`src/magecode/tools/`): 12 anima `Service` components.
+  `execute_tool()` looks up a service on the Context and calls it. `read_file`
+  marks a path readable; `edit_file` and `reload_module` are refused for unread
+  paths (read-before-edit rule tracked per turn via a `read_files` set that
+  `execute_tool` injects). Every tool returns text — even failures — so the
+  turn never crashes on a tool error.
 - **API Key** (`src/magecode/client.py`): `NVIDIA_API_KEY` from the environment
   only (`.env` fallback via python-dotenv, env var takes precedence). The key
   is never printed and never persisted. Missing key → clear message, exit 2.
@@ -57,13 +67,16 @@ Follow the shared development guidance in [agents-home AGENTS](../agents-home/AG
 
 ## Adding a New Tool
 
-1. Create `src/magecode/tools/<name>.py` with a single function decorated with
-   `@tool`.
-2. The decorator infers the JSON schema from the function signature and
-   docstring (Google-style `Args:` section). Parameters named `read_files` are
-   injected at call time and excluded from the schema.
-3. The module is auto-registered via the import in `src/magecode/tools/__init__.py`.
+1. Create `src/magecode/tools/<name>.py` with a `Service` subclass whose
+   `__init__` calls `super().__init__(ctx, "<name>")` and whose `__call__` does
+   the work. Parameters are keyword-only; `read_files` is injected at call time.
+2. `service_schema()` infers the JSON schema from `__call__` (signature types
+   and the class docstring's Google-style `Args:` section); `self`/`cls`/
+   `read_files` are excluded.
+3. Import and re-export the class in `src/magecode/tools/__init__.py`, and add
+   it to `TOOL_SERVICES` in `src/magecode/context.py`.
 4. Add unit tests under `tests/unit/test_tools.py`. Maintain 100% coverage.
+   Tests mount services on a `Context` and `await ctx.flush()` before calling.
 
 ## Magecode-Specific References
 

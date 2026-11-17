@@ -1,12 +1,11 @@
-"""List the entries of a directory. Use this to verify what files exist after
-writing or deleting.
-"""
+"""List the entries of a directory."""
 
-from magecode.tools.registry import tool
+from pathlib import Path
+
+from anima import Context, Service
 
 
-@tool
-def list_directory(*, path: str = ".") -> str:
+class ListDirectoryService(Service):
     """List the entries of a directory.
 
     Args:
@@ -15,10 +14,18 @@ def list_directory(*, path: str = ".") -> str:
     Returns:
         One entry per line; directories end with '/'.
     """
-    from pathlib import Path
 
-    entries = sorted(Path(path).iterdir())
-    lines: list[str] = []
-    for entry in entries:
-        lines.append(f"{entry.name}/" if entry.is_dir() else entry.name)
-    return "\n".join(lines) if lines else "(empty)"
+    def __init__(self, ctx: Context):
+        super().__init__(ctx, "list_directory")
+
+    def __call__(
+        self,
+        *,
+        path: str = ".",
+        read_files: set[str] | None = None,
+    ) -> str:
+        entries = sorted(Path(path).iterdir())
+        lines: list[str] = []
+        for entry in entries:
+            lines.append(f"{entry.name}/" if entry.is_dir() else entry.name)
+        return "\n".join(lines) if lines else "(empty)"

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from anima import Context
 
-from magecode.anima_run_command import RunCommandService, mount_run_command
+from magecode.tools.run_command import RunCommandService
 
 
 @pytest.mark.asyncio
@@ -40,7 +40,7 @@ async def test_run_command_service_host_default(monkeypatch):
     ctx.use(RunCommandService)
     await ctx.flush()
 
-    result = ctx.run_command("echo out; echo err >&2", timeout=10)
+    result = ctx.run_command(command="echo out; echo err >&2", timeout=10)
     assert "stdout:\nout\n" in result
     assert "stderr:\nerr\n" in result
     assert "exit code: 0" in result
@@ -61,7 +61,7 @@ async def test_run_command_service_host_timeout(monkeypatch):
     ctx.use(RunCommandService)
     await ctx.flush()
 
-    result = ctx.run_command("sleep 10", timeout=1)
+    result = ctx.run_command(command="sleep 10", timeout=1)
     assert "exit code: 124" in result
     assert "timed out" in result
 
@@ -80,7 +80,7 @@ async def test_run_command_service_host_command_not_found(monkeypatch):
     ctx.use(RunCommandService)
     await ctx.flush()
 
-    result = ctx.run_command("no_such_cmd", timeout=10)
+    result = ctx.run_command(command="no_such_cmd", timeout=10)
     assert "command not found" in result.lower()
 
 
@@ -101,19 +101,9 @@ async def test_run_command_service_sandbox_opt_in_env(monkeypatch):
     ctx.use(RunCommandService)
     await ctx.flush()
 
-    result = ctx.run_command("echo hi", timeout=10)
+    result = ctx.run_command(command="echo hi", timeout=10)
     assert "sandboxed" in result
     assert "exit code: 0" in result
-
-
-@pytest.mark.asyncio
-async def test_run_command_service_mount_run_command_helper():
-    """mount_run_command() helper registers the service on a Context."""
-    ctx = Context()
-    mount_run_command(ctx)
-    await ctx.flush()
-    assert hasattr(ctx, "run_command")
-    assert ctx.run_command("echo helper", timeout=10) is not None
 
 
 @pytest.mark.asyncio
@@ -132,7 +122,7 @@ async def test_run_command_service_host_timeout_with_output(monkeypatch):
     ctx.use(RunCommandService)
     await ctx.flush()
 
-    result = ctx.run_command("sleep 10", timeout=1)
+    result = ctx.run_command(command="sleep 10", timeout=1)
     assert "partial out" in result
     assert "partial err" in result
     assert "exit code: 124" in result
@@ -153,7 +143,7 @@ async def test_run_command_service_host_stdout_only(monkeypatch):
     ctx.use(RunCommandService)
     await ctx.flush()
 
-    result = ctx.run_command("echo just stdout", timeout=10)
+    result = ctx.run_command(command="echo just stdout", timeout=10)
     assert "stdout:\njust stdout\n" in result
     assert "stderr:" not in result
     assert "exit code: 0" in result
@@ -173,7 +163,7 @@ async def test_run_command_service_host_stderr_only(monkeypatch):
     ctx.use(RunCommandService)
     await ctx.flush()
 
-    result = ctx.run_command("false", timeout=10)
+    result = ctx.run_command(command="false", timeout=10)
     assert "stdout:" not in result
     assert "stderr:\noops\n" in result
     assert "exit code: 1" in result
@@ -196,7 +186,7 @@ async def test_run_command_service_sandbox_with_stderr_and_timeout(monkeypatch):
     ctx.use(RunCommandService)
     await ctx.flush()
 
-    result = ctx.run_command("bad cmd", timeout=10)
+    result = ctx.run_command(command="bad cmd", timeout=10)
     assert "sandbox err" in result
     assert "exit code: 1" in result
     assert "timed out" in result
@@ -204,21 +194,21 @@ async def test_run_command_service_sandbox_with_stderr_and_timeout(monkeypatch):
 
 def test_decode_text_none():
     """_decode_text handles None input."""
-    from magecode.anima_run_command import _decode_text
+    from magecode.tools.run_command import _decode_text
 
     assert _decode_text(None) == ""
 
 
 def test_decode_text_bytes():
     """_decode_text decodes bytes input."""
-    from magecode.anima_run_command import _decode_text
+    from magecode.tools.run_command import _decode_text
 
     assert _decode_text(b"hello bytes") == "hello bytes"
 
 
 def test_decode_text_str():
     """_decode_text passes through str input."""
-    from magecode.anima_run_command import _decode_text
+    from magecode.tools.run_command import _decode_text
 
     assert _decode_text("already str") == "already str"
 

@@ -1,7 +1,7 @@
 [project]
 name = "magecode"
 version = "0.1.0"
-description = "A small coding agent: a mini Claude Code loop over the NVIDIA API."
+description = "A small coding agent built on the anima micro-kernel, over the NVIDIA API."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = ["openai>=1.0,<3", "python-dotenv>=1.0", "tiktoken>=0.8", "anima @ git+https://github.com/magitech-ai/anima.git"]

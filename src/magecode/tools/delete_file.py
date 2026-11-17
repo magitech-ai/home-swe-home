@@ -1,10 +1,11 @@
 """Delete a file. Only files that exist can be deleted."""
 
-from magecode.tools.registry import tool
+from pathlib import Path
+
+from anima import Context, Service
 
 
-@tool
-def delete_file(*, path: str) -> str:
+class DeleteFileService(Service):
     """Delete a file.
 
     Only files that exist can be deleted.
@@ -14,12 +15,16 @@ def delete_file(*, path: str) -> str:
 
     Returns:
         A confirmation message naming the deleted file.
-
-    Raises:
-        FileNotFoundError: If the file does not exist.
     """
-    from pathlib import Path
 
-    target = Path(path)
-    target.unlink()
-    return f"Deleted {path}."
+    def __init__(self, ctx: Context):
+        super().__init__(ctx, "delete_file")
+
+    def __call__(self, *, path: str, read_files: set[str] | None = None) -> str:
+        target = Path(path)
+        try:
+            target.unlink()
+        except FileNotFoundError:
+            msg = f"Error: FileNotFoundError: No such file or directory: '{path}'"
+            return msg
+        return f"Deleted {path}."

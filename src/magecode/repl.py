@@ -4,25 +4,29 @@ from __future__ import annotations
 
 from typing import Any
 
+from anima import Context
 from openai import OpenAI
 
 from .client import MiniClaudeError, create_client
-from .core_loop import TurnInterrupted, TurnLimitReached, run_core_loop
+from .context import build_context
+from .core_loop import TurnInterrupted, TurnLimitReached
 from .instructions import build_system_instructions, count_tokens
 
 PROMPT = "> "
 
 
-def run_repl(
+async def run_repl(
     *,
     model: str,
     client: OpenAI | None = None,
     system_content: str | None = None,
+    ctx: Context | None = None,
 ) -> None:
     """Run the interactive chat loop until the user exits with Ctrl-D."""
     client = client or create_client()  # validate configuration up front
     system_content = system_content or build_system_instructions(model=model)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
+    ctx = ctx or await build_context()
     print("magecode interactive chat")
     print("  /model <id>   switch model")
     print("  /context      show context window and token counts")
@@ -54,7 +58,7 @@ def run_repl(
 
         messages.append({"role": "user", "content": text})
         try:
-            run_core_loop(
+            await ctx.core_loop(
                 model=model,
                 messages=messages,
                 client=client,

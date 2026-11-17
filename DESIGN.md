@@ -57,14 +57,15 @@ the session. Ctrl-C aborts the current turn only.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Language / runtime | Python 3.14+, `uv`-managed | Shared Magitech standards; strict mypy, ruff (line length 88), pytest |
+| Foundation | **anima** micro-kernel (Magitech's Python implementation of Cordis) | "Everything is a component": every capability is an anima Service on a Context. Matches the ecosystem (magitech-harness, mth-plugins) and the pattern validated by deepseek-harness (282k stars). You control anima, so API changes are coordinateable. |
+| Language / runtime | Python 3.12+, `uv`-managed | anima requires 3.12+. Shared Magitech standards; strict mypy, ruff (line length 88), pytest |
 | API | NVIDIA build.nvidia.com, OpenAI-compatible, `https://integrate.api.nvidia.com/v1` | User's Nvidia API key; the `openai` Python client speaks this protocol natively |
 | Auth | `NVIDIA_API_KEY` environment variable only | Never print it, never save it in the project; checked up front so failure is a clear message, not a crash |
 | Default model | `nvidia/nemotron-3.5-lightning-30b-a3b` | Nemotron 3.5 Lightning — NVIDIA's 30B MoE model for agentic tasks; free tier available; overridable with `--model` or `/model`. (`nvidia/nemotron-3-super-vl-120b-a12b` was tried first but returned 404 on the integrate endpoint; it may need to be deployed on build.nvidia.com before it can be called.) |
 | Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes. Each model call prints `[context: N tokens]` before sending. | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
-| Core loop | Non-streaming: call model → append assistant message verbatim → if tool calls, execute each and append tool results → repeat; stop when the model returns a final text message. Default max 20 tool-calling turns per turn (``TurnLimitReached`` if exceeded). Streaming deferred | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
-| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs` | `edit_file` and `reload_module` only work on paths read via `read_file` (tracked per turn); `run_command` runs unsandboxed on the host by default; use `MAGECODE_SANDBOX=1` or `--sandbox` for Docker isolation (`--network none`, `--read-only`, non-root, `--cap-drop ALL`, resource limits); `web_search` uses DuckDuckGo HTML, no API key |
+| Core loop | `CoreLoopService`: non-streaming: call model → append assistant message verbatim → if tool calls, `execute_tool` looks up the service on the Context, runs it, and appends tool results → repeat; stop when the model returns a final text message. Default max 20 tool-calling turns per turn (``TurnLimitReached`` if exceeded). Streaming deferred | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
+| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs` — each an anima `Service` | `context.py::build_context()` mounts all services on the Context. `service_schema()` derives model-facing tool schemas from each `__call__`. `edit_file`/`reload_module` only work on paths read via `read_file` (per-turn `read_files` set injected by `execute_tool`); `run_command` runs unsandboxed by default (`MAGECODE_SANDBOX=1`/`--sandbox` for Docker); `web_search` uses DuckDuckGo HTML |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
 | Sandbox | Docker container: `--network none`, `--read-only`, `--user <host UID:GID>`, `--cap-drop ALL`, `no-new-privileges`, CPU/memory/pids limits, `ulimit nofile/fsize`, `--rm`, hard timeout, workdir confined to CWD tree | `run_command` runs unsandboxed by default; sandbox mode is opt-in via `MAGECODE_SANDBOX=1` or `--sandbox`. Fail-closed if Docker CLI/daemon is unavailable in sandbox mode. |
@@ -92,80 +93,51 @@ what to try next.
 | `find_duplicates` | Find duplicate code blocks across Python files. Provide a directory path (defaults to `.`) and optional `min_lines` (defaults to 3). Returns matching blocks with file paths and line numbers. On error: check the directory path, retry. |
 | `generate_docs` | Generate markdown documentation from Python docstrings and comments. Provide a directory path (defaults to `.`). Lists classes and public functions with their docstrings. On error: check the directory path, retry. |
 
-## Tool registration decorator
+## Tools as anima components
 
-New tools are registered with the ``@tool`` decorator instead of being manually
-added to three places. The decorator registers the function in both the
-execution registry (``_TOOLS``) and the schema registry (``tool_schemas()``):
-
-```python
-@tool(
-    name="my_tool",
-    description="""What the tool does.
-
-Manual:
-  - Provide the exact argument...
-  - On error: check the input, retry.""",
-    parameters={
-        "type": "object",
-        "properties": {
-            "argument": {
-                "type": "string",
-                "description": "What the argument is for.",
-            }
-        },
-        "required": ["argument"],
-        "additionalProperties": False,
-    },
-)
-def my_tool(*, argument: str) -> str:
-    return f"Did something with {argument}"
-```
-
-## Tool registration decorator
-
-New tools are registered with the ``@tool`` decorator instead of being manually
-added to multiple places. Each tool lives in its own file under
-``src/magecode/tools/``, with the filename matching the tool name
-(e.g. ``read_file.py`` defines the ``read_file`` tool). The decorator registers
-the function in both the execution registry (``_TOOLS``) and the schema
-registry (``tool_schemas()``), inferring everything from the function itself:
+Each tool is an anima `Service` in its own file under `src/magecode/tools/`,
+with the filename matching the tool name (e.g. `read_file.py` defines
+`ReadFileService`). A tool registers itself by name in `__init__`:
 
 ```python
-@tool
-def my_tool(*, argument: str) -> str:
+from anima import Context, Service
+
+
+class MyToolService(Service):
     """Do something useful.
 
     Args:
         argument: What the argument is for.
     """
-    return f"Did something with {argument}"
+
+    def __init__(self, ctx: Context):
+        super().__init__(ctx, "my_tool")
+
+    def __call__(self, *, argument: str) -> str:
+        return f"Did something with {argument}"
 ```
 
-The decorator infers:
+`service_schema()` builds the model-facing JSON schema from the class:
 
-* Tool name from ``func.__name__``
-* Tool description from the docstring summary (first paragraph)
-* Parameter descriptions from the docstring ``Args:`` section
-* Parameter types and requiredness from the function signature annotations
+* Tool name from the explicit name passed to `super().__init__` (via
+  `build_context`, which passes `impl.name` to `service_schema`)
+* Tool description from the class docstring summary (first paragraph)
+* Parameter descriptions from the docstring `Args:` section
+* Parameter types and requiredness from the `__call__` signature annotations
+* `self` / `cls` / `read_files` are excluded (`read_files` is injected at call
+  time by `execute_tool`)
 
-All inferred values can be overridden by passing arguments to the decorator::
+Wiring a new tool requires: define the Service class, re-export it in
+`tools/__init__.py`, and add it to `TOOL_SERVICES` in `context.py`. No separate
+registry edits — schema and execution both come from the Service.
 
-    @tool(name="custom_name", description="Custom description.")
-    def my_tool(*, argument: str) -> str:
-        """Original docstring.
+## Read-before-edit rule
 
-        Args:
-            argument: Original param description.
-        """
-        return argument
-
-This keeps schemas and execution in sync — adding a new tool requires only
-creating a new file and decorating the function. No manual registry edits.
-
-## File layout
-
-The turn loop tracks a `read_files` set per turn. `edit_file` and `reload_module` are refused for any path not in that set. The model must call `read_file` on a path before it can `edit_file` that path or `reload_module` a module at that path. `write_file` also marks a path readable (the model authored the content).
+The turn loop tracks a `read_files` set per turn, which `execute_tool` injects
+into any tool whose `__call__` accepts it. `edit_file` and `reload_module` are
+refused for any path not in that set. The model must call `read_file` on a path
+before it can `edit_file` that path or `reload_module` a module at that path.
+`write_file` also marks a path readable (the model authored the content).
 
 ## Error contract
 
@@ -195,18 +167,22 @@ count (cl100k_base encoding) before each model call.
 
 ## File layout
 
-- `pyproject.toml` — metadata, dependencies (`openai`), entry point `magecode`
+- `pyproject.toml` — metadata, dependencies (`anima`, `openai`), entry point `magecode`
 - `src/magecode/__init__.py`
+- `src/magecode/context.py` — builds the anima Context; mounts all services (`TOOL_SERVICES`)
 - `src/magecode/client.py` — NVIDIA/OpenAI-compatible client, key validation
 - `src/magecode/instructions.py` — system message builder, token counting
-- `src/magecode/tools/` — tool registry + individual tool implementations
-  - `__init__.py` — registry, `tool()` decorator, `execute_tool()`
+- `src/magecode/core_loop.py` — `CoreLoopService`: core model ↔ tool loop
+- `src/magecode/tools/` — anima Service components, one file per tool
+  - `__init__.py` — re-exports tool Service classes
+  - `registry.py` — `service_schema()` inference from Service `__call__`
+  - `executor.py` — `execute_tool()` (looks up services on the Context)
   - `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`,
     `list_directory.py`, `grep_files.py`, `run_command.py`,
     `web_search.py`, `code_metrics.py`, `find_duplicates.py`,
-    `generate_docs.py`, `reload_module.py` — one file per tool
-- `src/magecode/core_loop.py` — core model ↔ tool loop
+    `generate_docs.py`, `reload_module.py` — one `Service` per tool
+- `src/magecode/anima_greeter.py` — demo Service showing `inject` dependency injection
 - `src/magecode/repl.py` — interactive chat + `/model` + `/context`
-- `src/magecode/cli.py` — argparse: `-p`, `--model`
+- `src/magecode/cli.py` — argparse: `-p`, `--model`, `--sandbox`
 - `DESIGN.md` — this file
-- `tests/unit/*.py` — unit tests
+- `tests/unit/*.py` — unit tests; `tests/integration/` — live Docker tests

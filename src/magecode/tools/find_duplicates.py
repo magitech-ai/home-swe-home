@@ -2,11 +2,10 @@
 
 from pathlib import Path
 
-from magecode.tools.registry import tool
+from anima import Context, Service
 
 
-@tool
-def find_duplicates(*, path: str = "", min_lines: int = 3) -> str:
+class FindDuplicatesService(Service):
     """Find duplicate code blocks across Python files.
 
     Uses simple line-based comparison to find near-identical code sequences.
@@ -20,39 +19,50 @@ def find_duplicates(*, path: str = "", min_lines: int = 3) -> str:
     Returns:
         Matching blocks with file paths and line numbers.
     """
-    if not path:
-        path = "."
 
-    root = Path(path)
-    py_files: list[Path] = list(root.rglob("*.py"))
+    def __init__(self, ctx: Context):
+        super().__init__(ctx, "find_duplicates")
 
-    # Read all files, storing lines
-    file_lines: dict[Path, list[str]] = {}
-    for f in py_files:
-        try:
-            text = f.read_text(encoding="utf-8")
-            file_lines[f] = text.splitlines()
-        except (OSError, UnicodeDecodeError):
-            continue
+    def __call__(
+        self,
+        *,
+        path: str = "",
+        min_lines: int = 3,
+        read_files: set[str] | None = None,
+    ) -> str:
+        if not path:
+            path = "."
 
-    seen: dict[str, list[tuple[Path, int]]] = {}
+        root = Path(path)
+        py_files: list[Path] = list(root.rglob("*.py"))
 
-    for f, lines in file_lines.items():
-        # Generate contiguous blocks of exactly min_lines
-        for start in range(len(lines) - min_lines + 1):
-            block = "\n".join(lines[start : start + min_lines])
-            seen.setdefault(block, []).append((f, start + 1))
+        file_lines: dict[Path, list[str]] = {}
+        for f in py_files:
+            try:
+                text = f.read_text(encoding="utf-8")
+                file_lines[f] = text.splitlines()
+            except (OSError, UnicodeDecodeError):
+                continue
 
-    duplicates: list[str] = []
-    for block, locations in seen.items():
-        if len(locations) > 1:
-            duplicates.append(
-                f"Duplicate block ({min_lines} lines):\n"
-                + "\n".join(f"  {loc[0].name}:{loc[1]}" for loc in locations[:5])
-                + f"\n  {block[:100]}...\n"
-            )
+        seen: dict[str, list[tuple[Path, int]]] = {}
 
-    if not duplicates:
-        return "No duplicate code blocks found."
+        for f, lines in file_lines.items():
+            for start in range(len(lines) - min_lines + 1):
+                block = "\n".join(lines[start : start + min_lines])
+                seen.setdefault(block, []).append((f, start + 1))
 
-    return f"Found {len(duplicates)} duplicate code blocks:\n" + "\n".join(duplicates)
+        duplicates: list[str] = []
+        for block, locations in seen.items():
+            if len(locations) > 1:
+                duplicates.append(
+                    f"Duplicate block ({min_lines} lines):\n"
+                    + "\n".join(f"  {loc[0].name}:{loc[1]}" for loc in locations[:5])
+                    + f"\n  {block[:100]}...\n"
+                )
+
+        if not duplicates:
+            return "No duplicate code blocks found."
+
+        return f"Found {len(duplicates)} duplicate code blocks:\n" + "\n".join(
+            duplicates
+        )

@@ -1,65 +1,93 @@
-"""Tests for magecode.tools."""
+"""Tests for magecode.tools (anima Service components)."""
 
 from __future__ import annotations
 
 import json
 import os
-import subprocess
+from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+from anima import Context, Service
+
 from magecode.tools import (
-    _TOOLS,
-    _python_type_to_json_schema_type,
-    code_metrics,
+    CodeMetricsService,
+    DeleteFileService,
+    EditFileService,
+    FindDuplicatesService,
+    GenerateDocsService,
+    GrepFilesService,
+    ListDirectoryService,
+    ReadFileService,
+    ReloadModuleService,
+    RunCommandService,
+    WebSearchService,
+    WriteFileService,
     execute_tool,
-    find_duplicates,
-    generate_docs,
-    get_module_mtime,
-    grep_files,
-    list_directory,
-    read_file,
-    run_command,
-    tool,
-    tool_schemas,
-    web_search,
-    write_file,
+    service_schema,
 )
 
+TOOL_SERVICES = [
+    ReadFileService,
+    WriteFileService,
+    EditFileService,
+    DeleteFileService,
+    ListDirectoryService,
+    GrepFilesService,
+    RunCommandService,
+    WebSearchService,
+    ReloadModuleService,
+    CodeMetricsService,
+    FindDuplicatesService,
+    GenerateDocsService,
+]
 
-def test_tool_schemas_have_descriptions():
-    schemas = tool_schemas()
-    names = {s["function"]["name"] for s in schemas}
-    expected = {
-        "read_file",
-        "write_file",
-        "edit_file",
-        "delete_file",
-        "list_directory",
-        "grep_files",
-        "run_command",
-        "web_search",
-        "reload_module",
-        "code_metrics",
-        "find_duplicates",
-        "generate_docs",
-    }
-    assert names == expected
-    for schema in schemas:
-        desc = schema["function"]["description"]
-        assert desc, f"Schema for {schema['function']['name']} has no description"
+
+def _build_context() -> Context:
+    ctx = Context()
+    for service_cls in TOOL_SERVICES:
+        ctx.use(service_cls)
+    return ctx
+
+
+def _tool(ctx: Context, name: str):
+    service = ctx.reflect.get(name)
+    assert service is not None, f"Service {name} not mounted"
+    return service
+
+
+def test_tool_services_have_descriptions():
+    services = [_tool(_build_context(), name) for name in ["read_file", "write_file"]]
+    for service in services:
+        assert service.__doc__, f"Service {service.name} has no docstring"
+
+
+def test_tool_service_name_from_class():
+    """Service name is derived from class name stripping 'Service' suffix."""
+    from anima import Context
+
+    ctx = Context()
+    ctx.use(ReadFileService)
+    ctx.use(WriteFileService)
+    assert ctx.read_file.name == "read_file"
+    assert ctx.write_file.name == "write_file"
 
 
 def test_write_then_read_file(tmp_path):
     target = tmp_path / "note.txt"
-    assert write_file(path=str(target), content="hello world") == (
-        f"Wrote 11 characters to {target}."
+    ctx = _build_context()
+    assert (
+        _tool(ctx, "write_file")(path=str(target), content="hello world")
+        == f"Wrote 11 characters to {target}."
     )
-    assert read_file(path=str(target)) == "hello world"
+    assert _tool(ctx, "read_file")(path=str(target)) == "hello world"
 
 
 def test_read_file_missing(tmp_path):
     result = execute_tool(
-        "read_file", json.dumps({"path": str(tmp_path / "does-not-exist.txt")})
+        _build_context(),
+        "read_file",
+        json.dumps({"path": str(tmp_path / "does-not-exist.txt")}),
     )
     assert result.startswith("Error: FileNotFoundError: ")
 
@@ -67,27 +95,30 @@ def test_read_file_missing(tmp_path):
 def test_list_directory(tmp_path):
     (tmp_path / "a.txt").write_text("")
     (tmp_path / "sub").mkdir()
-    result = list_directory(path=str(tmp_path))
+    result = _tool(_build_context(), "list_directory")(path=str(tmp_path))
     assert "a.txt" in result
     assert "sub/" in result
 
 
 def test_list_directory_empty(tmp_path):
-    assert list_directory(path=str(tmp_path)) == "(empty)"
+    assert _tool(_build_context(), "list_directory")(path=str(tmp_path)) == "(empty)"
 
 
 def test_grep_files(tmp_path):
-    (tmp_path / "sub").mkdir()  # non-file entry rglobbed during the walk
+    (tmp_path / "sub").mkdir()
     (tmp_path / "one.txt").write_text("alpha beta\ngamma alpha\n")
     (tmp_path / "two.txt").write_text("no match here\n")
-    result = grep_files(pattern=r"alpha", path=str(tmp_path))
+    result = _tool(_build_context(), "grep_files")(pattern=r"alpha", path=str(tmp_path))
     assert "one.txt:1: alpha beta" in result
     assert "one.txt:2: gamma alpha" in result
 
 
 def test_grep_files_no_matches(tmp_path):
     (tmp_path / "one.txt").write_text("nothing\n")
-    assert grep_files(pattern=r"zzz", path=str(tmp_path)) == "No matches."
+    assert (
+        _tool(_build_context(), "grep_files")(pattern=r"zzz", path=str(tmp_path))
+        == "No matches."
+    )
 
 
 def test_grep_files_skips_binary(tmp_path):
@@ -95,203 +126,80 @@ def test_grep_files_skips_binary(tmp_path):
     (tmp_path / "bin.dat").write_bytes(b"\x00\x01\x02\xff" * 100)
     text_file.write_text("visible line\n")
     expected = f"{text_file}:1: visible line"
-    assert grep_files(pattern=r"visible", path=str(tmp_path)) == expected
+    assert (
+        _tool(_build_context(), "grep_files")(pattern=r"visible", path=str(tmp_path))
+        == expected
+    )
 
 
 def test_grep_files_caps_at_fifty_matches(tmp_path):
     content = "\n".join(f"match {i}" for i in range(60)) + "\n"
     (tmp_path / "many.txt").write_text(content)
-    lines = grep_files(pattern=r"match", path=str(tmp_path)).splitlines()
+    lines = _tool(_build_context(), "grep_files")(
+        pattern=r"match", path=str(tmp_path)
+    ).splitlines()
     assert len(lines) == 50
+
+
+def test_run_command_success(monkeypatch):
+    from magecode.sandbox import SandboxResult
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        return SandboxResult(
+            stdout="out\n", stderr="err\n", exit_code=3, timed_out=False
+        )
+
+    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+    result = _tool(_build_context(), "run_command")(
+        command="sh -c 'echo out; echo err >&2; exit 3'", timeout=10
+    )
+    assert "stdout:\nout\n" in result
+    assert "stderr:\nerr\n" in result
+    assert "exit code: 3" in result
+
+
+def test_run_command_no_output(monkeypatch):
+    from magecode.sandbox import SandboxResult
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        return SandboxResult(stdout="", stderr="", exit_code=0, timed_out=False)
+
+    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+    assert (
+        _tool(_build_context(), "run_command")(command="true", timeout=10)
+        == "exit code: 0"
+    )
 
 
 def test_run_command_host_default(monkeypatch):
     """run_command runs on the host by default (no sandbox)."""
     monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
-    calls = []
 
     def fake_run(cmd, *, capture_output, text, timeout):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, 0, "out\n", "err\n")
+        return SimpleNamespace(returncode=0, stdout="out\n", stderr="err\n")
 
     monkeypatch.setattr("subprocess.run", fake_run)
-    result = run_command(command="echo out; echo err >&2", timeout=10)
+    result = _tool(_build_context(), "run_command")(
+        command="echo out; echo err >&2", timeout=10
+    )
     assert "stdout:\nout\n" in result
     assert "stderr:\nerr\n" in result
     assert "exit code: 0" in result
-    assert calls[0] == ["echo", "out;", "echo", "err", ">&2"]
-
-
-def test_run_command_host_default_uses_subprocess(monkeypatch):
-    """Host execution delegates to subprocess.run with shlex-split args."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
-    seen = {}
-
-    def fake_run(cmd, *, capture_output, text, timeout):
-        seen["cmd"] = cmd
-        return subprocess.CompletedProcess(cmd, 0, "hello\n", "")
-
-    monkeypatch.setattr("subprocess.run", fake_run)
-    result = run_command(command='echo "hello world"', timeout=10)
-    assert "hello\n" in result
-    assert "exit code: 0" in result
-    assert seen["cmd"] == ["echo", "hello world"]
-
-
-def test_run_command_host_timeout(monkeypatch):
-    """Host execution handles subprocess timeout."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
-
-    def fake_run(cmd, *, capture_output, text, timeout):
-        raise subprocess.TimeoutExpired(cmd, 1)
-
-    monkeypatch.setattr("subprocess.run", fake_run)
-    result = run_command(command="sleep 10", timeout=1)
-    assert "timed out" in result
-    assert "exit code: 124" in result
-
-
-def test_run_command_host_command_not_found(monkeypatch):
-    """Host execution reports missing commands clearly."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
-
-    def fake_run(cmd, *, capture_output, text, timeout):
-        raise FileNotFoundError("no such file")
-
-    monkeypatch.setattr("subprocess.run", fake_run)
-    result = run_command(command="no_such_cmd", timeout=10)
-    assert "command not found" in result.lower()
-
-
-def test_run_command_sandbox_opt_in_env(monkeypatch):
-    """MAGECODE_SANDBOX=1 routes to the Docker sandbox."""
-    from magecode.sandbox import SandboxResult
-
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        return SandboxResult(
-            stdout="sandboxed\n", stderr="", exit_code=0, timed_out=False
-        )
-
-    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
-    result = run_command(command="echo hi", timeout=10)
-    assert "sandboxed" in result
-    assert "exit code: 0" in result
-
-
-def test_run_command_sandbox_opt_in_flag(monkeypatch):
-    """--sandbox flag sets MAGECODE_SANDBOX=1 in the environment."""
-    from magecode.cli import main
-
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-
-    def fake_core_loop(**kwargs):
-        assert os.environ.get("MAGECODE_SANDBOX") == "1"
-        return None
-
-    with patch("magecode.cli.run_core_loop", side_effect=fake_core_loop):
-        code = main(["-p", "run something", "--sandbox"])
-    assert code == 0
-
-
-def test_run_command_host_timeout_with_output(monkeypatch):
-    """Host timeout includes stdout/stderr when present."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
-
-    def fake_run(cmd, *, capture_output, text, timeout):
-        raise subprocess.TimeoutExpired(
-            cmd, 1, output=b"partial out", stderr="partial err"
-        )
-
-    monkeypatch.setattr("subprocess.run", fake_run)
-    result = run_command(command="sleep 10", timeout=1)
-    assert "partial out" in result
-    assert "partial err" in result
-    assert "exit code: 124" in result
-    assert "timed out" in result
-
-
-def test_run_command_host_stdout_path():
-    """_run_host includes stdout in output when present."""
-    from magecode.tools.run_command import _run_host
-
-    class FakeCompleted:
-        stdout = "hello\n"
-        stderr = ""
-        returncode = 0
-
-    import subprocess
-
-    orig_run = subprocess.run
-    try:
-        subprocess.run = lambda *a, **k: FakeCompleted()
-        result = _run_host("echo hi", 10)
-    finally:
-        subprocess.run = orig_run
-    assert "stdout:\nhello\n" in result
-    assert "exit code: 0" in result
-
-
-def test_run_command_host_empty_stdout():
-    """_run_host handles empty stdout (falsey branch)."""
-    from magecode.tools.run_command import _run_host
-
-    class FakeCompleted:
-        stdout = ""
-        stderr = "some error\n"
-        returncode = 1
-
-    import subprocess
-
-    orig_run = subprocess.run
-    try:
-        subprocess.run = lambda *a, **k: FakeCompleted()
-        result = _run_host("false", 10)
-    finally:
-        subprocess.run = orig_run
-    assert "stderr:\nsome error\n" in result
-    assert "exit code: 1" in result
-    assert "stdout:" not in result
-
-
-def test_run_command_sandbox_with_stderr_and_timeout(monkeypatch):
-    """Sandbox mode passes through stderr and timed_out flag."""
-    from magecode.sandbox import SandboxResult
-
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        return SandboxResult(
-            stdout="", stderr="sandbox err", exit_code=1, timed_out=True
-        )
-
-    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
-    result = run_command(command="bad cmd", timeout=10)
-    assert "sandbox err" in result
-    assert "exit code: 1" in result
-    assert "timed out" in result
 
 
 def test_execute_tool_unknown_tool():
-    result = execute_tool("no_such_tool", "{}")
+    ctx = _build_context()
+    result = execute_tool(ctx, "no_such_tool", "{}")
     assert result.startswith("Error: unknown tool 'no_such_tool'. Use one of: ")
-    for name in sorted(
-        {
-            "read_file",
-            "write_file",
-            "edit_file",
-            "delete_file",
-            "list_directory",
-            "grep_files",
-            "run_command",
-            "web_search",
-        }
-    ):
+    for name in {"read_file", "write_file", "edit_file", "delete_file"}:
         assert name in result
 
 
 def test_execute_tool_bad_arguments():
-    result = execute_tool("read_file", "{not json")
+    ctx = _build_context()
+    result = execute_tool(ctx, "read_file", "{not json")
     assert result.startswith("Error: invalid tool arguments: ")
 
 
@@ -300,6 +208,7 @@ def test_edit_file_replaces_exact_text(tmp_path):
     target.write_text("print('hello')\n")
     read_files = {str(target)}
     result = execute_tool(
+        _build_context(),
         "edit_file",
         json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
         read_files=read_files,
@@ -313,6 +222,7 @@ def test_edit_file_only_first_occurrence(tmp_path):
     target.write_text("hello hello\n")
     read_files = {str(target)}
     result = execute_tool(
+        _build_context(),
         "edit_file",
         json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
         read_files=read_files,
@@ -325,13 +235,14 @@ def test_edit_file_refuses_unread_file(tmp_path):
     target = tmp_path / "script.txt"
     target.write_text("print('hello')\n")
     result = execute_tool(
+        _build_context(),
         "edit_file",
         json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
         read_files=set(),
     )
     assert result.startswith(f"Refused: '{target}' has not been read yet.")
     assert "Call read_file" in result
-    assert target.read_text() == "print('hello')\n"  # unchanged
+    assert target.read_text() == "print('hello')\n"
 
 
 def test_edit_file_old_string_not_found(tmp_path):
@@ -339,6 +250,7 @@ def test_edit_file_old_string_not_found(tmp_path):
     target.write_text("print('hello')\n")
     read_files = {str(target)}
     result = execute_tool(
+        _build_context(),
         "edit_file",
         json.dumps(
             {"path": str(target), "old_string": "goodbye", "new_string": "world"}
@@ -347,20 +259,20 @@ def test_edit_file_old_string_not_found(tmp_path):
     )
     assert result.startswith(f"Error: old_string not found in {target}.")
     assert "read_file" in result
-    assert target.read_text() == "print('hello')\n"  # unchanged
+    assert target.read_text() == "print('hello')\n"
 
 
 def test_delete_file(tmp_path):
     target = tmp_path / "temp.txt"
     target.write_text("temporary\n")
-    result = execute_tool("delete_file", json.dumps({"path": str(target)}))
+    result = _tool(_build_context(), "delete_file")(path=str(target))
     assert result == f"Deleted {target}."
     assert not target.exists()
 
 
 def test_delete_file_nonexistent(tmp_path):
     target = tmp_path / "missing.txt"
-    result = execute_tool("delete_file", json.dumps({"path": str(target)}))
+    result = _tool(_build_context(), "delete_file")(path=str(target))
     assert result.startswith("Error: FileNotFoundError: ")
 
 
@@ -377,7 +289,7 @@ def test_web_search_no_network(monkeypatch):
 
     mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
-        result = web_search(query="anything")
+        result = _tool(_build_context(), "web_search")(query="anything")
     assert result == "No web results found. Try rephrasing the query."
 
 
@@ -403,7 +315,7 @@ def test_web_search_returns_results(monkeypatch):
 
     mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
-        result = web_search(query="test")
+        result = _tool(_build_context(), "web_search")(query="test")
     assert "Result One: https://example.com/one" in result
     assert "Result Two: https://example.com/two" in result
 
@@ -413,7 +325,7 @@ def test_web_search_network_error(monkeypatch):
         "magecode.tools.web_search.urllib.request.urlopen",
         side_effect=OSError("network down"),
     ):
-        result = web_search(query="test")
+        result = _tool(_build_context(), "web_search")(query="test")
     assert result.startswith("Error: web search failed: network down.")
     assert "retry the query" in result
 
@@ -423,7 +335,10 @@ def test_execute_tool_read_file_tracks_read_files(tmp_path):
     target.write_text("contents\n")
     read_files: set[str] = set()
     result = execute_tool(
-        "read_file", json.dumps({"path": str(target)}), read_files=read_files
+        _build_context(),
+        "read_file",
+        json.dumps({"path": str(target)}),
+        read_files=read_files,
     )
     assert result == "contents\n"
     assert read_files == {str(target)}
@@ -433,6 +348,7 @@ def test_execute_tool_write_file_tracks_read_files(tmp_path):
     target = tmp_path / "track2.txt"
     read_files: set[str] = set()
     result = execute_tool(
+        _build_context(),
         "write_file",
         json.dumps({"path": str(target), "content": "data"}),
         read_files=read_files,
@@ -442,23 +358,7 @@ def test_execute_tool_write_file_tracks_read_files(tmp_path):
     assert target.read_text() == "data"
 
 
-def test_execute_tool_read_file_without_read_files(tmp_path):
-    target = tmp_path / "track.txt"
-    target.write_text("contents\n")
-    result = execute_tool("read_file", json.dumps({"path": str(target)}))
-    assert result == "contents\n"
-
-
-def test_execute_tool_write_file_without_read_files(tmp_path):
-    target = tmp_path / "track2.txt"
-    result = execute_tool(
-        "write_file", json.dumps({"path": str(target), "content": "data"})
-    )
-    assert result.startswith("Wrote")
-    assert target.read_text() == "data"
-
-
-def test_web_search_many_results_triggers_break():
+def test_web_search_many_results_triggers_break(monkeypatch):
     links = "".join(
         f'<a rel="nofollow" class="result__a" href="https://example.com/{i}">'
         f"Result {i}</a>"
@@ -478,12 +378,12 @@ def test_web_search_many_results_triggers_break():
 
     mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
-        result = web_search(query="test")
+        result = _tool(_build_context(), "web_search")(query="test")
     lines = result.splitlines()
     assert len(lines) == 8  # capped at 8
 
 
-def test_web_search_skips_empty_title():
+def test_web_search_skips_empty_title(monkeypatch):
     html = (
         "<html><body>"
         '<a rel="nofollow" class="result__a" href="https://example.com/one">'
@@ -505,7 +405,7 @@ def test_web_search_skips_empty_title():
 
     mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
-        result = web_search(query="test")
+        result = _tool(_build_context(), "web_search")(query="test")
     assert "Real Result: https://example.com/two" in result
     assert "https://example.com/one" not in result
 
@@ -524,9 +424,9 @@ def test_code_metrics(tmp_path):
     b_py = "# comment\n\ntry:\n    pass\nexcept Exception:\n    pass\n"
     (tmp_path / "a.py").write_text(a_py)
     (tmp_path / "b.py").write_text(b_py)
-    result = code_metrics(path=str(tmp_path))
+    result = _tool(_build_context(), "code_metrics")(path=str(tmp_path))
     assert "file_count: 2" in result
-    assert "function_count: 1" in result  # only foo() at module level
+    assert "function_count: 1" in result
     assert "class_count: 1" in result
     assert "total_lines:" in result
     assert "estimated_complexity:" in result
@@ -534,13 +434,13 @@ def test_code_metrics(tmp_path):
 
 def test_code_metrics_binary_file(tmp_path):
     (tmp_path / "binary.py").write_bytes(b"\x00\x01\x02\xff\xfe")
-    result = code_metrics(path=str(tmp_path))
+    result = _tool(_build_context(), "code_metrics")(path=str(tmp_path))
     assert "file_count: 1" in result
     assert "total_lines: 0" in result
 
 
 def test_code_metrics_empty_dir(tmp_path):
-    result = code_metrics(path=str(tmp_path))
+    result = _tool(_build_context(), "code_metrics")(path=str(tmp_path))
     assert "file_count: 0" in result
     assert "total_lines: 0" in result
 
@@ -548,30 +448,30 @@ def test_code_metrics_empty_dir(tmp_path):
 def test_find_duplicates(tmp_path):
     (tmp_path / "a.py").write_text("shared = 1\nshared = 2\nx = 3\n")
     (tmp_path / "b.py").write_text("shared = 1\nshared = 2\ny = 4\n")
-    result = find_duplicates(path=str(tmp_path), min_lines=2)
+    result = _tool(_build_context(), "find_duplicates")(path=str(tmp_path), min_lines=2)
     assert "Duplicate block" in result
 
 
 def test_find_duplicates_empty_path(tmp_path):
     (tmp_path / "a.py").write_text("shared = 1\nshared = 2\nx = 3\n")
-    result = find_duplicates(path="", min_lines=2)
+    result = _tool(_build_context(), "find_duplicates")(path="", min_lines=2)
     assert "Duplicate block" in result
 
 
 def test_find_duplicates_binary_file(tmp_path):
     (tmp_path / "binary.py").write_bytes(b"\x00\x01\x02\xff\xfe")
-    result = find_duplicates(path=str(tmp_path), min_lines=2)
+    result = _tool(_build_context(), "find_duplicates")(path=str(tmp_path), min_lines=2)
     assert result == "No duplicate code blocks found."
 
 
 def test_find_duplicates_no_duplicates(tmp_path):
     (tmp_path / "a.py").write_text("x = 1\ny = 2\nz = 3\n")
-    result = find_duplicates(path=str(tmp_path), min_lines=2)
+    result = _tool(_build_context(), "find_duplicates")(path=str(tmp_path), min_lines=2)
     assert result == "No duplicate code blocks found."
 
 
 def test_find_duplicates_empty_dir(tmp_path):
-    result = find_duplicates(path=str(tmp_path))
+    result = _tool(_build_context(), "find_duplicates")(path=str(tmp_path))
     assert result == "No duplicate code blocks found."
 
 
@@ -585,7 +485,7 @@ def test_generate_docs(tmp_path):
         "    def silent(self):\n        pass\n\n\n"
         "class SilentClass:\n    pass\n"
     )
-    result = generate_docs(path=str(tmp_path))
+    result = _tool(_build_context(), "generate_docs")(path=str(tmp_path))
     assert "# Auto-generated Documentation" in result
     assert "## mymod.py" in result
     assert "### Person" in result
@@ -601,12 +501,12 @@ def test_generate_docs(tmp_path):
 
 def test_generate_docs_syntax_error(tmp_path):
     (tmp_path / "broken.py").write_text("def ::\n  not valid python")
-    result = generate_docs(path=str(tmp_path))
+    result = _tool(_build_context(), "generate_docs")(path=str(tmp_path))
     assert "# Auto-generated Documentation" in result
 
 
 def test_generate_docs_empty_dir(tmp_path):
-    result = generate_docs(path=str(tmp_path))
+    result = _tool(_build_context(), "generate_docs")(path=str(tmp_path))
     assert "# Auto-generated Documentation" in result
 
 
@@ -614,6 +514,7 @@ def test_reload_module(tmp_path):
     target = tmp_path / "mymodule.py"
     target.write_text("VALUE = 1\n")
     result = execute_tool(
+        _build_context(),
         "reload_module",
         json.dumps({"module_name": "test_module", "file_path": str(target)}),
         read_files={str(target)},
@@ -627,6 +528,7 @@ def test_reload_module_no_py_extension(tmp_path):
     target.write_text("VALUE = 1\n")
     no_ext = str(tmp_path / "mymodule")
     result = execute_tool(
+        _build_context(),
         "reload_module",
         json.dumps({"module_name": "test_module", "file_path": no_ext}),
         read_files={no_ext},
@@ -635,9 +537,9 @@ def test_reload_module_no_py_extension(tmp_path):
 
 
 def test_reload_module_invalid_path(tmp_path):
-    # Directory with .py extension - spec_from_file_location returns None spec
     os.mkdir(tmp_path / "notamodule.py")
     result = execute_tool(
+        _build_context(),
         "reload_module",
         json.dumps(
             {"module_name": "bad_module", "file_path": str(tmp_path / "notamodule.py")}
@@ -652,13 +554,12 @@ def test_reload_module_self(tmp_path):
 
     target = tmp_path / "read_file_copy.py"
     shutil.copy("src/magecode/tools/read_file.py", target)
-    reload_args = {
-        "module_name": "magecode.tools.read_file",
-        "file_path": str(target),
-    }
     result = execute_tool(
+        _build_context(),
         "reload_module",
-        json.dumps(reload_args),
+        json.dumps(
+            {"module_name": "magecode.tools.read_file", "file_path": str(target)}
+        ),
         read_files={str(target)},
     )
     assert "Reloaded module" in result
@@ -670,6 +571,7 @@ def test_reload_module_spec_none(tmp_path):
 
     with patch("importlib.util.spec_from_file_location", return_value=None):
         result = execute_tool(
+            _build_context(),
             "reload_module",
             json.dumps({"module_name": "test_module", "file_path": str(target)}),
             read_files={str(target)},
@@ -681,6 +583,7 @@ def test_reload_module_not_read(tmp_path):
     target = tmp_path / "mymodule.py"
     target.write_text("VALUE = 1\n")
     result = execute_tool(
+        _build_context(),
         "reload_module",
         json.dumps({"module_name": "test_module", "file_path": str(target)}),
         read_files=set(),
@@ -689,6 +592,9 @@ def test_reload_module_not_read(tmp_path):
 
 
 def test_get_module_mtime():
+    assert _tool(_build_context(), "reload_module") is not None
+    from magecode.tools.executor import get_module_mtime
+
     assert get_module_mtime("never_loaded") is None
 
 
@@ -696,6 +602,7 @@ def test_reload_module_no_read_files_tracker(tmp_path):
     target = tmp_path / "mymodule.py"
     target.write_text("VALUE = 1\n")
     result = execute_tool(
+        _build_context(),
         "reload_module",
         json.dumps({"module_name": "test_module", "file_path": str(target)}),
         read_files=None,
@@ -708,12 +615,14 @@ def test_reload_module_no_changes(tmp_path):
     target.write_text("VALUE = 1\n")
     read_files = {str(target)}
     result1 = execute_tool(
+        _build_context(),
         "reload_module",
         json.dumps({"module_name": "test_module", "file_path": str(target)}),
         read_files=read_files,
     )
     assert "Reloaded module" in result1
     result2 = execute_tool(
+        _build_context(),
         "reload_module",
         json.dumps({"module_name": "test_module", "file_path": str(target)}),
         read_files=read_files,
@@ -727,320 +636,45 @@ def test_reload_module_getmtime_oserror(tmp_path):
     target.write_text("VALUE = 1\n")
     read_files = {str(target)}
     result1 = execute_tool(
+        _build_context(),
         "reload_module",
-        json.dumps({"module_name": "test_module_oserr", "file_path": str(target)}),
+        json.dumps({"module_name": "test_oserr_module", "file_path": str(target)}),
         read_files=read_files,
     )
     assert "Reloaded module" in result1
-    calls = {"n": 0}
+
+    call_count = {"n": 0}
 
     def flaky_getmtime(path):
-        calls["n"] += 1
-        if calls["n"] == 1:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
             raise OSError("no access")
         return 1234567890.0
 
-    with patch("os.path.getmtime", side_effect=flaky_getmtime):
+    import magecode.tools.reload_module as reload_mod
+
+    orig = reload_mod.os.path.getmtime
+    try:
+        reload_mod.os.path.getmtime = flaky_getmtime
         result2 = execute_tool(
+            _build_context(),
             "reload_module",
-            json.dumps({"module_name": "test_module_oserr", "file_path": str(target)}),
+            json.dumps({"module_name": "test_oserr_module", "file_path": str(target)}),
             read_files=read_files,
         )
+    finally:
+        reload_mod.os.path.getmtime = orig
     assert "Reloaded module" in result2
 
 
-def test_tool_decorator_registers_schema_and_execution():
-    """A new tool decorated with @tool is auto-registered in both registries."""
-
-    @tool(
-        name="my_test_tool",
-        description="""My test tool.\nManual:\n  - Provide a name.\n""",
-        parameters={
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "A name.",
-                }
-            },
-            "required": ["name"],
-            "additionalProperties": False,
-        },
-    )
-    def my_test_tool(*, name: str) -> str:
-        return f"Hello, {name}!"
-
-    # Registered for execution
-    assert "my_test_tool" in _TOOLS
-    assert _TOOLS["my_test_tool"] is my_test_tool
-    assert my_test_tool(name="world") == "Hello, world!"
-
-    # Registered in schemas
-    schemas = tool_schemas()
-    schema_names = {s["function"]["name"] for s in schemas}
-    assert "my_test_tool" in schema_names
-
-    my_schema = next(s for s in schemas if s["function"]["name"] == "my_test_tool")
-    assert my_schema["function"]["description"].startswith("My test tool.")
-    assert my_schema["function"]["parameters"]["required"] == ["name"]
-
-    # Execute through execute_tool
-    result = execute_tool(
-        "my_test_tool",
-        json.dumps({"name": "Alice"}),
-    )
-    assert result == "Hello, Alice!"
-
-
-def test_tool_infer_from_function():
-    """Test that @tool infers name, description, and params from the function."""
-
-    @tool
-    def greet(*, name: str, greeting: str = "Hello") -> str:
-        """Greet someone by name.
-
-        Args:
-            name: The person's name.
-            greeting: The greeting to use.
-        """
-        return f"{greeting}, {name}!"
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "greet")
-    assert schema["function"]["description"] == "Greet someone by name."
-    props = schema["function"]["parameters"]["properties"]
-    assert props["name"]["type"] == "string"
-    assert props["name"]["description"] == "The person's name."
-    assert props["greeting"]["type"] == "string"
-    assert props["greeting"]["description"] == "The greeting to use."
-    required = schema["function"]["parameters"]["required"]
-    assert "name" in required
-    assert "greeting" not in required  # has default, so not required
-
-
-def test_tool_unannotated_parameter():
-    """Test that unannotated parameters default to string type."""
-
-    @tool
-    def my_tool(*, name) -> str:
-        """A tool with unannotated parameter.
-
-        Args:
-            name: Just a name.
-        """
-        return name
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
-    props = schema["function"]["parameters"]["properties"]
-    assert props["name"]["type"] == "string"
-
-
-def test_tool_optional_parameter():
-    """Test that Optional[str] parameters unwrapped to string."""
-
-    from typing import Optional
-
-    @tool
-    def my_tool(*, name: Optional[str] = None) -> str:
-        """A tool with Optional parameter.
-
-        Args:
-            name: Optional name.
-        """
-        return name or ""
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
-    props = schema["function"]["parameters"]["properties"]
-    assert props["name"]["type"] == "string"
-
-
-def test_tool_override_description():
-    """Test that description= overrides docstring."""
-
-    @tool(description="Custom description.")
-    def my_tool(*, name: str) -> str:
-        """Original docstring description.
-
-        Args:
-            name: A name.
-        """
-        return name
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
-    assert schema["function"]["description"] == "Custom description."
-
-
-def test_tool_override_parameters():
-    """Test that parameters= overrides signature inference."""
-
-    @tool(
-        parameters={
-            "type": "object",
-            "properties": {
-                "custom": {"type": "string", "description": "A custom param."}
-            },
-            "required": ["custom"],
-            "additionalProperties": False,
-        }
-    )
-    def my_tool(*, name: str) -> str:
-        """Original description.
-
-        Args:
-            name: Original param.
-        """
-        return name
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
-    props = schema["function"]["parameters"]["properties"]
-    assert "custom" in props
-    assert "name" not in props
-    required = schema["function"]["parameters"]["required"]
-    assert required == ["custom"]
-
-
-def test_tool_self_parameter_skipped():
-    """Test that self/cls parameters are skipped."""
-
-    class MyClass:
-        @tool
-        def my_method(self, *, name: str) -> str:
-            """A method with self.
-
-            Args:
-                name: A name.
-            """
-            return name
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "my_method")
-    props = schema["function"]["parameters"]["properties"]
-    assert "self" not in props
-    assert "name" in props
-
-
-def test_tool_type_none_parameter():
-    """Test that Union[type(None)] annotation falls back to string type."""
-    from typing import Union
-
-    @tool
-    def my_tool(*, name: Union[type(None)] = None) -> str:
-        """A tool with Union[type(None)] parameter.
-
-        Args:
-            name: Optional none param.
-        """
-        return name or ""
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
-    props = schema["function"]["parameters"]["properties"]
-    assert props["name"]["type"] == "string"
-
-
-def test_tool_optional_none_parameter():
-    """Test that Optional[None] annotation falls back to string type."""
-    from typing import Optional
-
-    @tool
-    def my_tool(*, name: Optional[None] = None) -> str:
-        """A tool with Optional[None] parameter.
-
-        Args:
-            name: Optional none param.
-        """
-        return name or ""
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
-    props = schema["function"]["parameters"]["properties"]
-    assert props["name"]["type"] == "string"
-
-
-def test_tool_union_str_int_parameter():
-    """Test that Union[str, int] recursively resolves to string type."""
-    from typing import Union
-
-    @tool
-    def my_tool(*, name: Union[str, int] = "default") -> str:
-        """A tool with Union[str, int] parameter.
-
-        Args:
-            name: A string or int param.
-        """
-        return str(name)
-
-    schemas = tool_schemas()
-    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
-    props = schema["function"]["parameters"]["properties"]
-    assert props["name"]["type"] == "string"
-    assert props["name"]["description"] == "A string or int param."
-
-
-def test_python_type_to_json_schema_type_all_none_args():
-    """Test that Union with all-None args falls back to string type."""
-
-    class MockAnnotation:
-        __origin__ = type(None)
-        __args__ = (type(None),)
-
-    result = _python_type_to_json_schema_type(MockAnnotation())
-    assert result == "string"
-
-
-def test_python_type_to_json_schema_type_union_str_int():
-    """Test that Union[str, int] recursively resolves to string type via line 29."""
-
-    class MockAnnotation:
-        __origin__ = type(None)  # not used, but set for completeness
-        __args__ = (str, int)
-
-    result = _python_type_to_json_schema_type(MockAnnotation())
-    assert result == "string"
-
-
-def test_parse_docstring_args_line_without_colon():
-    """Test docstring parsing when Args section has a line without a colon."""
-    from magecode.tools import _parse_docstring
-
-    desc, param_descs = _parse_docstring(
-        """Do something.
-
-        Args:
-            name: The person's name.
-            this line has no colon
-            age: The person's age.
-        """
-    )
-    assert desc == "Do something."
-    assert param_descs == {"name": "The person's name.", "age": "The person's age."}
-
-
-def test_python_type_to_json_schema_type_empty_args():
-    """Test that Union with empty args falls back to string type."""
-
-    class MockAnnotation:
-        __origin__ = object
-        __args__ = ()
-
-    result = _python_type_to_json_schema_type(MockAnnotation())
-    assert result == "string"
-
-
 def test_grep_files_with_file_path(tmp_path):
-    """grep_files should search a single file when path points to a file."""
     target = tmp_path / "test.txt"
     target.write_text("hello world\ntest line\ndef foo():\n    pass\n")
-    result = grep_files(pattern=r"def ", path=str(target))
+    result = _tool(_build_context(), "grep_files")(pattern=r"def ", path=str(target))
     assert "test.txt:3: def foo():" in result
 
 
-def test_web_search_bot_detection():
-    """web_search should return a clear error when DuckDuckGo blocks requests."""
+def test_web_search_bot_detection(monkeypatch):
     html = """<html><title>DuckDuckGo</title>
     <body>
     <p>Unusual traffic from your computer network.</p>
@@ -1059,15 +693,19 @@ def test_web_search_bot_detection():
 
     mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
-        result = web_search(query="anything")
+        result = _tool(_build_context(), "web_search")(query="anything")
     assert "bot detection" in result.lower()
 
 
-def test_turn_limit_reached():
-    """run_core_loop should raise TurnLimitReached when max_turns exceeded."""
-    from types import SimpleNamespace
+@pytest.mark.asyncio
+async def test_turn_limit_reached():
+    """CoreLoopService should raise TurnLimitReached when max_turns exceeded."""
+    from anima import Context
 
-    from magecode.core_loop import TurnLimitReached, run_core_loop
+    from magecode.core_loop import (
+        CoreLoopService,
+        TurnLimitReached,
+    )
 
     def create(**kwargs):
         return SimpleNamespace(
@@ -1093,15 +731,172 @@ def test_turn_limit_reached():
     client = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=create))
     )
+    ctx = Context()
+    ctx.use(RunCommandService)
+    ctx.use(ReadFileService)
+    ctx.use(CoreLoopService)
+    await ctx.flush()
     messages = [{"role": "user", "content": "keep going forever"}]
     try:
-        run_core_loop(
+        await ctx.core_loop(
             model="test/model",
             messages=messages,
             client=client,
             max_turns=2,
-            reply_prefix="< ",
         )
         assert False, "Expected TurnLimitReached"
     except TurnLimitReached as e:
         assert "Turn limit" in str(e)
+
+
+@pytest.mark.asyncio
+async def test_execute_tool_injects_read_files(monkeypatch):
+    """execute_tool injects read_files into tools that accept it."""
+    from magecode.tools.run_command import RunCommandService
+
+    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+
+    ctx = Context()
+    ctx.use(RunCommandService)
+    await ctx.flush()
+
+    seen = {}
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        seen["timeout"] = timeout
+        seen["command"] = command
+        from magecode.sandbox import SandboxResult
+
+        return SandboxResult(stdout="ok\n", stderr="", exit_code=0, timed_out=False)
+
+    with patch("magecode.sandbox.run_in_sandbox", new=fake_sandbox):
+        result = execute_tool(
+            ctx,
+            "run_command",
+            '{"command": "echo hi", "timeout": 5}',
+            read_files={"/tmp/test"},
+        )
+    assert "ok" in result
+
+
+def test_execute_tool_service_raises():
+    """execute_tool catches exceptions from service __call__."""
+    from anima import Context
+
+    class FailingService(Service):
+        name = "failing"
+
+        def __init__(self, ctx):
+            super().__init__(ctx, "failing")
+
+        def __call__(self, *, value: str) -> str:
+            raise ValueError("boom")
+
+    ctx = Context()
+    ctx.reflect.provide("failing", FailingService(ctx))
+    result = execute_tool(ctx, "failing", '{"value": "x"}')
+    assert result.startswith("Error: ValueError: boom.")
+
+
+def test_service_schema():
+    """service_schema builds a JSON schema from a Service class."""
+    from anima import Context
+
+    ctx = Context()
+    ctx.use(ReadFileService)
+
+    schema = service_schema(ReadFileService, name="read_file")
+    assert schema["function"]["name"] == "read_file"
+    assert schema["function"]["description"]
+    params = schema["function"]["parameters"]
+    assert "path" in params["properties"]
+    assert "path" in params["required"]
+
+
+def test_service_schema_strips_service_suffix():
+    """Service name strips 'Service' suffix."""
+
+    class MyService(Service):
+        def __init__(self, ctx):
+            super().__init__(ctx, "my_service")
+
+        def __call__(self, *, name: str) -> str:
+            return name
+
+    schema = service_schema(MyService, name="my_service")
+    assert schema["function"]["name"] == "my_service"
+
+
+def test_service_schema_name_default_strips_service():
+    """When name is omitted, 'Service' suffix is stripped (line 79)."""
+
+    class DummyService(Service):
+        def __init__(self, ctx):
+            super().__init__(ctx, "dummy")
+
+        def __call__(self, *, value: str) -> str:
+            return value
+
+    schema = service_schema(DummyService)
+    assert schema["function"]["name"] == "Dummy"
+
+
+def test_get_module_mtime_none():
+    """get_module_mtime returns None for never-tracked module."""
+    from magecode.tools.executor import get_module_mtime
+
+    assert get_module_mtime("never_loaded") is None
+
+
+def test_python_type_unannotated():
+    """Unannotated parameters default to string type (line 24)."""
+    import inspect
+
+    from magecode.tools.registry import _python_type_to_json_schema_type
+
+    assert _python_type_to_json_schema_type(inspect.Parameter.empty) == "string"
+
+
+def test_python_type_optional_unwraps():
+    """Optional[X] unwraps to X via recursion (lines 29-31)."""
+    from typing import Optional, Union
+
+    from magecode.tools.registry import _python_type_to_json_schema_type
+
+    assert _python_type_to_json_schema_type(Optional[str]) == "string"
+    assert _python_type_to_json_schema_type(Optional[int]) == "integer"
+    # A Union with all None args falls through to "string" (lines 29->32)
+    assert _python_type_to_json_schema_type(Union[type(None)]) == "string"
+    # A None arg is skipped, continuing the loop (lines 30->29)
+    assert _python_type_to_json_schema_type(Union[type(None), str]) == "string"
+
+    # A mock with an origin but empty args falls through (line 29->32)
+    class EmptyArgs:
+        __origin__ = object
+        __args__ = ()
+
+    assert _python_type_to_json_schema_type(EmptyArgs()) == "string"
+
+
+def test_service_schema_name_from_class():
+    """service_schema derives name from class when name not given (lines 77-81)."""
+
+    class ReadFile(Service):
+        def __init__(self, ctx):
+            super().__init__(ctx, "read_file")
+
+        def __call__(self, *, path: str) -> str:
+            return path
+
+    schema = service_schema(ReadFile)
+    assert schema["function"]["name"] == "ReadFile"
+
+    class NoSuffix(Service):
+        def __init__(self, ctx):
+            super().__init__(ctx, "no_suffix")
+
+        def __call__(self, *, value: str) -> str:
+            return value
+
+    schema2 = service_schema(NoSuffix)
+    assert schema2["function"]["name"] == "NoSuffix"

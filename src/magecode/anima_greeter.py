@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from anima import Context, Service
 
-from magecode.anima_run_command import RunCommandService
+from magecode.tools.run_command import RunCommandService
 
 
 class GreeterService(Service):
@@ -22,7 +22,7 @@ class GreeterService(Service):
 
     def greet(self) -> str:
         """Run whoami through the injected run_command service and return a greeting."""
-        result = self.ctx.run_command("whoami", timeout=5)
+        result = self.ctx.run_command(command="whoami", timeout=5)
         # Output format: "stdout:\n<name>\n\nexit code: 0"
         lines = result.strip().splitlines()
         username = "unknown"

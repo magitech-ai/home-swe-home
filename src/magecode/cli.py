@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 import sys
 from typing import Any
@@ -10,7 +11,8 @@ from typing import Any
 from dotenv import load_dotenv
 
 from .client import ConfigurationError, MiniClaudeError, create_client
-from .core_loop import TurnInterrupted, TurnLimitReached, run_core_loop
+from .context import build_context
+from .core_loop import TurnInterrupted, TurnLimitReached
 from .instructions import build_system_instructions
 from .repl import run_repl
 
@@ -38,7 +40,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+async def _run_headless(
+    *,
+    model: str,
+    messages: list[dict[str, Any]],
+    client: Any,
+) -> int:
+    ctx = await build_context()
+    try:
+        await ctx.core_loop(
+            model=model,
+            messages=messages,
+            client=client,
+        )
+    except TurnInterrupted:
+        print("\nTurn interrupted.", file=sys.stderr)
+        return 130
+    except TurnLimitReached as error:
+        print(f"\nmagecode: {error}", file=sys.stderr)
+        return 1
+    except MiniClaudeError as error:
+        print(f"\nmagecode: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+async def _run_async(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -64,18 +91,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.prompt is not None:
         messages.append({"role": "user", "content": args.prompt})
-        try:
-            run_core_loop(model=args.model, messages=messages, client=client)
-        except TurnInterrupted:
-            print("\nTurn interrupted.", file=sys.stderr)
-            return 130
-        except TurnLimitReached as error:
-            print(f"\nmagecode: {error}", file=sys.stderr)
-            return 1
-        except MiniClaudeError as error:
-            print(f"magecode: {error}", file=sys.stderr)
-            return 1
-        return 0
+        return await _run_headless(model=args.model, messages=messages, client=client)
 
-    run_repl(model=args.model, client=client, system_content=system_content)
+    ctx = await build_context()
+    await run_repl(
+        model=args.model, client=client, system_content=system_content, ctx=ctx
+    )
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    return asyncio.run(_run_async(argv))

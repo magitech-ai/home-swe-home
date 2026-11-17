@@ -8,7 +8,7 @@ import pytest
 from anima import Context
 
 from magecode.anima_greeter import GreeterService, mount_greeter
-from magecode.anima_run_command import RunCommandService
+from magecode.tools.run_command import RunCommandService
 
 
 @pytest.mark.asyncio

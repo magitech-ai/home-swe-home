@@ -1,14 +1,16 @@
 # magecode
 
-A small coding agent in Python: a mini Claude Code. Core loop — send the task
-to the model, run the tools the model asks for, send the results back, repeat
-until the model stops asking. Model replies are printed exactly as they came
-back.
+A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
+micro-kernel (Magitech's Python implementation of Cordis). Everything is a
+component: the core loop and all 12 tools are anima Services mounted on a
+Context. Core loop — send the task to the model, run the tools the model asks
+for, send the results back, repeat until the model stops asking. Model replies
+are printed exactly as they came back.
 
 ## Setup
 
 ```sh
-uv sync                      # install dependencies and this package
+uv sync                      # installs anima + dependencies and this package
 export NVIDIA_API_KEY=nvapi-...   # https://build.nvidia.com; never echo it
 ```
 
@@ -27,6 +29,9 @@ uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 
 In chat, `/model <id>` switches models; Ctrl-C aborts the current turn only;
 Ctrl-D exits.
+
+Shell commands run unsandboxed on the host by default. Pass `--sandbox` or set
+`MAGECODE_SANDBOX=1` to run them inside an isolated Docker container.
 
 ## Design
 

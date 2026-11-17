@@ -5,100 +5,190 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+from anima import Context
+
 from magecode.client import MiniClaudeError
-from magecode.core_loop import TurnInterrupted
+from magecode.core_loop import (
+    CoreLoopService,
+    TurnInterrupted,
+    TurnLimitReached,
+)
 from magecode.repl import _show_context, run_repl
+from magecode.tools import (
+    CodeMetricsService,
+    DeleteFileService,
+    EditFileService,
+    FindDuplicatesService,
+    GenerateDocsService,
+    GrepFilesService,
+    ListDirectoryService,
+    ReadFileService,
+    ReloadModuleService,
+    RunCommandService,
+    WebSearchService,
+    WriteFileService,
+)
+
+TOOL_SERVICES = [
+    ReadFileService,
+    WriteFileService,
+    EditFileService,
+    DeleteFileService,
+    ListDirectoryService,
+    GrepFilesService,
+    RunCommandService,
+    WebSearchService,
+    ReloadModuleService,
+    CodeMetricsService,
+    FindDuplicatesService,
+    GenerateDocsService,
+    CoreLoopService,
+]
+
+
+class FakeCoreLoop:
+    """A fake CoreLoopService that raises a given exception when called."""
+
+    name = "core_loop"
+
+    def __init__(self, side_effect):
+        self._side_effect = side_effect
+        self._capture = None
+
+    async def __call__(self, **kwargs):
+        if self._capture is not None:
+            return await self._capture(**kwargs)
+        raise self._side_effect
+
+
+async def _build_context(with_core_loop: bool = True) -> Context:
+    ctx = Context()
+    for service_cls in TOOL_SERVICES:
+        if service_cls is not CoreLoopService or with_core_loop:
+            ctx.use(service_cls)
+    await ctx.flush()
+    return ctx
+
+
+async def _build_context_with_fake(side_effect) -> Context:
+    ctx = Context()
+    for service_cls in TOOL_SERVICES:
+        if service_cls is not CoreLoopService:
+            ctx.use(service_cls)
+    ctx.reflect.provide("core_loop", FakeCoreLoop(side_effect))
+    await ctx.flush()
+    return ctx
 
 
 class FakeClient:
     pass
 
 
-def test_repl_exits_on_eof(capsys):
+@pytest.mark.asyncio
+async def test_repl_exits_on_eof(capsys):
+    ctx = await _build_context()
     with patch("magecode.repl.input", side_effect=EOFError):
-        run_repl(model="m", client=FakeClient())
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     out = capsys.readouterr().out
     assert "magecode interactive chat" in out
 
 
-def test_repl_keyboard_interrupt_continues(capsys):
+@pytest.mark.asyncio
+async def test_repl_keyboard_interrupt_continues(capsys):
+    ctx = await _build_context()
     with patch(
         "magecode.repl.input",
         side_effect=[KeyboardInterrupt, EOFError],
     ):
-        run_repl(model="m", client=FakeClient())
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     assert "Turn interrupted" not in capsys.readouterr().out
 
 
-def test_repl_model_switch(capsys):
+@pytest.mark.asyncio
+async def test_repl_model_switch(capsys):
+    ctx = await _build_context()
     with patch("magecode.repl.input", side_effect=["/model other/model", EOFError]):
-        run_repl(model="m", client=FakeClient())
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     out = capsys.readouterr().out
     assert "model: m" in out
     assert "model: other/model" in out
 
 
-def test_repl_model_command_without_id_shows_current(capsys):
+@pytest.mark.asyncio
+async def test_repl_model_command_without_id_shows_current(capsys):
+    ctx = await _build_context()
     with patch("magecode.repl.input", side_effect=["/model", EOFError]):
-        run_repl(model="m", client=FakeClient())
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     assert capsys.readouterr().out.count("model: m") == 2
 
 
-def test_repl_blank_lines_are_ignored():
+@pytest.mark.asyncio
+async def test_repl_blank_lines_are_ignored():
+    ctx = await _build_context()
     with patch("magecode.repl.input") as mock_input:
         mock_input.side_effect = ["   ", "", EOFError]
-        run_repl(model="m", client=FakeClient())
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     assert mock_input.call_count == 3
 
 
-def test_repl_turn_interrupted_is_swallowed(capsys):
-    with (
-        patch("magecode.repl.input", side_effect=["say hi", EOFError]),
-        patch("magecode.repl.run_core_loop", side_effect=TurnInterrupted()),
-    ):
-        run_repl(model="m", client=FakeClient())
+@pytest.mark.asyncio
+async def test_repl_turn_interrupted_is_swallowed(capsys):
+    ctx = await _build_context_with_fake(TurnInterrupted())
+    with patch("magecode.repl.input", side_effect=["say hi", EOFError]):
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     assert "Turn interrupted." in capsys.readouterr().out
 
 
-def test_repl_api_error_prints_and_continues(capsys):
-    with (
-        patch("magecode.repl.input", side_effect=["say hi", EOFError]),
-        patch(
-            "magecode.repl.run_core_loop",
-            side_effect=MiniClaudeError("The model does not exist"),
-        ),
-    ):
-        run_repl(model="m", client=FakeClient())
+@pytest.mark.asyncio
+async def test_repl_api_error_prints_and_continues(capsys):
+    ctx = await _build_context_with_fake(MiniClaudeError("The model does not exist"))
+    with patch("magecode.repl.input", side_effect=["say hi", EOFError]):
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     out = capsys.readouterr().out
     assert "magecode: The model does not exist" in out
 
 
-def test_repl_context_command(capsys):
+@pytest.mark.asyncio
+async def test_repl_context_command(capsys):
+    ctx = await _build_context()
     with patch(
         "magecode.repl.input",
         side_effect=["/context", EOFError],
     ):
-        run_repl(model="m", client=FakeClient())
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     out = capsys.readouterr().out
     assert "context window" in out
     assert "tokens" in out
     assert "[0] system" in out
 
 
-def test_repl_user_message_reaches_turn():
+@pytest.mark.asyncio
+async def test_repl_user_message_reaches_turn():
+    ctx = await _build_context()
     seen = {}
 
-    def capture_turn(*, model, messages, client=None, reply_prefix="", max_turns=20):
+    async def capture_turn(
+        *,
+        model: str,
+        messages: list,
+        client: Any = None,
+        reply_prefix: str = "",
+        max_turns: int = 20,
+    ):
         seen["messages"] = messages
         seen["model"] = model
         seen["reply_prefix"] = reply_prefix
         seen["max_turns"] = max_turns
 
-    with (
-        patch("magecode.repl.input", side_effect=["hello world", EOFError]),
-        patch("magecode.repl.run_core_loop", side_effect=capture_turn),
-    ):
-        run_repl(model="m", client=FakeClient())
+    # Replace CoreLoopService with a fake that captures the call
+    fake = FakeCoreLoop(None)
+    fake._capture = capture_turn
+    ctx.reflect.provide("core_loop", fake)
+    await ctx.flush()
+
+    with patch("magecode.repl.input", side_effect=["hello world", EOFError]):
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     assert seen["model"] == "m"
     assert seen["messages"][0]["role"] == "system"
     assert seen["messages"][1] == {
@@ -109,23 +199,18 @@ def test_repl_user_message_reaches_turn():
     assert seen["max_turns"] == 20
 
 
-def test_repl_turn_limit_reached(capsys):
+@pytest.mark.asyncio
+async def test_repl_turn_limit_reached(capsys):
     """REPL should report TurnLimitReached error when run_core_loop raises it."""
-    from magecode.core_loop import TurnLimitReached
-
-    def capture_turn(*, model, messages, client=None, reply_prefix="", max_turns=20):
-        raise TurnLimitReached("Turn limit reached")
-
-    with (
-        patch("magecode.repl.input", side_effect=["hello world", EOFError]),
-        patch("magecode.repl.run_core_loop", side_effect=capture_turn),
-    ):
-        run_repl(model="m", client=FakeClient())
+    ctx = await _build_context_with_fake(TurnLimitReached("Turn limit reached"))
+    with patch("magecode.repl.input", side_effect=["hello world", EOFError]):
+        await run_repl(model="m", client=FakeClient(), ctx=ctx)
     out = capsys.readouterr().out
     assert "Turn limit reached" in out
 
 
-def test_repl_context_shows_tool_calls(capsys):
+@pytest.mark.asyncio
+async def test_repl_context_shows_tool_calls(capsys):
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": "You are magecode."},
         {
