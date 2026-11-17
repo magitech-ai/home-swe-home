@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from types import SimpleNamespace
 
@@ -44,7 +45,6 @@ def test_run_in_sandbox_security_flags(monkeypatch):
     assert "--network" in cmd and "none" in cmd
     assert "--read-only" in cmd
     assert "--user" in cmd
-    # User should be the current host UID:GID for filesystem permissions
     import os
 
     assert f"--user {os.getuid()}:{os.getgid()}" in cmd_str
@@ -55,6 +55,52 @@ def test_run_in_sandbox_security_flags(monkeypatch):
     assert "--pids-limit" in cmd
     assert "--tmpfs" in cmd and "noexec" in cmd_str
     assert "--rm" in cmd
+    assert "--ulimit" in cmd and "nofile=256:256" in cmd_str
+    assert "--ulimit" in cmd and "fsize=52428800" in cmd_str
+
+
+def test_run_in_sandbox_workdir_confined_to_cwd(monkeypatch):
+    """workdir escaping the CWD returns an error without calling docker."""
+    seen = {}
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        seen["cmd"] = cmd
+        return _completed(returncode=0)
+
+    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    result = run_in_sandbox("echo x", workdir="/etc")
+    assert result.exit_code == 1
+    assert "outside the current working directory" in result.stderr
+    assert "cmd" not in seen  # docker was never called
+
+
+def test_run_in_sandbox_workdir_relative_ok(monkeypatch):
+    """Relative workdir resolves under CWD and docker is called."""
+    calls = []
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        calls.append(cmd)
+        return _completed(returncode=0)
+
+    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    run_in_sandbox("echo x", workdir=".")
+    v_idx = calls[0].index("-v")
+    mount_spec = calls[0][v_idx + 1]
+    assert mount_spec.endswith(":/workspace:rw")
+    assert mount_spec.split(":")[0] == os.path.abspath(".")
+
+
+def test_run_in_sandbox_docker_not_found(monkeypatch):
+    """Missing docker CLI returns an error result (fail closed)."""
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        raise FileNotFoundError("docker")
+
+    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    result = run_in_sandbox("echo hi")
+    assert result.exit_code == 127
+    assert "docker CLI not found" in result.stderr
+    assert result.timed_out is False
 
 
 def test_run_in_sandbox_timeout_kills_container(monkeypatch):
@@ -65,11 +111,9 @@ def test_run_in_sandbox_timeout_kills_container(monkeypatch):
     def fake_run(cmd, *args, **kwargs):
         call_count["n"] += 1
         if call_count["n"] == 1:
-            # First call: docker run times out with mixed stdout/stderr types
             raise subprocess.TimeoutExpired(
                 cmd, 1, output=b"partial output", stderr="stderr text"
             )
-        # Subsequent calls: docker kill / rm succeed
         if cmd[0] == "docker" and len(cmd) > 1 and cmd[1] in ("kill", "rm"):
             if cmd[1] == "kill":
                 kill_calls.append(cmd)
@@ -84,8 +128,24 @@ def test_run_in_sandbox_timeout_kills_container(monkeypatch):
     assert result.exit_code == 124
     assert kill_calls, "expected docker kill to be attempted"
     assert rm_calls, "expected docker rm to be attempted"
-    assert "partial output" in result.stdout  # bytes decoded
-    assert "stderr text" in result.stderr  # str passed through
+    assert "partial output" in result.stdout
+    assert "stderr text" in result.stderr
+
+
+def test_run_in_sandbox_timeout_kill_respects_timeout(monkeypatch):
+    """_kill_container passes a timeout to subprocess.run."""
+    seen_kwargs = {}
+
+    def fake_run(cmd, *args, **kwargs):
+        if kwargs:
+            seen_kwargs["timeout"] = kwargs.get("timeout")
+        if cmd[0] == "docker" and len(cmd) > 1 and cmd[1] in ("kill", "rm"):
+            return SimpleNamespace(returncode=0)
+        raise subprocess.TimeoutExpired(cmd, 1)
+
+    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    run_in_sandbox("sleep 100", timeout=1)
+    assert seen_kwargs.get("timeout") == 5  # KILL_TIMEOUT
 
 
 def test_run_in_sandbox_timeout_none_output(monkeypatch):
@@ -115,7 +175,7 @@ def test_output_capped(monkeypatch):
 
     monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
     result = run_in_sandbox("echo long", timeout=10)
-    assert len(result.stdout) <= 8192 + 60  # cap + message
+    assert len(result.stdout) <= 8192 + 60
     assert "capped" in result.stdout
 
 

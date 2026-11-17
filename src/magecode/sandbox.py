@@ -8,6 +8,7 @@ Every command runs in a fresh, throwaway container with:
 * ``--cap-drop ALL``        — strips dangerous Linux capabilities
 * ``no-new-privileges``     — blocks setuid escalation
 * CPU / memory / pids limits — prevents resource exhaustion
+* ``ulimit nofile/fsize``   — prevents fd exhaustion and file bombs
 * ``--rm``                  — ephemeral; no state between runs
 * hard subprocess timeout   — kills runaway commands and cleans up the container
 
@@ -19,6 +20,9 @@ cannot modify system files, exfiltrate data, or exhaust host resources.
 Containers share the host kernel, so this is a strong boundary against the
 *agent*, not against a kernel exploit. For genuinely hostile multi-tenant
 workloads, pair with gVisor or a microVM.
+
+The ``workdir`` is validated to be within the current working directory so the
+sandbox can never mount ``/etc``, ``/``, or other sensitive host paths.
 """
 
 from __future__ import annotations
@@ -34,6 +38,7 @@ DEFAULT_MEMORY = "256m"
 DEFAULT_CPUS = "0.5"
 DEFAULT_PIDS_LIMIT = 64
 OUTPUT_CAP = 8192  # bytes per stream
+KILL_TIMEOUT = 5  # seconds to wait for docker kill/rm on cleanup
 
 
 @dataclass
@@ -42,6 +47,23 @@ class SandboxResult:
     stderr: str
     exit_code: int
     timed_out: bool
+
+
+def _safe_workdir(workdir: str) -> str:
+    """Return an absolute path for *workdir*, confined to the CWD tree.
+
+    Raises ValueError if the resolved path escapes the current working
+    directory, preventing the sandbox from mounting sensitive host paths
+    such as ``/etc`` or ``/``.
+    """
+    cwd = os.path.abspath(os.getcwd())
+    target = os.path.abspath(os.path.join(cwd, workdir))
+    if target != cwd and not target.startswith(cwd + os.sep):
+        raise ValueError(
+            f"workdir {workdir!r} resolves to {target}, which is outside "
+            f"the current working directory {cwd!r}"
+        )
+    return target
 
 
 def _build_docker_cmd(
@@ -82,6 +104,10 @@ def _build_docker_cmd(
             cpus,
             "--pids-limit",
             str(pids_limit),
+            "--ulimit",
+            "nofile=256:256",
+            "--ulimit",
+            "fsize=52428800",
             "-v",
             f"{workdir}:/workspace:rw",
             "-w",
@@ -108,18 +134,28 @@ def run_in_sandbox(
     """Run *command* inside a Docker sandbox and return the result.
 
     The container is removed on exit (``--rm``). If the subprocess times out,
-    the named container is killed and removed to avoid orphans.
+    the named container is killed and removed to avoid orphans. If the Docker
+    CLI or daemon is unavailable, returns an error result (fail closed).
     """
+    try:
+        resolved_workdir = _safe_workdir(workdir)
+    except ValueError as error:
+        return SandboxResult(
+            stdout="",
+            stderr=str(error),
+            exit_code=1,
+            timed_out=False,
+        )
+
     docker_cmd, container_name = _build_docker_cmd(
         command=command,
         timeout=timeout,
-        workdir=workdir,
+        workdir=resolved_workdir,
         image=image,
         memory=memory,
         cpus=cpus,
         pids_limit=pids_limit,
     )
-    container_name = docker_cmd[4]  # the value after --name
     try:
         completed = subprocess.run(
             docker_cmd,
@@ -131,6 +167,16 @@ def run_in_sandbox(
             stdout=_cap(completed.stdout),
             stderr=_cap(completed.stderr),
             exit_code=completed.returncode,
+            timed_out=False,
+        )
+    except FileNotFoundError:
+        return SandboxResult(
+            stdout="",
+            stderr=(
+                "Error: docker CLI not found. Install Docker to use run_command. "
+                "See https://docs.docker.com/engine/install/"
+            ),
+            exit_code=127,
             timed_out=False,
         )
     except subprocess.TimeoutExpired as error:
@@ -147,8 +193,10 @@ def run_in_sandbox(
 
 def _kill_container(name: str) -> None:
     """Best-effort kill + remove of a sandbox container on timeout."""
-    subprocess.run(["docker", "kill", name], capture_output=True)
-    subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+    subprocess.run(["docker", "kill", name], capture_output=True, timeout=KILL_TIMEOUT)
+    subprocess.run(
+        ["docker", "rm", "-f", name], capture_output=True, timeout=KILL_TIMEOUT
+    )
 
 
 def _decode(data: bytes | str | None) -> str:

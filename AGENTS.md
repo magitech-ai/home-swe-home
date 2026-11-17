@@ -19,11 +19,14 @@
   is never printed and never persisted. Missing key → clear message, exit 2.
 - **Sandbox** (`src/magecode/sandbox.py`): `run_command` executes inside a fresh,
   throwaway Docker container with `--network none`, `--read-only` root FS,
-  non-root user (current host UID:GID), `--cap-drop ALL`, `no-new-privileges`, CPU /
-  memory / pids limits, and `--rm` ephemeral lifetime. The current directory is
-  mounted as `/workspace` (read-write) so commands can operate on project files.
-  Docker is required; if the daemon is unavailable, `run_command` returns an
-  error rather than falling back to host execution (fail closed).
+  non-root user (current host UID:GID), `--cap-drop ALL`, `no-new-privileges`,
+  CPU / memory / pids limits, `ulimit nofile/fsize`, and `--rm` ephemeral
+  lifetime. The `workdir` is validated to be within the CWD tree so the sandbox
+  can never mount `/etc`, `/`, or other sensitive host paths. The current
+  directory is mounted as `/workspace` (read-write) so commands can operate on
+  project files. Output is capped at 8 KB per stream. Docker is required; if
+  the CLI or daemon is unavailable, `run_command` returns an error rather than
+  falling back to host execution (fail closed).
 - **Modes**: Interactive REPL by default (`> ` / `< ` prompts, `/model`,
   `/context`); headless with `-p "task"` (raw output, `[context: N tokens]`
   per call). `--model` overrides the default model.
