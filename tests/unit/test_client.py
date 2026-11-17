@@ -1,0 +1,90 @@
+"""Tests for mini_claude.client."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import httpx
+import pytest
+from openai import APIConnectionError, APIStatusError
+
+from mini_claude.client import (
+    ConfigurationError,
+    MiniClaudeError,
+    chat_complete,
+    create_client,
+    get_api_key,
+)
+
+
+def test_get_api_key_returns_env_value(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
+    assert get_api_key() == "nvapi-test-key"
+
+
+def test_get_api_key_missing(monkeypatch):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    with pytest.raises(ConfigurationError, match="NVIDIA_API_KEY is not set"):
+        get_api_key()
+
+
+def test_create_client_missing_key(monkeypatch):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    with pytest.raises(ConfigurationError):
+        create_client()
+
+
+def test_create_client_passes_key_and_base_url(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
+    with patch_openai() as mock_openai:
+        create_client()
+    mock_openai.assert_called_once_with(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key="nvapi-test-key",
+    )
+
+
+def test_chat_complete_returns_response():
+    response = SimpleNamespace(choices=[])
+    client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=lambda **kwargs: response)
+        )
+    )
+    assert chat_complete(client, model="m", messages=[], tools=None) is response
+
+
+def test_chat_complete_wraps_status_error():
+    response = httpx.Response(
+        404, request=httpx.Request("POST", "https://x/v1/chat/completions")
+    )
+    error = APIStatusError("The model does not exist", response=response, body=None)
+    client = failing_client(error)
+    expected = "NVIDIA API error: The model does not exist"
+    with pytest.raises(MiniClaudeError, match=expected):
+        chat_complete(client, model="nope/nope", messages=[], tools=None)
+
+
+def test_chat_complete_wraps_connection_error():
+    error = APIConnectionError(
+        message="failed to connect",
+        request=httpx.Request("POST", "https://x"),
+    )
+    client = failing_client(error)
+    with pytest.raises(MiniClaudeError, match="NVIDIA API error: failed to connect"):
+        chat_complete(client, model="m", messages=[], tools=None)
+
+
+def patch_openai():
+    from unittest.mock import patch
+
+    return patch("mini_claude.client.OpenAI")
+
+
+def failing_client(error):
+    def create(**kwargs):
+        raise error
+
+    return SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+    )

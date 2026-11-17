@@ -1,0 +1,50 @@
+[project]
+name = "mini-claude"
+version = "0.1.0"
+description = "A small coding agent: a mini Claude Code loop over the NVIDIA API."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["openai>=1.0,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=6.0", "mypy>=1.11", "ruff>=0.17"]
+
+[project.scripts]
+mini-claude = "mini_claude.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mini_claude = ["py.typed"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.mypy]
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+python_files = ["*.py"]
+testpaths = ["tests/unit"]
+
+[tool.coverage.run]
+source = ["src/mini_claude"]
+branch = true
+omit = [
+    "*/temp/*",
+    "*/tmp*/**",
+    "*/AppData/Local/Temp/**",
+]
+
+[tool.coverage.report]
+fail_under = 100
