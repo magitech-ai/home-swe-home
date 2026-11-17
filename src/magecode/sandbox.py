@@ -4,12 +4,17 @@ Every command runs in a fresh, throwaway container with:
 
 * ``--network none``        — no egress, no exfiltration, no cloud metadata
 * ``--read-only`` root FS   — immutable image; writes only to tmpfs / workspace
-* non-root user ``65534``   — limits privilege escalation
+* current host UID:GID      — file permissions work naturally on bind mounts
 * ``--cap-drop ALL``        — strips dangerous Linux capabilities
 * ``no-new-privileges``     — blocks setuid escalation
 * CPU / memory / pids limits — prevents resource exhaustion
 * ``--rm``                  — ephemeral; no state between runs
 * hard subprocess timeout   — kills runaway commands and cleans up the container
+
+Running as the current host user (rather than nobody) means the container can
+read/write project files normally. The read-only root FS, dropped capabilities,
+no network, and resource limits still provide a strong boundary: the agent
+cannot modify system files, exfiltrate data, or exhaust host resources.
 
 Containers share the host kernel, so this is a strong boundary against the
 *agent*, not against a kernel exploit. For genuinely hostile multi-tenant
@@ -18,6 +23,7 @@ workloads, pair with gVisor or a microVM.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import uuid
 from dataclasses import dataclass
@@ -63,7 +69,7 @@ def _build_docker_cmd(
             "--tmpfs",
             "/tmp:rw,noexec,nosuid,nodev,size=64m",
             "--user",
-            "65534:65534",
+            f"{os.getuid()}:{os.getgid()}",
             "--cap-drop",
             "ALL",
             "--security-opt",

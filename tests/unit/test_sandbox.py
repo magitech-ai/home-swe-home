@@ -43,7 +43,11 @@ def test_run_in_sandbox_security_flags(monkeypatch):
     cmd_str = " ".join(cmd)
     assert "--network" in cmd and "none" in cmd
     assert "--read-only" in cmd
-    assert "--user" in cmd and "65534:65534" in cmd
+    assert "--user" in cmd
+    # User should be the current host UID:GID for filesystem permissions
+    import os
+
+    assert f"--user {os.getuid()}:{os.getgid()}" in cmd_str
     assert "--cap-drop" in cmd and "ALL" in cmd
     assert "--security-opt" in cmd and "no-new-privileges" in cmd
     assert "--memory" in cmd and "--memory-swap" in cmd
