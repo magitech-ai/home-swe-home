@@ -17,7 +17,7 @@ import tiktoken
 ENCODING = tiktoken.get_encoding("cl100k_base")
 
 RULES = """\
-You are mini-claude, a coding agent. You work by talking to the user and
+You are magecode, a coding agent. You work by talking to the user and
 calling tools.
 
 Rules:

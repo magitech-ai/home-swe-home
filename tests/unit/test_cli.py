@@ -1,17 +1,17 @@
-"""Tests for mini_claude.cli."""
+"""Tests for magecode.cli."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
-from mini_claude.cli import DEFAULT_MODEL, main
-from mini_claude.client import MiniClaudeError
-from mini_claude.core_loop import TurnInterrupted, TurnLimitReached
+from magecode.cli import DEFAULT_MODEL, main
+from magecode.client import MiniClaudeError
+from magecode.core_loop import TurnInterrupted, TurnLimitReached
 
 
 def test_main_no_api_key(monkeypatch, capsys):
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-    with patch("mini_claude.cli.load_dotenv"):
+    with patch("magecode.cli.load_dotenv"):
         code = main(["-p", "say hi in three words"])
     assert code == 2
     stderr = capsys.readouterr().err
@@ -29,8 +29,8 @@ def test_main_dotenv_fallback(monkeypatch, capsys):
         print("hello there friend")
 
     with (
-        patch("mini_claude.cli.load_dotenv", side_effect=fake_load_dotenv),
-        patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop),
+        patch("magecode.cli.load_dotenv", side_effect=fake_load_dotenv),
+        patch("magecode.cli.run_core_loop", side_effect=fake_core_loop),
     ):
         code = main(["-p", "say hi in three words"])
     assert code == 0
@@ -45,7 +45,7 @@ def test_main_headless_runs_one_turn(monkeypatch, capsys):
         seen["messages"] = messages
         print("hello there friend")
 
-    with patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop):
+    with patch("magecode.cli.run_core_loop", side_effect=fake_core_loop):
         code = main(
             ["-p", "say hi in three words", "--model", "meta/llama-3.1-8b-instruct"]
         )
@@ -64,7 +64,7 @@ def test_main_headless_interrupted(monkeypatch, capsys):
     def fake_core_loop(**kwargs):
         raise TurnInterrupted()
 
-    with patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop):
+    with patch("magecode.cli.run_core_loop", side_effect=fake_core_loop):
         code = main(["-p", "do something"])
     assert code == 130
     assert "Turn interrupted." in capsys.readouterr().err
@@ -76,10 +76,10 @@ def test_main_headless_api_error(monkeypatch, capsys):
     def fake_core_loop(**kwargs):
         raise MiniClaudeError("The model does not exist")
 
-    with patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop):
+    with patch("magecode.cli.run_core_loop", side_effect=fake_core_loop):
         code = main(["-p", "do something"])
     assert code == 1
-    assert "mini-claude: The model does not exist" in capsys.readouterr().err
+    assert "magecode: The model does not exist" in capsys.readouterr().err
 
 
 def test_main_headless_turn_limit_reached(monkeypatch, capsys):
@@ -88,7 +88,7 @@ def test_main_headless_turn_limit_reached(monkeypatch, capsys):
     def fake_core_loop(**kwargs):
         raise TurnLimitReached("Turn limit reached")
 
-    with patch("mini_claude.cli.run_core_loop", side_effect=fake_core_loop):
+    with patch("magecode.cli.run_core_loop", side_effect=fake_core_loop):
         code = main(["-p", "do something"])
     assert code == 1
     assert "Turn limit reached" in capsys.readouterr().err
@@ -103,9 +103,9 @@ def test_main_interactive(monkeypatch):
         called.append(model)
         system_seen.append(system_content)
 
-    with patch("mini_claude.cli.run_repl", side_effect=fake_repl):
+    with patch("magecode.cli.run_repl", side_effect=fake_repl):
         code = main([])
     assert code == 0
     assert called == [DEFAULT_MODEL]
     assert system_seen[0] is not None
-    assert "mini-claude" in system_seen[0]
+    assert "magecode" in system_seen[0]

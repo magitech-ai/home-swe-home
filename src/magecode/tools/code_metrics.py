@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from mini_claude.tools import tool
+from magecode.tools import tool
 
 
 @tool

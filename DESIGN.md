@@ -1,4 +1,4 @@
-# Design doc — mini-claude
+# Design doc — magecode
 
 A small coding agent in Python: a mini Claude Code. Core loop — send the task to
 the model, run the tools the model asks for, send the results back, and repeat
@@ -13,13 +13,13 @@ uv sync                      # install deps + this package
 export NVIDIA_API_KEY=nvapi-...   # see "API key setup" below; never echo this
 
 # Headless: one task, nobody watching (requires your key)
-uv run mini-claude -p "say hi in three words"
+uv run magecode -p "say hi in three words"
 
 # Interactive chat (default)
-uv run mini-claude
+uv run magecode
 
 # Pick a model
-uv run mini-claude --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
+uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 ```
 
 Inside chat, `/model meta/llama-3.1-8b-instruct` switches models for the rest of
@@ -86,7 +86,7 @@ what to try next.
 | `grep_files` | Search files for a regex. Provide pattern; optional directory (defaults to `.`). Skips binary/unreadable files. Capped at 50 matches. Returns "No matches." if none. On error: check the directory path, retry. |
 | `run_command` | Run a shell command with timeout (default 30s). Returns stdout, stderr, exit code. On timeout/failure: check the command, retry. |
 | `web_search` | Search the web via DuckDuckGo (no API key). Provide a query. Returns up to 8 "title: url" results, or "No web results found." On network failure: check connection, retry. |
-| `reload_module` | Hot-reload a Python module from disk. **Strict:** the path must have been read via `read_file` first. Re-executes the module's source file via `importlib`; if reloading `mini_claude.tools`, updates `_TOOLS` in place so the running harness picks up new tool registrations. On error: check the module name and file path, retry. |
+| `reload_module` | Hot-reload a Python module from disk. **Strict:** the path must have been read via `read_file` first. Re-executes the module's source file via `importlib`; if reloading `magecode.tools`, updates `_TOOLS` in place so the running harness picks up new tool registrations. On error: check the module name and file path, retry. |
 | `code_metrics` | Calculate code quality metrics for Python files in a directory. Provide a directory path (defaults to `.`). Returns lines of code, blank/comment lines, function/class counts, estimated cyclomatic complexity. On error: check the directory path, retry. |
 | `find_duplicates` | Find duplicate code blocks across Python files. Provide a directory path (defaults to `.`) and optional `min_lines` (defaults to 3). Returns matching blocks with file paths and line numbers. On error: check the directory path, retry. |
 | `generate_docs` | Generate markdown documentation from Python docstrings and comments. Provide a directory path (defaults to `.`). Lists classes and public functions with their docstrings. On error: check the directory path, retry. |
@@ -125,7 +125,7 @@ def my_tool(*, argument: str) -> str:
 
 New tools are registered with the ``@tool`` decorator instead of being manually
 added to multiple places. Each tool lives in its own file under
-``src/mini_claude/tools/``, with the filename matching the tool name
+``src/magecode/tools/``, with the filename matching the tool name
 (e.g. ``read_file.py`` defines the ``read_file`` tool). The decorator registers
 the function in both the execution registry (``_TOOLS``) and the schema
 registry (``tool_schemas()``), inferring everything from the function itself:
@@ -194,18 +194,18 @@ count (cl100k_base encoding) before each model call.
 
 ## File layout
 
-- `pyproject.toml` — metadata, dependencies (`openai`), entry point `mini-claude`
-- `src/mini_claude/__init__.py`
-- `src/mini_claude/client.py` — NVIDIA/OpenAI-compatible client, key validation
-- `src/mini_claude/instructions.py` — system message builder, token counting
-- `src/mini_claude/tools/` — tool registry + individual tool implementations
+- `pyproject.toml` — metadata, dependencies (`openai`), entry point `magecode`
+- `src/magecode/__init__.py`
+- `src/magecode/client.py` — NVIDIA/OpenAI-compatible client, key validation
+- `src/magecode/instructions.py` — system message builder, token counting
+- `src/magecode/tools/` — tool registry + individual tool implementations
   - `__init__.py` — registry, `tool()` decorator, `execute_tool()`
   - `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`,
     `list_directory.py`, `grep_files.py`, `run_command.py`,
     `web_search.py`, `code_metrics.py`, `find_duplicates.py`,
     `generate_docs.py`, `reload_module.py` — one file per tool
-- `src/mini_claude/core_loop.py` — core model ↔ tool loop
-- `src/mini_claude/repl.py` — interactive chat + `/model` + `/context`
-- `src/mini_claude/cli.py` — argparse: `-p`, `--model`
+- `src/magecode/core_loop.py` — core model ↔ tool loop
+- `src/magecode/repl.py` — interactive chat + `/model` + `/context`
+- `src/magecode/cli.py` — argparse: `-p`, `--model`
 - `DESIGN.md` — this file
 - `tests/unit/*.py` — unit tests

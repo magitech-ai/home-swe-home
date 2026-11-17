@@ -2,7 +2,7 @@
 is marked readable so it can be edited with edit_file.
 """
 
-from mini_claude.tools import tool
+from magecode.tools import tool
 
 
 @tool

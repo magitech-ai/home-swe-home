@@ -1,4 +1,4 @@
-# mini-claude
+# magecode
 
 A small coding agent in Python: a mini Claude Code. Core loop — send the task
 to the model, run the tools the model asks for, send the results back, repeat
@@ -16,13 +16,13 @@ export NVIDIA_API_KEY=nvapi-...   # https://build.nvidia.com; never echo it
 
 ```sh
 # Headless: one task and exit
-uv run mini-claude -p "say hi in three words"
+uv run magecode -p "say hi in three words"
 
 # Interactive chat (default)
-uv run mini-claude
+uv run magecode
 
 # Pick a model
-uv run mini-claude --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
+uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 ```
 
 In chat, `/model <id>` switches models; Ctrl-C aborts the current turn only;

@@ -23,7 +23,7 @@ def run_repl(
     client = client or create_client()  # validate configuration up front
     system_content = system_content or build_system_instructions(model=model)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
-    print("mini-claude interactive chat")
+    print("magecode interactive chat")
     print("  /model <id>   switch model")
     print("  /context      show context window and token counts")
     print("  Ctrl-D        exit")
@@ -64,9 +64,9 @@ def run_repl(
         except TurnInterrupted:
             print("\nTurn interrupted.")
         except TurnLimitReached as error:
-            print(f"\nmini-claude: {error}")
+            print(f"\nmagecode: {error}")
         except MiniClaudeError as error:
-            print(f"\nmini-claude: {error}")
+            print(f"\nmagecode: {error}")
 
 
 def _show_context(messages: list[dict[str, Any]]) -> None:

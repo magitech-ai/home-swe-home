@@ -2,7 +2,7 @@
 occurrence of old_string with new_string.
 """
 
-from mini_claude.tools import tool
+from magecode.tools import tool
 
 
 @tool

@@ -1,4 +1,4 @@
-"""Tests for mini_claude.client."""
+"""Tests for magecode.client."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import httpx
 import pytest
 from openai import APIConnectionError, APIStatusError
 
-from mini_claude.client import (
+from magecode.client import (
     ConfigurationError,
     MiniClaudeError,
     chat_complete,
@@ -78,7 +78,7 @@ def test_chat_complete_wraps_connection_error():
 def patch_openai():
     from unittest.mock import patch
 
-    return patch("mini_claude.client.OpenAI")
+    return patch("magecode.client.OpenAI")
 
 
 def failing_client(error):

@@ -4,7 +4,7 @@ import importlib
 import importlib.util
 import os
 
-from mini_claude.tools import tool
+from magecode.tools import tool
 
 
 @tool
@@ -30,7 +30,7 @@ def reload_module(*, module_name: str, file_path: str) -> str:
     if spec is None or spec.loader is None:
         return f"Error: could not create spec for {path}."
     # Reset any prior mtime tracking so we always re-load.
-    from mini_claude.tools import _module_mtimes
+    from magecode.tools import _module_mtimes
 
     _module_mtimes.pop(module_name, None)
     module = importlib.util.module_from_spec(spec)

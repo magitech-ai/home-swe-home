@@ -1,4 +1,4 @@
-"""Tests for mini_claude.core_loop."""
+"""Tests for magecode.core_loop."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from mini_claude.core_loop import (
+from magecode.core_loop import (
     TurnInterrupted,
     run_core_loop,
 )
@@ -65,7 +65,7 @@ def test_run_core_loop_tool_call_then_final(capsys, monkeypatch):
         executed.append((name, arguments_json))
         return "tool result text"
 
-    monkeypatch.setattr("mini_claude.core_loop.execute_tool", fake_execute)
+    monkeypatch.setattr("magecode.core_loop.execute_tool", fake_execute)
     first = assistant_message(
         None, [tool_call("call-1", "read_file", '{"path": "x.txt"}')]
     )
@@ -111,7 +111,7 @@ def test_run_core_loop_edit_refused_when_unread(capsys, monkeypatch):
             )
         return "tool result text"
 
-    monkeypatch.setattr("mini_claude.core_loop.execute_tool", fake_execute)
+    monkeypatch.setattr("magecode.core_loop.execute_tool", fake_execute)
     edit_args = '{"path": "x.txt", "old_string": "a", "new_string": "b"}'
     first = assistant_message(
         None,
@@ -144,7 +144,7 @@ def test_run_core_loop_read_marks_file_readable(capsys, monkeypatch):
             return "file contents"
         return "ok"
 
-    monkeypatch.setattr("mini_claude.core_loop.execute_tool", fake_execute)
+    monkeypatch.setattr("magecode.core_loop.execute_tool", fake_execute)
     edit_args = '{"path": "x.txt", "old_string": "a", "new_string": "b"}'
     first = assistant_message(None, [tool_call("c1", "read_file", '{"path": "x.txt"}')])
     second = assistant_message(
@@ -186,7 +186,7 @@ def test_run_turn_multiple_tool_calls(capsys, monkeypatch):
             return "first result"
         return "second result"
 
-    monkeypatch.setattr("mini_claude.core_loop.execute_tool", fake_execute)
+    monkeypatch.setattr("magecode.core_loop.execute_tool", fake_execute)
     first = assistant_message(None, [tool_call("c1", "read_file", '{"path": "a.txt"}')])
     second = assistant_message(
         None, [tool_call("c2", "read_file", '{"path": "b.txt"}')]

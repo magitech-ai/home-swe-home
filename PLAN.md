@@ -6,12 +6,12 @@ and the project's AGENTS.md if present. The system message is never rewritten;
 new information is appended at the end so the prompt cache stays valid.
 
 ## Changes
-- `src/mini_claude/instructions.py` (NEW): build_system_instructions() — rules,
+- `src/magecode/instructions.py` (NEW): build_system_instructions() — rules,
   system line, AGENTS.md content; count_tokens() using tiktoken
-- `src/mini_claude/cli.py`: prepend system message to headless messages
-- `src/mini_claude/repl.py`: prepend system message to chat messages;
+- `src/magecode/cli.py`: prepend system message to headless messages
+- `src/magecode/repl.py`: prepend system message to chat messages;
   `/context` command prints context window + token counts
-- `src/mini_claude/turn.py`: print token count before each model call
+- `src/magecode/turn.py`: print token count before each model call
 - `pyproject.toml`: add tiktoken dependency
 - `DESIGN.md`: document instructions + /context rule
 

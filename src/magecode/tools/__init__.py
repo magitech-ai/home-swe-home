@@ -293,7 +293,7 @@ def execute_tool(
             # Lazy import to avoid module/function name collision
             import importlib
 
-            _reload_mod = importlib.import_module(".reload_module", "mini_claude.tools")
+            _reload_mod = importlib.import_module(".reload_module", "magecode.tools")
             _reload_module_fn: Callable[..., str] = _reload_mod.reload_module
 
             return _reload_module_fn(module_name=module_name, file_path=file_path)

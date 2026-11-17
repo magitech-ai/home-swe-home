@@ -1,4 +1,4 @@
-"""NVIDIA (OpenAI-compatible) API client for mini-claude.
+"""NVIDIA (OpenAI-compatible) API client for magecode.
 
 The NVIDIA API key is read from ``NVIDIA_API_KEY`` in the environment. It is
 never printed and never persisted by this program.
@@ -15,7 +15,7 @@ NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
 class MiniClaudeError(Exception):
-    """Base error for mini-claude."""
+    """Base error for magecode."""
 
 
 class ConfigurationError(MiniClaudeError):

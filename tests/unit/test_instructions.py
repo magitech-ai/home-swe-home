@@ -1,13 +1,13 @@
-"""Tests for mini_claude.instructions."""
+"""Tests for magecode.instructions."""
 
 from __future__ import annotations
 
-from mini_claude.instructions import build_system_instructions, count_tokens
+from magecode.instructions import build_system_instructions, count_tokens
 
 
 def test_build_system_instructions_contains_rules():
     content = build_system_instructions(model="test/model")
-    assert "mini-claude" in content
+    assert "magecode" in content
     assert "Rules:" in content
     assert "Use tools" in content
 

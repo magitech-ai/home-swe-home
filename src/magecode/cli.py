@@ -1,4 +1,4 @@
-"""Command line interface for mini-claude."""
+"""Command line interface for magecode."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="mini-claude")
+    parser = argparse.ArgumentParser(prog="magecode")
     parser.add_argument(
         "-p",
         "--prompt",
@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         client = create_client()
     except ConfigurationError as error:
-        print(f"mini-claude: {error}", file=sys.stderr)
+        print(f"magecode: {error}", file=sys.stderr)
         return 2
 
     system_content = build_system_instructions(model=args.model)
@@ -59,10 +59,10 @@ def main(argv: list[str] | None = None) -> int:
             print("\nTurn interrupted.", file=sys.stderr)
             return 130
         except TurnLimitReached as error:
-            print(f"\nmini-claude: {error}", file=sys.stderr)
+            print(f"\nmagecode: {error}", file=sys.stderr)
             return 1
         except MiniClaudeError as error:
-            print(f"mini-claude: {error}", file=sys.stderr)
+            print(f"magecode: {error}", file=sys.stderr)
             return 1
         return 0
 
