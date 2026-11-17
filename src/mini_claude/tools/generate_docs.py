@@ -6,33 +6,19 @@ from pathlib import Path
 from mini_claude.tools import tool
 
 
-@tool(
-    name="generate_docs",
-    description=(
-        "Generate documentation from Python docstrings and "
-        "comments.\n"
-        "Creates a markdown summary of all public functions and "
-        "classes found\n"
-        "in Python files under the given directory.\n"
-        "Manual:\n"
-        "  - Provide a directory path (defaults to '.').\n"
-        "  - Returns markdown documentation with signatures "
-        "and docstrings.\n"
-        "  - On error: check the directory path, retry.\n"
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": ("Directory to generate docs for (defaults to '.')."),
-            }
-        },
-        "required": ["path"],
-        "additionalProperties": False,
-    },
-)
+@tool
 def generate_docs(*, path: str = ".") -> str:
+    """Generate documentation from Python docstrings and comments.
+
+    Creates a markdown summary of all public functions and classes found
+    in Python files under the given directory.
+
+    Args:
+        path: Directory to generate docs for (defaults to '.').
+
+    Returns:
+        Markdown documentation with signatures and docstrings.
+    """
     root = Path(path)
     py_files = list(root.rglob("*.py"))
 

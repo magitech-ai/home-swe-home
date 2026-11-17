@@ -6,32 +6,19 @@ from pathlib import Path
 from mini_claude.tools import tool
 
 
-@tool(
-    name="code_metrics",
-    description=(
-        "Calculate code quality metrics for Python files in a "
-        "directory.\n"
-        "Returns lines of code, cyclomatic complexity estimates, "
-        "and other metrics.\n"
-        "Useful for tracking improvement over recursive turns.\n"
-        "Manual:\n"
-        "  - Provide a directory path (defaults to '.').\n"
-        "  - Returns summary statistics for all .py files found.\n"
-        "  - On error: check the directory path, retry.\n"
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "Directory to analyze (defaults to '.').",
-            }
-        },
-        "required": ["path"],
-        "additionalProperties": False,
-    },
-)
+@tool
 def code_metrics(*, path: str = ".") -> str:
+    """Calculate code quality metrics for Python files in a directory.
+
+    Returns lines of code, cyclomatic complexity estimates, and other metrics.
+    Useful for tracking improvement over recursive turns.
+
+    Args:
+        path: Directory to analyze (defaults to '.').
+
+    Returns:
+        Summary statistics for all .py files found.
+    """
     root = Path(path)
     py_files = list(root.rglob("*.py"))
 

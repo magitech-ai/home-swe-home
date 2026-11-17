@@ -5,42 +5,21 @@ from pathlib import Path
 from mini_claude.tools import tool
 
 
-@tool(
-    name="find_duplicates",
-    description=(
-        "Find duplicate code blocks across Python files.\n"
-        "Uses simple line-based comparison to find "
-        "near-identical code sequences.\n"
-        "Returns file:line ranges that are duplicated.\n"
-        "Manual:\n"
-        "  - Provide a directory path (defaults to current directory).\n"
-        "  - min_lines minimum number of consecutive lines to "
-        "consider a duplicate.\n"
-        "  - Returns matching blocks with file paths and line numbers.\n"
-        "  - On error: check the directory path, retry.\n"
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": (
-                    "Directory to search for duplicates (defaults to '.')."
-                ),
-            },
-            "min_lines": {
-                "type": "integer",
-                "description": (
-                    "Minimum number of consecutive lines for a "
-                    "duplicate block (defaults to 3)."
-                ),
-            },
-        },
-        "required": ["path"],
-        "additionalProperties": False,
-    },
-)
+@tool
 def find_duplicates(*, path: str = "", min_lines: int = 3) -> str:
+    """Find duplicate code blocks across Python files.
+
+    Uses simple line-based comparison to find near-identical code sequences.
+    Returns file:line ranges that are duplicated.
+
+    Args:
+        path: Directory path (defaults to current directory).
+        min_lines: Minimum number of consecutive lines to consider a
+            duplicate (defaults to 3).
+
+    Returns:
+        Matching blocks with file paths and line numbers.
+    """
     if not path:
         path = "."
 
