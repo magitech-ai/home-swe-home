@@ -66,6 +66,20 @@ def _safe_workdir(workdir: str) -> str:
     return target
 
 
+def _current_uid_gid() -> str:
+    """Return a UID:GID string for the container's --user flag.
+
+    On POSIX, use the current user so bind-mount permissions work naturally.
+    On Windows (no ``os.getuid``), omit the explicit user and let the image's
+    default apply — Docker Desktop maps the host user automatically.
+    """
+    getuid = getattr(os, "getuid", None)
+    getgid = getattr(os, "getgid", None)
+    if getuid is not None and getgid is not None:
+        return f"{getuid()}:{getgid()}"
+    return ""  # caller omits --user when empty
+
+
 def _build_docker_cmd(
     command: str,
     *,
@@ -78,6 +92,8 @@ def _build_docker_cmd(
 ) -> tuple[list[str], str]:
     """Return (docker_cmd, container_name)."""
     name = f"sandbox-{uuid.uuid4().hex[:12]}"
+    uid_gid = _current_uid_gid()
+    user_flag = ["--user", uid_gid] if uid_gid else []
     return (
         [
             "docker",
@@ -90,8 +106,7 @@ def _build_docker_cmd(
             "--read-only",
             "--tmpfs",
             "/tmp:rw,noexec,nosuid,nodev,size=64m",
-            "--user",
-            f"{os.getuid()}:{os.getgid()}",
+            *user_flag,
             "--cap-drop",
             "ALL",
             "--security-opt",

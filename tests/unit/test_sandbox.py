@@ -13,6 +13,15 @@ def _completed(returncode=0, stdout="", stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
+def test_current_uid_gid_windows_fallback(monkeypatch):
+    """Without os.getuid/getgid (Windows), _current_uid_gid returns ''."""
+    import magecode.sandbox as sandbox_mod
+
+    monkeypatch.delattr(sandbox_mod.os, "getuid", raising=False)
+    monkeypatch.delattr(sandbox_mod.os, "getgid", raising=False)
+    assert sandbox_mod._current_uid_gid() == ""
+
+
 def test_run_in_sandbox_returns_result(monkeypatch):
     calls = []
 
@@ -44,10 +53,14 @@ def test_run_in_sandbox_security_flags(monkeypatch):
     cmd_str = " ".join(cmd)
     assert "--network" in cmd and "none" in cmd
     assert "--read-only" in cmd
-    assert "--user" in cmd
-    import os
+    from magecode.sandbox import _current_uid_gid
 
-    assert f"--user {os.getuid()}:{os.getgid()}" in cmd_str
+    uid_gid = _current_uid_gid()
+    if uid_gid:  # POSIX
+        assert "--user" in cmd
+        assert f"--user {uid_gid}" in cmd_str
+    else:  # Windows: --user omitted
+        assert "--user" not in cmd
     assert "--cap-drop" in cmd and "ALL" in cmd
     assert "--security-opt" in cmd and "no-new-privileges" in cmd
     assert "--memory" in cmd and "--memory-swap" in cmd
