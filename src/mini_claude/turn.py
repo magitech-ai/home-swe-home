@@ -66,7 +66,7 @@ def run_turn(
             messages.append(_assistant_message_dict(assistant_message))
 
             if assistant_message.content:
-                print(assistant_message.content, end="")
+                print(f"< {assistant_message.content}", end="")
 
             tool_calls = getattr(assistant_message, "tool_calls", None) or []
             if not tool_calls:
