@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from .client import ConfigurationError, MiniClaudeError, create_client
 from .instructions import build_system_instructions
 from .repl import run_repl
-from .turn import TurnInterrupted, run_turn
+from .turn import TurnInterrupted, TurnLimitReached, run_turn
 
 DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
 
@@ -58,6 +58,9 @@ def main(argv: list[str] | None = None) -> int:
         except TurnInterrupted:
             print("\nTurn interrupted.", file=sys.stderr)
             return 130
+        except TurnLimitReached as error:
+            print(f"\nmini-claude: {error}", file=sys.stderr)
+            return 1
         except MiniClaudeError as error:
             print(f"mini-claude: {error}", file=sys.stderr)
             return 1

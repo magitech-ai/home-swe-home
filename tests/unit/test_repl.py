@@ -88,10 +88,11 @@ def test_repl_context_command(capsys):
 def test_repl_user_message_reaches_turn():
     seen = {}
 
-    def capture_turn(*, model, messages, client=None, reply_prefix=""):
+    def capture_turn(*, model, messages, client=None, reply_prefix="", max_turns=20):
         seen["messages"] = messages
         seen["model"] = model
         seen["reply_prefix"] = reply_prefix
+        seen["max_turns"] = max_turns
 
     with (
         patch("mini_claude.repl.input", side_effect=["hello world", EOFError]),
@@ -105,6 +106,23 @@ def test_repl_user_message_reaches_turn():
         "content": "hello world",
     }
     assert seen["reply_prefix"] == "< "
+    assert seen["max_turns"] == 20
+
+
+def test_repl_turn_limit_reached(capsys):
+    """REPL should report TurnLimitReached error when run_turn raises it."""
+    from mini_claude.turn import TurnLimitReached
+
+    def capture_turn(*, model, messages, client=None, reply_prefix="", max_turns=20):
+        raise TurnLimitReached("Turn limit reached")
+
+    with (
+        patch("mini_claude.repl.input", side_effect=["hello world", EOFError]),
+        patch("mini_claude.repl.run_turn", side_effect=capture_turn),
+    ):
+        run_repl(model="m", client=FakeClient())
+    out = capsys.readouterr().out
+    assert "Turn limit reached" in out
 
 
 def test_repl_context_shows_tool_calls(capsys):

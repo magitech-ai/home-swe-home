@@ -82,6 +82,20 @@ def test_main_headless_api_error(monkeypatch, capsys):
     assert "mini-claude: The model does not exist" in capsys.readouterr().err
 
 
+def test_main_headless_turn_limit_reached(monkeypatch, capsys):
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
+
+    from mini_claude.turn import TurnLimitReached
+
+    def fake_turn(**kwargs):
+        raise TurnLimitReached("Turn limit reached")
+
+    with patch("mini_claude.cli.run_turn", side_effect=fake_turn):
+        code = main(["-p", "do something"])
+    assert code == 1
+    assert "Turn limit reached" in capsys.readouterr().err
+
+
 def test_main_interactive(monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
     called = []

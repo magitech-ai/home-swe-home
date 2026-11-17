@@ -819,3 +819,79 @@ def test_python_type_to_json_schema_type_empty_args():
 
     result = _python_type_to_json_schema_type(MockAnnotation())
     assert result == "string"
+
+
+def test_grep_files_with_file_path(tmp_path):
+    """grep_files should search a single file when path points to a file."""
+    target = tmp_path / "test.txt"
+    target.write_text("hello world\ntest line\ndef foo():\n    pass\n")
+    result = grep_files(pattern=r"def ", path=str(target))
+    assert "test.txt:3: def foo():" in result
+
+
+def test_web_search_bot_detection():
+    """web_search should return a clear error when DuckDuckGo blocks requests."""
+    html = """<html><title>DuckDuckGo</title>
+    <body>
+    <p>Unusual traffic from your computer network.</p>
+    <p>This page checks to see if it's really you sending the requests.</p>
+    </body></html>"""
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return html.encode("utf-8")
+
+    mock_urlopen = "mini_claude.tools.web_search.urllib.request.urlopen"
+    with patch(mock_urlopen, return_value=FakeResponse()):
+        result = web_search(query="anything")
+    assert "bot detection" in result.lower()
+
+
+def test_turn_limit_reached():
+    """run_turn should raise TurnLimitReached when max_turns exceeded."""
+    from types import SimpleNamespace
+
+    from mini_claude.turn import TurnLimitReached, run_turn
+
+    def create(**kwargs):
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="I'll keep going",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call-1",
+                                type="function",
+                                function=SimpleNamespace(
+                                    name="read_file", arguments='{"path": "x.txt"}'
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ],
+        )
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+    )
+    messages = [{"role": "user", "content": "keep going forever"}]
+    try:
+        run_turn(
+            model="test/model",
+            messages=messages,
+            client=client,
+            max_turns=2,
+            reply_prefix="< ",
+        )
+        assert False, "Expected TurnLimitReached"
+    except TurnLimitReached as e:
+        assert "Turn limit" in str(e)

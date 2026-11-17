@@ -8,7 +8,7 @@ from openai import OpenAI
 
 from .client import MiniClaudeError, create_client
 from .instructions import build_system_instructions, count_tokens
-from .turn import TurnInterrupted, run_turn
+from .turn import TurnInterrupted, TurnLimitReached, run_turn
 
 PROMPT = "> "
 
@@ -59,9 +59,12 @@ def run_repl(
                 messages=messages,
                 client=client,
                 reply_prefix="< ",
+                max_turns=20,
             )
         except TurnInterrupted:
             print("\nTurn interrupted.")
+        except TurnLimitReached as error:
+            print(f"\nmini-claude: {error}")
         except MiniClaudeError as error:
             print(f"\nmini-claude: {error}")
 

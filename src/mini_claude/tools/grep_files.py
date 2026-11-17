@@ -27,9 +27,9 @@ def grep_files(*, pattern: str, path: str = ".") -> str:
 
     # If path is a file, search just that file; otherwise rglob the directory
     if root.is_file():
-        files_to_search = [root]
+        files_to_search: list[Path] = [root]
     else:
-        files_to_search = root.rglob("*")
+        files_to_search = list(root.rglob("*"))
 
     for file in files_to_search:
         if not file.is_file():

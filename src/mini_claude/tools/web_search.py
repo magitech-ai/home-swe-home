@@ -48,5 +48,11 @@ def web_search(*, query: str) -> str:
             break
 
     if not results:
+        if "captcha" in html.lower() or "unusual traffic" in html.lower():
+            return (
+                "Error: web search failed: DuckDuckGo is blocking automated "
+                "requests (bot detection). Try again later or use a different "
+                "query."
+            )
         return "No web results found. Try rephrasing the query."
     return "\n".join(results)

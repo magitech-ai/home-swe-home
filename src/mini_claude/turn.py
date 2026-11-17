@@ -24,6 +24,10 @@ class TurnInterrupted(Exception):
     """The user aborted the current turn with Ctrl-C."""
 
 
+class TurnLimitReached(Exception):
+    """The turn exceeded the maximum number of model calls."""
+
+
 def _assistant_message_dict(message: Any) -> dict[str, Any]:
     """Convert one model message into a storable message dict, verbatim."""
     result: dict[str, Any] = {"role": message.role or "assistant"}
@@ -51,21 +55,36 @@ def run_turn(
     messages: list[dict[str, Any]],
     client: OpenAI | None = None,
     reply_prefix: str = "",
+    max_turns: int = 20,
 ) -> list[dict[str, Any]]:
     """Run one turn until the model stops asking for tools.
 
     ``messages`` is mutated and returned. Model replies are appended exactly as
     they came back; tool results are appended as ``tool`` messages. Raises
     ``TurnInterrupted`` if the user hits Ctrl-C during this turn.
+    Raises ``TurnLimitReached`` if ``max_turns`` model calls are made without
+    a final answer.
+
     ``reply_prefix`` is printed before assistant content (chat mode uses "< ";
-    headless leaves it empty so output stays raw).
+    headless leaves it empty so output stays raw).  The token count is printed
+    only in headless mode (``reply_prefix == ""``).
     """
     client = client or create_client()
     read_files: set[str] = set()
+    turn_count = 0
+    is_headless = reply_prefix == ""
     try:
         while True:
+            turn_count += 1
+            if turn_count > max_turns:
+                raise TurnLimitReached(
+                    f"Turn limit of {max_turns} model calls reached without "
+                    "a final answer."
+                )
+
             tokens = count_tokens(messages)
-            print(f"[context: {tokens} tokens]")
+            if is_headless:
+                print(f"[context: {tokens} tokens]")
             response = chat_complete(
                 client,
                 model=model,
