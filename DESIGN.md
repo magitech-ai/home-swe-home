@@ -46,7 +46,7 @@ the session. Ctrl-C aborts the current turn only.
 | Language / runtime | Python 3.14+, `uv`-managed | Shared Magitech standards; strict mypy, ruff (line length 88), pytest |
 | API | NVIDIA build.nvidia.com, OpenAI-compatible, `https://integrate.api.nvidia.com/v1` | User's Nvidia API key; the `openai` Python client speaks this protocol natively |
 | Auth | `NVIDIA_API_KEY` environment variable only | Never print it, never save it in the project; checked up front so failure is a clear message, not a crash |
-| Default model | `meta/llama-3.3-70b-instruct` | Current instruction model on NVIDIA NIM (the previous default, `meta/llama-3.1-8b-instruct`, reached end of life 2026-08-26); overridable with `--model` or `/model` |
+| Default model | `nvidia/nemotron-3-super-120b-a12b` | NVIDIA's Nemotron 3.5 Super reasoning model — built for agentic, coding, tool-calling workloads; free tier available; overridable with `--model` or `/model`. (The prior default `meta/llama-3.3-70b-instruct` has a deprecated free endpoint; `meta/llama-3.1-8b-instruct` reached end of life 2026-08-26.) |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
 | Core loop | Non-streaming: call model → append assistant message verbatim → if tool calls, execute each and append tool results → repeat; stop when the model returns a final text message | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
 | Tool set | `read_file`, `write_file`, `list_directory`, `grep_files`, `run_command` | Minimal useful coding-agent tools; `run_command` runs with a timeout in the current working directory (not sandboxed — local personal agent, use with care) |

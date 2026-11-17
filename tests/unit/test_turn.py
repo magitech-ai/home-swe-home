@@ -40,7 +40,9 @@ def test_run_turn_final_text(capsys):
         chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create(message)))
     )
     messages = [{"role": "user", "content": "say hi in three words"}]
-    run_turn(model="meta/llama-3.1-8b-instruct", messages=messages, client=client)
+    run_turn(
+        model="nvidia/nemotron-3-super-120b-a12b", messages=messages, client=client
+    )
     out = capsys.readouterr().out
     assert "hi there friend" in out
     assert messages == [
