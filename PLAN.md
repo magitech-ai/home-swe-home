@@ -9,7 +9,7 @@ printed exactly as they came back.
 - Headless mode: `-p "task"` runs one task and exits.
 - API key: `NVIDIA_API_KEY` from environment only. Never printed, never saved in
   the project, no `.env` handling.
-- Model: `--model <id>` on the command line; `/model <id>` inside chat. Default: `nvidia/nemotron-3-super-vl-120b-a12b` (Nemotron 3.5 Super VL, NVIDIA's agentic/coding/tool-calling reasoning model; free tier).
+- Model: `--model <id>` on the command line; `/model <id>` inside chat. Default: `nvidia/nemotron-3.5-lightning-30b-a3b` (Nemotron 3.5 Lightning, NVIDIA's agentic-task model; free tier).
 - Ctrl-C: aborts the current turn, not the program (returns to REPL; headless
   exits cleanly with a message).
 - NVIDIA API is OpenAI-compatible: base URL
