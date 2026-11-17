@@ -24,7 +24,14 @@ def grep_files(*, pattern: str, path: str = ".") -> str:
     regex = re.compile(pattern)
     root = Path(path)
     matches: list[str] = []
-    for file in root.rglob("*"):
+
+    # If path is a file, search just that file; otherwise rglob the directory
+    if root.is_file():
+        files_to_search = [root]
+    else:
+        files_to_search = root.rglob("*")
+
+    for file in files_to_search:
         if not file.is_file():
             continue
         try:
