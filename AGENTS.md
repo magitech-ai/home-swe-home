@@ -19,7 +19,7 @@
   is never printed and never persisted. Missing key → clear message, exit 2.
 - **Sandbox** (`src/magecode/sandbox.py`): `run_command` executes inside a fresh,
   throwaway Docker container with `--network none`, `--read-only` root FS,
-  non-root user `65534:65534`, `--cap-drop ALL`, `no-new-privileges`, CPU /
+  non-root user (current host UID:GID), `--cap-drop ALL`, `no-new-privileges`, CPU /
   memory / pids limits, and `--rm` ephemeral lifetime. The current directory is
   mounted as `/workspace` (read-write) so commands can operate on project files.
   Docker is required; if the daemon is unavailable, `run_command` returns an
