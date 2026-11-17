@@ -6,6 +6,8 @@ import argparse
 import sys
 from typing import Any
 
+from dotenv import load_dotenv
+
 from .client import ConfigurationError, MiniClaudeError, create_client
 from .repl import run_repl
 from .turn import TurnInterrupted, run_turn
@@ -32,6 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # Load .env for local development. Existing environment variables take
+    # precedence over .env values (python-dotenv default behavior), so the
+    # fallback chain is: exported NVIDIA_API_KEY -> .env -> error.
+    load_dotenv()
 
     try:
         client = create_client()

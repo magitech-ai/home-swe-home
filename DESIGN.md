@@ -29,19 +29,26 @@ the session. Ctrl-C aborts the current turn only.
 
 1. Sign in at https://build.nvidia.com and create an API key (starts with
    `nvapi-`).
-2. Either export it in your shell (for this session only):
+2. Provide it via one of these, in priority order:
 
-   ```sh
-   export NVIDIA_API_KEY=nvapi-...
-   ```
+   - **Exported environment variable** (highest priority, best for CI):
 
-   Or copy `.env.example` to `.env` and fill in your key there. `.env` is
-   gitignored and never committed:
+     ```sh
+     export NVIDIA_API_KEY=nvapi-...
+     ```
 
-   ```sh
-   cp .env.example .env
-   # edit .env and add your key
-   ```
+   - **`.env` file** (fallback, best for local dev). Copy the template and
+     fill in your key. `.env` is gitignored and never committed:
+
+     ```sh
+     cp .env.example .env
+     # edit .env and add your key
+     ```
+
+   The program uses `python-dotenv` to load `.env`. Existing environment
+   variables take precedence over `.env` values, so the fallback chain is:
+
+   `exported NVIDIA_API_KEY` → `.env` → clear error message, exit 2
 
    Do not echo the key, do not commit it, and do not share it.
    This project reads `NVIDIA_API_KEY` from the environment.

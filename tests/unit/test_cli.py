@@ -11,11 +11,29 @@ from mini_claude.turn import TurnInterrupted
 
 def test_main_no_api_key(monkeypatch, capsys):
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-    code = main(["-p", "say hi in three words"])
+    with patch("mini_claude.cli.load_dotenv"):
+        code = main(["-p", "say hi in three words"])
     assert code == 2
     stderr = capsys.readouterr().err
     assert "NVIDIA_API_KEY" in stderr
     assert "nvapi-" not in stderr  # the key must never be printed
+
+
+def test_main_dotenv_fallback(monkeypatch, capsys):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+
+    def fake_load_dotenv(*args, **kwargs):
+        monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-from-dotenv")
+
+    def fake_turn(*, model, messages, client=None):
+        print("hello there friend")
+
+    with (
+        patch("mini_claude.cli.load_dotenv", side_effect=fake_load_dotenv),
+        patch("mini_claude.cli.run_turn", side_effect=fake_turn),
+    ):
+        code = main(["-p", "say hi in three words"])
+    assert code == 0
 
 
 def test_main_headless_runs_one_turn(monkeypatch, capsys):

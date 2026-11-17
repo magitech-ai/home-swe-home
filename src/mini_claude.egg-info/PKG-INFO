@@ -5,6 +5,7 @@ Summary: A small coding agent: a mini Claude Code loop over the NVIDIA API.
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 Requires-Dist: openai<3,>=1.0
+Requires-Dist: python-dotenv>=1.0
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-cov>=6.0; extra == "dev"
@@ -35,7 +36,7 @@ uv run mini-claude -p "say hi in three words"
 uv run mini-claude
 
 # Pick a model
-uv run mini-claude --model meta/llama-3.1-8b-instruct -p "..."
+uv run mini-claude --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 ```
 
 In chat, `/model <id>` switches models; Ctrl-C aborts the current turn only;

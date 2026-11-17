@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A small coding agent: a mini Claude Code loop over the NVIDIA API."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["openai>=1.0,<3"]
+dependencies = ["openai>=1.0,<3", "python-dotenv>=1.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov>=6.0", "mypy>=1.11", "ruff>=0.17"]
