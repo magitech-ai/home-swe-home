@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from typing import Any
 
@@ -29,6 +30,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MODEL,
         help=f"model id (default: {DEFAULT_MODEL})",
     )
+    parser.add_argument(
+        "--sandbox",
+        action="store_true",
+        help="run shell commands in a Docker sandbox (default: host execution)",
+    )
     return parser
 
 
@@ -40,6 +46,11 @@ def main(argv: list[str] | None = None) -> int:
     # precedence over .env values (python-dotenv default behavior), so the
     # fallback chain is: exported NVIDIA_API_KEY -> .env -> error.
     load_dotenv()
+
+    # Opt-in sandboxing for shell commands. Set via --sandbox flag or
+    # MAGECODE_SANDBOX env var; checked at run_command call time.
+    if args.sandbox:
+        os.environ["MAGECODE_SANDBOX"] = "1"
 
     try:
         client = create_client()

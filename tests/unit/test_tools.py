@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from unittest.mock import patch
 
 from magecode.tools import (
@@ -104,41 +105,171 @@ def test_grep_files_caps_at_fifty_matches(tmp_path):
     assert len(lines) == 50
 
 
-def test_run_command_success(monkeypatch):
+def test_run_command_host_default(monkeypatch):
+    """run_command runs on the host by default (no sandbox)."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    calls = []
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "out\n", "err\n")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    result = run_command(command="echo out; echo err >&2", timeout=10)
+    assert "stdout:\nout\n" in result
+    assert "stderr:\nerr\n" in result
+    assert "exit code: 0" in result
+    assert calls[0] == ["echo", "out;", "echo", "err", ">&2"]
+
+
+def test_run_command_host_default_uses_subprocess(monkeypatch):
+    """Host execution delegates to subprocess.run with shlex-split args."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    seen = {}
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, "hello\n", "")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    result = run_command(command='echo "hello world"', timeout=10)
+    assert "hello\n" in result
+    assert "exit code: 0" in result
+    assert seen["cmd"] == ["echo", "hello world"]
+
+
+def test_run_command_host_timeout(monkeypatch):
+    """Host execution handles subprocess timeout."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        raise subprocess.TimeoutExpired(cmd, 1)
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    result = run_command(command="sleep 10", timeout=1)
+    assert "timed out" in result
+    assert "exit code: 124" in result
+
+
+def test_run_command_host_command_not_found(monkeypatch):
+    """Host execution reports missing commands clearly."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+
+    def fake_run(cmd, *, capture_output, text, timeout):
+        raise FileNotFoundError("no such file")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    result = run_command(command="no_such_cmd", timeout=10)
+    assert "command not found" in result.lower()
+
+
+def test_run_command_sandbox_opt_in_env(monkeypatch):
+    """MAGECODE_SANDBOX=1 routes to the Docker sandbox."""
     from magecode.sandbox import SandboxResult
 
     def fake_sandbox(command, *, timeout=30, **kwargs):
         return SandboxResult(
-            stdout="out\n", stderr="err\n", exit_code=3, timed_out=False
+            stdout="sandboxed\n", stderr="", exit_code=0, timed_out=False
         )
 
+    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
     monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
-    result = run_command(command="sh -c 'echo out; echo err >&2; exit 3'")
-    assert "stdout:\nout\n" in result
-    assert "stderr:\nerr\n" in result
-    assert "exit code: 3" in result
+    result = run_command(command="echo hi", timeout=10)
+    assert "sandboxed" in result
+    assert "exit code: 0" in result
 
 
-def test_run_command_no_output(monkeypatch):
-    from magecode.sandbox import SandboxResult
+def test_run_command_sandbox_opt_in_flag(monkeypatch):
+    """--sandbox flag sets MAGECODE_SANDBOX=1 in the environment."""
+    from magecode.cli import main
 
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        return SandboxResult(stdout="", stderr="", exit_code=0, timed_out=False)
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
 
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
-    assert run_command(command="true") == "exit code: 0"
+    def fake_core_loop(**kwargs):
+        assert os.environ.get("MAGECODE_SANDBOX") == "1"
+        return None
+
+    with patch("magecode.cli.run_core_loop", side_effect=fake_core_loop):
+        code = main(["-p", "run something", "--sandbox"])
+    assert code == 0
 
 
-def test_run_command_timeout(monkeypatch):
-    from magecode.sandbox import SandboxResult
+def test_run_command_host_timeout_with_output(monkeypatch):
+    """Host timeout includes stdout/stderr when present."""
+    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
 
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        return SandboxResult(stdout="", stderr="", exit_code=124, timed_out=True)
+    def fake_run(cmd, *, capture_output, text, timeout):
+        raise subprocess.TimeoutExpired(
+            cmd, 1, output=b"partial out", stderr="partial err"
+        )
 
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+    monkeypatch.setattr("subprocess.run", fake_run)
     result = run_command(command="sleep 10", timeout=1)
-    assert "timed out" in result
+    assert "partial out" in result
+    assert "partial err" in result
     assert "exit code: 124" in result
+    assert "timed out" in result
+
+
+def test_run_command_host_stdout_path():
+    """_run_host includes stdout in output when present."""
+    from magecode.tools.run_command import _run_host
+
+    class FakeCompleted:
+        stdout = "hello\n"
+        stderr = ""
+        returncode = 0
+
+    import subprocess
+
+    orig_run = subprocess.run
+    try:
+        subprocess.run = lambda *a, **k: FakeCompleted()
+        result = _run_host("echo hi", 10)
+    finally:
+        subprocess.run = orig_run
+    assert "stdout:\nhello\n" in result
+    assert "exit code: 0" in result
+
+
+def test_run_command_host_empty_stdout():
+    """_run_host handles empty stdout (falsey branch)."""
+    from magecode.tools.run_command import _run_host
+
+    class FakeCompleted:
+        stdout = ""
+        stderr = "some error\n"
+        returncode = 1
+
+    import subprocess
+
+    orig_run = subprocess.run
+    try:
+        subprocess.run = lambda *a, **k: FakeCompleted()
+        result = _run_host("false", 10)
+    finally:
+        subprocess.run = orig_run
+    assert "stderr:\nsome error\n" in result
+    assert "exit code: 1" in result
+    assert "stdout:" not in result
+
+
+def test_run_command_sandbox_with_stderr_and_timeout(monkeypatch):
+    """Sandbox mode passes through stderr and timed_out flag."""
+    from magecode.sandbox import SandboxResult
+
+    def fake_sandbox(command, *, timeout=30, **kwargs):
+        return SandboxResult(
+            stdout="", stderr="sandbox err", exit_code=1, timed_out=True
+        )
+
+    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+    result = run_command(command="bad cmd", timeout=10)
+    assert "sandbox err" in result
+    assert "exit code: 1" in result
+    assert "timed out" in result
 
 
 def test_execute_tool_unknown_tool():
@@ -830,12 +961,43 @@ def test_tool_optional_none_parameter():
     assert props["name"]["type"] == "string"
 
 
+def test_tool_union_str_int_parameter():
+    """Test that Union[str, int] recursively resolves to string type."""
+    from typing import Union
+
+    @tool
+    def my_tool(*, name: Union[str, int] = "default") -> str:
+        """A tool with Union[str, int] parameter.
+
+        Args:
+            name: A string or int param.
+        """
+        return str(name)
+
+    schemas = tool_schemas()
+    schema = next(s for s in schemas if s["function"]["name"] == "my_tool")
+    props = schema["function"]["parameters"]["properties"]
+    assert props["name"]["type"] == "string"
+    assert props["name"]["description"] == "A string or int param."
+
+
 def test_python_type_to_json_schema_type_all_none_args():
     """Test that Union with all-None args falls back to string type."""
 
     class MockAnnotation:
         __origin__ = type(None)
         __args__ = (type(None),)
+
+    result = _python_type_to_json_schema_type(MockAnnotation())
+    assert result == "string"
+
+
+def test_python_type_to_json_schema_type_union_str_int():
+    """Test that Union[str, int] recursively resolves to string type via line 29."""
+
+    class MockAnnotation:
+        __origin__ = type(None)  # not used, but set for completeness
+        __args__ = (str, int)
 
     result = _python_type_to_json_schema_type(MockAnnotation())
     assert result == "string"
