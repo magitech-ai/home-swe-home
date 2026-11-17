@@ -223,7 +223,8 @@ def test_web_search_no_network(monkeypatch):
         def read(self):
             return b"<html></html>"
 
-    with patch("mini_claude.tools.urllib.request.urlopen", return_value=FakeResponse()):
+    mock_urlopen = "mini_claude.tools.web_search.urllib.request.urlopen"
+    with patch(mock_urlopen, return_value=FakeResponse()):
         result = web_search(query="anything")
     assert result == "No web results found. Try rephrasing the query."
 
@@ -248,7 +249,8 @@ def test_web_search_returns_results(monkeypatch):
         def read(self):
             return html.encode("utf-8")
 
-    with patch("mini_claude.tools.urllib.request.urlopen", return_value=FakeResponse()):
+    mock_urlopen = "mini_claude.tools.web_search.urllib.request.urlopen"
+    with patch(mock_urlopen, return_value=FakeResponse()):
         result = web_search(query="test")
     assert "Result One: https://example.com/one" in result
     assert "Result Two: https://example.com/two" in result
@@ -256,7 +258,7 @@ def test_web_search_returns_results(monkeypatch):
 
 def test_web_search_network_error(monkeypatch):
     with patch(
-        "mini_claude.tools.urllib.request.urlopen",
+        "mini_claude.tools.web_search.urllib.request.urlopen",
         side_effect=OSError("network down"),
     ):
         result = web_search(query="test")
@@ -322,7 +324,8 @@ def test_web_search_many_results_triggers_break():
         def read(self):
             return html.encode("utf-8")
 
-    with patch("mini_claude.tools.urllib.request.urlopen", return_value=FakeResponse()):
+    mock_urlopen = "mini_claude.tools.web_search.urllib.request.urlopen"
+    with patch(mock_urlopen, return_value=FakeResponse()):
         result = web_search(query="test")
     lines = result.splitlines()
     assert len(lines) == 8  # capped at 8
@@ -348,7 +351,8 @@ def test_web_search_skips_empty_title():
         def read(self):
             return html.encode("utf-8")
 
-    with patch("mini_claude.tools.urllib.request.urlopen", return_value=FakeResponse()):
+    mock_urlopen = "mini_claude.tools.web_search.urllib.request.urlopen"
+    with patch(mock_urlopen, return_value=FakeResponse()):
         result = web_search(query="test")
     assert "Real Result: https://example.com/two" in result
     assert "https://example.com/one" not in result
@@ -494,11 +498,15 @@ def test_reload_module_invalid_path(tmp_path):
 def test_reload_module_self(tmp_path):
     import shutil
 
-    target = tmp_path / "tools_copy.py"
-    shutil.copy("src/mini_claude/tools.py", target)
+    target = tmp_path / "read_file_copy.py"
+    shutil.copy("src/mini_claude/tools/read_file.py", target)
+    reload_args = {
+        "module_name": "mini_claude.tools.read_file",
+        "file_path": str(target),
+    }
     result = execute_tool(
         "reload_module",
-        json.dumps({"module_name": "mini_claude.tools", "file_path": str(target)}),
+        json.dumps(reload_args),
         read_files={str(target)},
     )
     assert "Reloaded module" in result

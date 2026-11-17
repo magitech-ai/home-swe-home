@@ -121,12 +121,45 @@ def my_tool(*, argument: str) -> str:
     return f"Did something with {argument}"
 ```
 
+## Tool registration decorator
+
+New tools are registered with the ``@tool`` decorator instead of being manually
+added to three places. Each tool lives in its own file under
+``src/mini_claude/tools/``, with the filename matching the tool name
+(e.g. ``read_file.py`` defines the ``read_file`` tool). The decorator registers
+the function in both the execution registry (``_TOOLS``) and the schema
+registry (``tool_schemas()``):
+
+```python
+@tool(
+    name="my_tool",
+    manual="""What the tool does.
+
+Manual:
+  - Provide the exact argument...
+  - On error: check the input, retry.""",
+    parameters={
+        "type": "object",
+        "properties": {
+            "argument": {
+                "type": "string",
+                "description": "What the argument is for.",
+            }
+        },
+        "required": ["argument"],
+        "additionalProperties": False,
+    },
+)
+def my_tool(*, argument: str) -> str:
+    return f"Did something with {argument}"
+```
+
 The ``manual`` string becomes the tool schema ``description`` that the model
 reads. The function name becomes the tool name (overridable with ``name=``).
 This keeps schemas and execution in sync — adding a new tool requires only
-writing the function and decorating it.
+creating a new file and decorating the function. No manual registry edits.
 
-## Read-before-edit rule
+## File layout
 
 The turn loop tracks a `read_files` set per turn. `edit_file` and `reload_module` are refused for any path not in that set. The model must call `read_file` on a path before it can `edit_file` that path or `reload_module` a module at that path. `write_file` also marks a path readable (the model authored the content).
 
@@ -162,7 +195,12 @@ count (cl100k_base encoding) before each model call.
 - `src/mini_claude/__init__.py`
 - `src/mini_claude/client.py` — NVIDIA/OpenAI-compatible client, key validation
 - `src/mini_claude/instructions.py` — system message builder, token counting
-- `src/mini_claude/tools.py` — tool registry + JSON schemas
+- `src/mini_claude/tools/` — tool registry + individual tool implementations
+  - `__init__.py` — registry, `tool()` decorator, `execute_tool()`
+  - `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`,
+    `list_directory.py`, `grep_files.py`, `run_command.py`,
+    `web_search.py`, `code_metrics.py`, `find_duplicates.py`,
+    `generate_docs.py`, `reload_module.py` — one file per tool
 - `src/mini_claude/turn.py` — core model ↔ tool loop
 - `src/mini_claude/repl.py` — interactive chat + `/model` + `/context`
 - `src/mini_claude/cli.py` — argparse: `-p`, `--model`
