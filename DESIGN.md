@@ -29,15 +29,22 @@ the session. Ctrl-C aborts the current turn only.
 
 1. Sign in at https://build.nvidia.com and create an API key (starts with
    `nvapi-`).
-2. Export it in your shell, for this session only:
+2. Either export it in your shell (for this session only):
 
    ```sh
    export NVIDIA_API_KEY=nvapi-...
    ```
 
-   Do not echo it, do not write it into this project, and do not commit it.
-   This project reads `NVIDIA_API_KEY` from the environment and never touches
-   `.env` files.
+   Or copy `.env.example` to `.env` and fill in your key there. `.env` is
+   gitignored and never committed:
+
+   ```sh
+   cp .env.example .env
+   # edit .env and add your key
+   ```
+
+   Do not echo the key, do not commit it, and do not share it.
+   This project reads `NVIDIA_API_KEY` from the environment.
 
 ## Decisions
 
