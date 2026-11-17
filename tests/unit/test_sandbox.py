@@ -13,6 +13,15 @@ def _completed(returncode=0, stdout="", stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
+def test_current_uid_gid_posix(monkeypatch):
+    """With os.getuid/getgid available, _current_uid_gid returns UID:GID."""
+    import magecode.sandbox as sandbox_mod
+
+    monkeypatch.setattr(sandbox_mod.os, "getuid", lambda: 1000, raising=False)
+    monkeypatch.setattr(sandbox_mod.os, "getgid", lambda: 1000, raising=False)
+    assert sandbox_mod._current_uid_gid() == "1000:1000"
+
+
 def test_current_uid_gid_windows_fallback(monkeypatch):
     """Without os.getuid/getgid (Windows), _current_uid_gid returns ''."""
     import magecode.sandbox as sandbox_mod
@@ -100,7 +109,8 @@ def test_run_in_sandbox_workdir_relative_ok(monkeypatch):
     v_idx = calls[0].index("-v")
     mount_spec = calls[0][v_idx + 1]
     assert mount_spec.endswith(":/workspace:rw")
-    assert mount_spec.split(":")[0] == os.path.abspath(".")
+    # Use removesuffix so a Windows drive letter (C:\...) is preserved.
+    assert mount_spec.removesuffix(":/workspace:rw") == os.path.abspath(".")
 
 
 def test_run_in_sandbox_docker_not_found(monkeypatch):
