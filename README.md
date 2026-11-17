@@ -22,7 +22,7 @@ uv run mini-claude -p "say hi in three words"
 uv run mini-claude
 
 # Pick a model
-uv run mini-claude --model meta/llama-3.1-8b-instruct -p "..."
+uv run mini-claude --model meta/llama-3.3-70b-instruct -p "..."
 ```
 
 In chat, `/model <id>` switches models; Ctrl-C aborts the current turn only;
