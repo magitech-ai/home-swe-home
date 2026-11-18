@@ -98,3 +98,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     return asyncio.run(_run_async(argv))
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI entry point
+    raise SystemExit(main())

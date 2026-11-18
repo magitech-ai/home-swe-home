@@ -145,9 +145,11 @@ comparison against the pre-change implementation).
 An outer improvement loop can roll out a candidate harness without editing the
 installed package by setting `MAGECODE_HARNESS_DIR` to a copy of the tree. The
 loader (`utils/harness.py`) allowlists the two filenames, so a candidate cannot
-redirect reads elsewhere. This is the prerequisite for Harness²-style
-Propose–Probe–Compose refinement; the loop itself is deliberately not in this
-package yet.
+redirect reads elsewhere. `improve.py` implements the external
+Propose–Probe–Compose step: it reads a base tree, applies an injected proposer,
+validates against the editable surface, materialises the candidate, and probes
+it via the CLI with `MAGECODE_HARNESS_DIR` set. The loop is a library for an
+external orchestrator, not an anima Service.
 
 In home-first mode the **home repo's** `harness/` tree is authoritative; the
 packaged copy is only a template for `--init-home` scaffolding. See ADR 0004.
