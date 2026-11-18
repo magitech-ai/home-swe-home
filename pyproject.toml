@@ -4,7 +4,12 @@ version = "0.2.0"
 description = "A small coding agent built on the anima micro-kernel, over the NVIDIA API."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["openai>=1.0,<3", "python-dotenv>=1.0", "tiktoken>=0.8", "anima @ git+https://github.com/magitech-ai/anima.git"]
+dependencies = [
+    "openai>=3,<4",
+    "python-dotenv>=1.0",
+    "tiktoken>=0.8",
+    "anima @ git+https://github.com/magitech-ai/anima.git",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov>=6.0", "pytest-asyncio>=1.4", "mypy>=1.11", "ruff>=0.17"]

@@ -33,5 +33,7 @@ src/magecode/tools/web_search.py
 src/magecode/tools/write_file.py
 src/magecode/utils/__init__.py
 src/magecode/utils/harness.py
+src/magecode/utils/home.py
+src/magecode/utils/repo_map.py
 src/magecode/utils/schema.py
 src/magecode/utils/text.py
