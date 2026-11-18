@@ -166,3 +166,35 @@ async def test_sandbox_flag_sets_env(monkeypatch):
         code = await _run_async(["-p", "hello", "--sandbox"])
     assert code == 0
     assert seen["sandbox"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_init_home_requires_repo(capsys):
+    with patch("magecode.cli.load_dotenv"):
+        code = await _run_async(["--init-home", "/tmp/home"])
+    assert code == 2
+    assert "--home-repo" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+async def test_init_home_declined(monkeypatch):
+    with (
+        patch("magecode.cli.load_dotenv"),
+        patch("magecode.cli.input", return_value="n"),
+        patch("magecode.cli.run_wizard", return_value=False) as wizard,
+    ):
+        code = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/home"])
+    assert code == 1
+    assert wizard.called
+
+
+@pytest.mark.asyncio
+async def test_init_home_accepted(monkeypatch):
+    with (
+        patch("magecode.cli.load_dotenv"),
+        patch("magecode.cli.input", return_value="y"),
+        patch("magecode.cli.run_wizard", return_value=True) as wizard,
+    ):
+        code = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/home"])
+    assert code == 0
+    assert wizard.called

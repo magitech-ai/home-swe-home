@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -18,6 +19,7 @@ from dotenv import load_dotenv
 from .client import ConfigurationError, MiniClaudeError, create_client
 from .context import build_context
 from .core_loop import TurnInterrupted, TurnLimitReached
+from .onboard import run_wizard
 from .repl import run_repl
 
 DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
@@ -40,6 +42,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--sandbox",
         action="store_true",
         help="run shell commands in a Docker sandbox (default: host execution)",
+    )
+    parser.add_argument(
+        "--init-home",
+        nargs="?",
+        const=str(Path.home() / ".agents" / "agents-home"),
+        metavar="PATH",
+        help="scaffold and provision a home checkout, then exit",
+    )
+    parser.add_argument(
+        "--home-repo",
+        default="",
+        metavar="OWNER/NAME",
+        help="repo to create with --init-home",
     )
     return parser
 
@@ -71,6 +86,18 @@ async def _run_async(argv: list[str] | None = None) -> int:
     # Load .env for local development. Existing env vars take precedence over
     # .env values: exported NVIDIA_API_KEY -> .env -> error.
     load_dotenv()
+
+    if args.init_home is not None:
+        if not args.home_repo:
+            print("magecode: --init-home needs --home-repo OWNER/NAME", file=sys.stderr)
+            return 2
+        answer = input(f"Create {args.home_repo} at {args.init_home}? [y/N] ")
+        accepted = run_wizard(
+            Path(args.init_home),
+            args.home_repo,
+            confirm=lambda _question: answer.strip().lower().startswith("y"),
+        )
+        return 0 if accepted else 1
 
     if args.sandbox:
         os.environ["MAGECODE_SANDBOX"] = "1"
