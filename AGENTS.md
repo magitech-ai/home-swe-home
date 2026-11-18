@@ -10,8 +10,9 @@
   stops asking.
 - **Component Model**: `src/magecode/context.py` builds the session `Context`
   and mounts all services (`build_context()`). Services are accessed by name
-  (`ctx.read_file`, `ctx.core_loop`) or injected via `inject = ["name"]`. The
-  mock `GreeterService` in `anima_greeter.py` demonstrates dependency injection.
+  (`ctx.read_file`, `ctx.core_loop`). anima supports `inject = ["name"]` for
+  dependency-ordered mounting; magecode's services currently declare no
+  dependencies between each other.
 - **Core Loop** (`src/magecode/core_loop.py`): `CoreLoopService`, a non-streaming
   turn loop with `max_turns` (default 20). Model replies are appended verbatim;
   tool results are appended as `tool` messages. `Ctrl-C` raises
