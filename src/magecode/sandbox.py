@@ -34,6 +34,8 @@ from dataclasses import dataclass
 
 from anima import Context, Service
 
+from .utils.text import decode_text
+
 DEFAULT_IMAGE = "python:3.12-slim"
 DEFAULT_TIMEOUT = 30
 DEFAULT_MEMORY = "256m"
@@ -198,8 +200,8 @@ def run_in_sandbox(
         )
     except subprocess.TimeoutExpired as error:
         _kill_container(container_name)
-        stdout = _decode(getattr(error, "stdout", None))
-        stderr = _decode(getattr(error, "stderr", None))
+        stdout = decode_text(getattr(error, "stdout", None))
+        stderr = decode_text(getattr(error, "stderr", None))
         return SandboxResult(
             stdout=_cap(stdout),
             stderr=_cap(stderr),
@@ -214,14 +216,6 @@ def _kill_container(name: str) -> None:
     subprocess.run(
         ["docker", "rm", "-f", name], capture_output=True, timeout=KILL_TIMEOUT
     )
-
-
-def _decode(data: bytes | str | None) -> str:
-    if data is None:
-        return ""
-    if isinstance(data, bytes):
-        return data.decode("utf-8", errors="replace")
-    return data
 
 
 def _cap(text: str) -> str:

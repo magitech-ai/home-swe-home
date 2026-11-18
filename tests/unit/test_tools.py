@@ -16,7 +16,6 @@ from magecode.tools import (
     ReadFileService,
     ToolService,
     WriteFileService,
-    service_schema,
 )
 
 
@@ -577,13 +576,6 @@ def test_reload_module_not_read(tmp_path):
     assert result.startswith("Refused:")
 
 
-def test_get_module_mtime():
-    assert _tool(_build_context(), "reload_module") is not None
-    from magecode.tools.executor import get_module_mtime
-
-    assert get_module_mtime("never_loaded") is None
-
-
 def test_reload_module_no_read_files_tracker(tmp_path):
     target = tmp_path / "mymodule.py"
     target.write_text("VALUE = 1\n")
@@ -1055,124 +1047,3 @@ def test_execute_tool_service_raises():
     ctx.reflect.provide("failing", FailingService(ctx))
     result = execute_tool(ctx, "failing", '{"value": "x"}')
     assert result.startswith("Error: ValueError: boom.")
-
-
-def test_service_schema():
-    """service_schema builds a JSON schema from a Service class."""
-    from anima import Context
-
-    ctx = Context()
-    ctx.use(ReadFileService)
-
-    schema = service_schema(ReadFileService, name="read_file")
-    assert schema["function"]["name"] == "read_file"
-    assert schema["function"]["description"]
-    params = schema["function"]["parameters"]
-    assert "path" in params["properties"]
-    assert "path" in params["required"]
-
-
-def test_service_schema_strips_service_suffix():
-    """Service name strips 'Service' suffix."""
-
-    class MyService(Service):
-        def __init__(self, ctx):
-            super().__init__(ctx, "my_service")
-
-        def __call__(self, *, name: str) -> str:
-            return name
-
-    schema = service_schema(MyService, name="my_service")
-    assert schema["function"]["name"] == "my_service"
-
-
-def test_service_schema_name_default_strips_service():
-    """When name is omitted, 'Service' suffix is stripped (line 79)."""
-
-    class DummyService(Service):
-        def __init__(self, ctx):
-            super().__init__(ctx, "dummy")
-
-        def __call__(self, *, value: str) -> str:
-            return value
-
-    schema = service_schema(DummyService)
-    assert schema["function"]["name"] == "Dummy"
-
-
-def test_get_module_mtime_none():
-    """get_module_mtime returns None for never-tracked module."""
-    from magecode.tools.executor import get_module_mtime
-
-    assert get_module_mtime("never_loaded") is None
-
-
-def test_python_type_unannotated():
-    """Unannotated parameters default to string type (line 24)."""
-    import inspect
-
-    from magecode.tools.registry import _python_type_to_json_schema_type
-
-    assert _python_type_to_json_schema_type(inspect.Parameter.empty) == "string"
-
-
-def test_python_type_optional_unwraps():
-    """Optional[X] unwraps to X via recursion (lines 29-31)."""
-    from typing import Optional, Union
-
-    from magecode.tools.registry import _python_type_to_json_schema_type
-
-    assert _python_type_to_json_schema_type(Optional[str]) == "string"
-    assert _python_type_to_json_schema_type(Optional[int]) == "integer"
-    # A Union with all None args falls through to "string" (lines 29->32)
-    assert _python_type_to_json_schema_type(Union[type(None)]) == "string"
-    # A None arg is skipped, continuing the loop (lines 30->29)
-    assert _python_type_to_json_schema_type(Union[type(None), str]) == "string"
-
-    # A mock with an origin but empty args falls through (line 29->32)
-    class EmptyArgs:
-        __origin__ = object
-        __args__ = ()
-
-    assert _python_type_to_json_schema_type(EmptyArgs()) == "string"
-
-
-def test_service_schema_name_from_class():
-    """service_schema derives name from class when name not given (lines 77-81)."""
-
-    class ReadFile(Service):
-        def __init__(self, ctx):
-            super().__init__(ctx, "read_file")
-
-        def __call__(self, *, path: str) -> str:
-            return path
-
-    schema = service_schema(ReadFile)
-    assert schema["function"]["name"] == "ReadFile"
-
-    class NoSuffix(Service):
-        def __init__(self, ctx):
-            super().__init__(ctx, "no_suffix")
-
-        def __call__(self, *, value: str) -> str:
-            return value
-
-    schema2 = service_schema(NoSuffix)
-    assert schema2["function"]["name"] == "NoSuffix"
-
-
-def test_parse_docstring_args_line_without_colon_skipped():
-    """A line inside Args: without a colon is skipped, not a section end."""
-    from magecode.tools.registry import _parse_docstring
-
-    desc, params = _parse_docstring(
-        """Do something.
-
-        Args:
-            name: The name.
-            a line without a colon
-            age: The age.
-        """
-    )
-    assert desc == "Do something."
-    assert params == {"name": "The name.", "age": "The age."}

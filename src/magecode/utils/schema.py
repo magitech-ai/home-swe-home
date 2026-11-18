@@ -2,7 +2,8 @@
 
 ``service_schema()`` inspects a Service class's ``__call__`` method and builds
 an OpenAI-compatible tool schema (description from the class docstring,
-parameters from the signature, types inferred from annotations).
+parameters from the signature, types from annotations). Pure helpers — no
+Service, no state.
 """
 
 from __future__ import annotations
@@ -63,8 +64,8 @@ def service_schema(service_cls: type, name: str | None = None) -> dict[str, Any]
     """Build a JSON schema from a Service class's ``__call__`` method.
 
     Description comes from the class docstring, parameters from the
-    ``__call__`` signature (skipping ``self`` and ``read_files`` which is
-    injected at call time), types from annotations.
+    ``__call__`` signature (skipping ``self``, ``cls``, ``read_files`` which
+    are injected at call time), types from annotations.
 
     Args:
         service_cls: The Service class to build a schema from.

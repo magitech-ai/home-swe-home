@@ -21,6 +21,8 @@ import subprocess
 
 from anima import Context, Service
 
+from ..utils.text import decode_text
+
 _SANDBOX_ENV = "MAGECODE_SANDBOX"
 
 
@@ -74,8 +76,8 @@ class RunCommandService(Service):
                 "Check the command and retry."
             )
         except subprocess.TimeoutExpired as error:
-            stdout = _decode_text(getattr(error, "stdout", None))
-            stderr = _decode_text(getattr(error, "stderr", None))
+            stdout = decode_text(getattr(error, "stdout", None))
+            stderr = decode_text(getattr(error, "stderr", None))
             timeout_parts: list[str] = []
             if stdout:
                 timeout_parts.append(f"stdout:\n{stdout}")
@@ -103,11 +105,3 @@ class RunCommandService(Service):
         if result.timed_out:
             parts.append("timed out")
         return "\n".join(parts)
-
-
-def _decode_text(data: bytes | str | None) -> str:
-    if data is None:
-        return ""
-    if isinstance(data, bytes):
-        return data.decode("utf-8", errors="replace")
-    return data
