@@ -14,16 +14,23 @@
   execution (`ctx.tools`), sandbox (`ctx.sandbox`), the core loop
   (`ctx.core_loop`), and all 12 tools. Services are accessed by name on the
   Context; no capability is called as a bare module function. Pure helpers
-  live in `src/magecode/utils/` (`schema.py`, `text.py`); config validation and
-  the CLI/REPL entry points are the deliberate exceptions — deepseek-harness
-  likewise has
+  live in `src/magecode/utils/` (`schema.py`, `text.py`, `harness.py`); config
+  validation and the CLI/REPL entry points are the deliberate exceptions —
+  deepseek-harness likewise has
   `packages/util/` utilities and special application launch.
+- **Editable Harness** (`src/magecode/harness/`): data, not code. `systemprompt.md`
+  is the base system prompt (read by `InstructionsService.build()`);
+  `tool_guidance.md` holds optional `## <tool_name>` sections appended to each
+  tool's model-facing description by `service_schema()`. `MAGECODE_HARNESS_DIR`
+  points an outer improvement loop at a candidate copy. Loaders are pure
+  helpers in `utils/harness.py`; edits must not change behavior unless intended.
 - **Core Loop** (`src/magecode/core_loop.py`): `CoreLoopService`, a non-streaming
   turn loop with `max_turns` (default 20). Model replies are appended verbatim;
   tool results are appended as `tool` messages. `Ctrl-C` raises
   `TurnInterrupted` and aborts the current turn only, not the program. Tool
   schemas are derived from each Service's `__call__` signature/docstring via
-  `service_schema()`.
+  `service_schema()`, plus editable `## <tool_name>` sections from
+  `harness/tool_guidance.md`.
 - **Tool Set** (`src/magecode/tools/`): 12 anima `Service` components.
   `ctx.tools.execute()` looks up a tool service on the Context and calls it.
   `read_file` marks a path readable; `edit_file` and `reload_module` are refused

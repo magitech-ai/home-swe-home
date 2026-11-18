@@ -60,17 +60,21 @@ def _parse_docstring(doc: str | None) -> tuple[str, dict[str, str]]:
     return " ".join(description_lines), param_descriptions
 
 
-def service_schema(service_cls: type, name: str | None = None) -> dict[str, Any]:
+def service_schema(
+    service_cls: type, name: str | None = None, guidance: str = ""
+) -> dict[str, Any]:
     """Build a JSON schema from a Service class's ``__call__`` method.
 
-    Description comes from the class docstring, parameters from the
-    ``__call__`` signature (skipping ``self``, ``cls``, ``read_files`` which
-    are injected at call time), types from annotations.
+    Description comes from the class docstring plus optional editable harness
+    guidance, parameters from the ``__call__`` signature (skipping ``self``,
+    ``cls``, ``read_files`` which are injected at call time), types from
+    annotations.
 
     Args:
         service_cls: The Service class to build a schema from.
         name: Override the tool name (defaults to the class name with
             ``Service`` suffix stripped).
+        guidance: Text from the harness tree appended to the description.
     """
     sig = inspect.signature(service_cls.__call__)
 
@@ -84,6 +88,9 @@ def service_schema(service_cls: type, name: str | None = None) -> dict[str, Any]
         tool_name = name
 
     doc_description, param_descs = _parse_docstring(service_cls.__doc__)
+    description = (
+        f"{doc_description}\n\n{guidance}".strip() if guidance else doc_description
+    )
 
     properties: dict[str, Any] = {}
     required: list[str] = []
@@ -109,7 +116,7 @@ def service_schema(service_cls: type, name: str | None = None) -> dict[str, Any]
         "type": "function",
         "function": {
             "name": tool_name,
-            "description": doc_description,
+            "description": description,
             "parameters": param_schema,
         },
     }

@@ -17,19 +17,9 @@ from typing import Any
 import tiktoken
 from anima import Context, Service
 
+from .utils.harness import system_prompt
+
 ENCODING = tiktoken.get_encoding("cl100k_base")
-
-RULES = """\
-You are magecode, a coding agent. You work by talking to the user and
-calling tools.
-
-Rules:
-- Use tools to read, write, edit, search, and run things.
-- Every tool call returns a result; read it and act on it.
-- If a tool fails, read the error message and try again with different inputs.
-- Keep your replies concise and to the point.
-- When you are done, tell the user the outcome clearly.
-"""
 
 
 class InstructionsService(Service):
@@ -64,7 +54,7 @@ class InstructionsService(Service):
         """Build the full system message content."""
         return "\n".join(
             [
-                RULES,
+                system_prompt(),
                 self.system_line(model=model, cwd=os.getcwd()),
                 self.agents_md(),
             ]
