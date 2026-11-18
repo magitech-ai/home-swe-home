@@ -28,6 +28,7 @@ from .tools import (
     ReadFileService,
     ReloadModuleService,
     RunCommandService,
+    VerifyRepoService,
     WebSearchService,
     WriteFileService,
 )
@@ -41,6 +42,7 @@ AGENT_SERVICES = [
     SandboxService,
     SkillsService,
     AddRepoService,
+    VerifyRepoService,
     ReadFileService,
     WriteFileService,
     EditFileService,

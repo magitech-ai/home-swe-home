@@ -2,7 +2,7 @@
 
 A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
 micro-kernel (Magitech's Python implementation of Cordis). Everything is a
-component: the core loop and all 14 tools are anima Services mounted on a
+component: the core loop and all 15 tools are anima Services mounted on a
 Context. Core loop — send the task to the model, run the tools the model asks
 for, send the results back, repeat until the model stops asking. Model replies
 are printed exactly as they came back.
