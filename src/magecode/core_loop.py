@@ -13,6 +13,7 @@ from typing import Any
 from anima import Context, Service
 
 from .tools import TOOL_SERVICES
+from .utils.harness import tool_guidance
 from .utils.schema import service_schema
 
 
@@ -102,7 +103,9 @@ class CoreLoopService(Service):
     def _tool_schemas(self) -> list[dict[str, Any]]:
         """Build OpenAI-compatible schemas for all mounted tool services."""
         return [
-            service_schema(type(impl.value), name=impl.name)
+            service_schema(
+                type(impl.value), name=impl.name, guidance=tool_guidance(impl.name)
+            )
             for impl in self.ctx.reflect.store.values()
             if isinstance(impl.value, TOOL_SERVICES)
         ]

@@ -1,7 +1,6 @@
 README.md
 pyproject.toml
 src/magecode/__init__.py
-src/magecode/anima_greeter.py
 src/magecode/cli.py
 src/magecode/client.py
 src/magecode/context.py
@@ -16,6 +15,8 @@ src/magecode.egg-info/dependency_links.txt
 src/magecode.egg-info/entry_points.txt
 src/magecode.egg-info/requires.txt
 src/magecode.egg-info/top_level.txt
+src/magecode/harness/systemprompt.md
+src/magecode/harness/tool_guidance.md
 src/magecode/tools/__init__.py
 src/magecode/tools/code_metrics.py
 src/magecode/tools/delete_file.py
@@ -26,8 +27,11 @@ src/magecode/tools/generate_docs.py
 src/magecode/tools/grep_files.py
 src/magecode/tools/list_directory.py
 src/magecode/tools/read_file.py
-src/magecode/tools/registry.py
 src/magecode/tools/reload_module.py
 src/magecode/tools/run_command.py
 src/magecode/tools/web_search.py
 src/magecode/tools/write_file.py
+src/magecode/utils/__init__.py
+src/magecode/utils/harness.py
+src/magecode/utils/schema.py
+src/magecode/utils/text.py

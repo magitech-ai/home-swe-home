@@ -50,6 +50,11 @@ Ctrl-D exits.
 Shell commands run unsandboxed on the host by default. Pass `--sandbox` or set
 `MAGECODE_SANDBOX=1` to run them inside an isolated Docker container.
 
+The base prompt and per-tool guidance are editable data files under
+`src/magecode/harness/`. To try a modified copy without editing the installed
+package, set `MAGECODE_HARNESS_DIR` to a directory containing `systemprompt.md`
+and `tool_guidance.md`.
+
 ## Design
 
 See `DESIGN.md` for how to run, setup, and every decision.

@@ -122,7 +122,8 @@ class MyToolService(Service):
 
 * Tool name from the explicit name passed to `super().__init__` (via
   `build_context`, which passes `impl.name` to `service_schema`)
-* Tool description from the class docstring summary (first paragraph)
+* Tool description from the class docstring summary (first paragraph), plus
+  the matching `## <tool_name>` section of `harness/tool_guidance.md` when present
 * Parameter descriptions from the docstring `Args:` section
 * Parameter types and requiredness from the `__call__` signature annotations
 * `self` / `cls` / `read_files` are excluded (`read_files` is injected at call
@@ -131,6 +132,22 @@ class MyToolService(Service):
 Wiring a new tool requires: define the Service class, re-export it in
 `tools/__init__.py`, and add it to `TOOL_SERVICES` in `context.py`. No separate
 registry edits — schema and execution both come from the Service.
+
+## Editable harness
+
+The system prompt and per-tool guidance are data files under
+`src/magecode/harness/`, not Python constants. `InstructionsService.build()`
+reads `systemprompt.md`; `CoreLoopService._tool_schemas()` passes the matching
+`tool_guidance(name)` into `service_schema()`. With the shipped files, both
+outputs are byte-identical to the previous hardcoded behavior (verified by
+comparison against the pre-change implementation).
+
+An outer improvement loop can roll out a candidate harness without editing the
+installed package by setting `MAGECODE_HARNESS_DIR` to a copy of the tree. The
+loader (`utils/harness.py`) allowlists the two filenames, so a candidate cannot
+redirect reads elsewhere. This is the prerequisite for Harness²-style
+Propose–Probe–Compose refinement; the loop itself is deliberately not in this
+package yet.
 
 ## Read-before-edit rule
 
@@ -173,6 +190,9 @@ count (cl100k_base encoding) before each model call.
 - `src/magecode/context.py` — builds the anima Context; mounts all services (`AGENT_SERVICES`)
 - `src/magecode/client.py` — `ClientService` (model adapter) + config helpers
 - `src/magecode/instructions.py` — `InstructionsService` (system prompt + token counting)
+- `src/magecode/harness/` — editable harness data (not code): `systemprompt.md`
+  (base prompt), `tool_guidance.md` (`## <tool_name>` sections appended to tool
+  descriptions). `MAGECODE_HARNESS_DIR` swaps in a candidate tree for rollouts.
 - `src/magecode/sandbox.py` — `SandboxService` (process confinement)
 - `src/magecode/core_loop.py` — `CoreLoopService`: core model ↔ tool loop
 - `src/magecode/tools/` — anima Service components, one file per tool
@@ -184,7 +204,8 @@ count (cl100k_base encoding) before each model call.
     `generate_docs.py`, `reload_module.py` — one `Service` per tool
 - `src/magecode/utils/` — pure helpers (the documented exception to "everything
   is a component"): `schema.py` (JSON-schema inference), `text.py` (shared
-  decoder). Stateless, no lifecycle.
+  decoder), `harness.py` (readers for the editable harness tree). Stateless,
+  no lifecycle.
 - `src/magecode/repl.py` — interactive chat + `/model` + `/context`
 - `src/magecode/cli.py` — argparse: `-p`, `--model`, `--sandbox`
 - `DESIGN.md` — this file
