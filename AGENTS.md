@@ -100,4 +100,4 @@ GitHub Issues via `gh` CLI (`magitech-ai` organization).
 Canonical five-role triage vocabulary. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
-Single-context layout (`DESIGN.md` + `PLAN.md`).
+Single-context layout (`DESIGN.md` + `docs/adr/`).
