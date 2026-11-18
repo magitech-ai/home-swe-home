@@ -10,44 +10,26 @@ from unittest.mock import patch
 import pytest
 from anima import Context, Service
 
+from magecode.sandbox import SandboxService
 from magecode.tools import (
-    CodeMetricsService,
-    DeleteFileService,
-    EditFileService,
-    FindDuplicatesService,
-    GenerateDocsService,
-    GrepFilesService,
-    ListDirectoryService,
+    TOOL_SERVICES,
     ReadFileService,
-    ReloadModuleService,
-    RunCommandService,
-    WebSearchService,
+    ToolService,
     WriteFileService,
-    execute_tool,
     service_schema,
 )
-
-TOOL_SERVICES = [
-    ReadFileService,
-    WriteFileService,
-    EditFileService,
-    DeleteFileService,
-    ListDirectoryService,
-    GrepFilesService,
-    RunCommandService,
-    WebSearchService,
-    ReloadModuleService,
-    CodeMetricsService,
-    FindDuplicatesService,
-    GenerateDocsService,
-]
 
 
 def _build_context() -> Context:
     ctx = Context()
-    for service_cls in TOOL_SERVICES:
+    for service_cls in (*TOOL_SERVICES, ToolService, SandboxService):
         ctx.use(service_cls)
     return ctx
+
+
+def execute_tool(ctx, function_name, arguments_json, *, read_files=None):
+    """Test shim: call the ToolService capability on the Context."""
+    return ctx.tools.execute(function_name, arguments_json, read_files=read_files)
 
 
 def _tool(ctx: Context, name: str):
@@ -150,7 +132,9 @@ def test_run_command_success(monkeypatch):
         )
 
     monkeypatch.setenv("MAGECODE_SANDBOX", "1")
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+    monkeypatch.setattr(
+        SandboxService, "run", lambda self, command, **kw: fake_sandbox(command, **kw)
+    )
     result = _tool(_build_context(), "run_command")(
         command="sh -c 'echo out; echo err >&2; exit 3'", timeout=10
     )
@@ -166,7 +150,9 @@ def test_run_command_no_output(monkeypatch):
         return SandboxResult(stdout="", stderr="", exit_code=0, timed_out=False)
 
     monkeypatch.setenv("MAGECODE_SANDBOX", "1")
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
+    monkeypatch.setattr(
+        SandboxService, "run", lambda self, command, **kw: fake_sandbox(command, **kw)
+    )
     assert (
         _tool(_build_context(), "run_command")(command="true", timeout=10)
         == "exit code: 0"
@@ -971,12 +957,8 @@ def test_web_search_searxng_skips_empty_and_caps():
 @pytest.mark.asyncio
 async def test_turn_limit_reached():
     """CoreLoopService should raise TurnLimitReached when max_turns exceeded."""
-    from anima import Context
-
-    from magecode.core_loop import (
-        CoreLoopService,
-        TurnLimitReached,
-    )
+    from magecode.context import AGENT_SERVICES
+    from magecode.core_loop import TurnLimitReached
 
     def create(**kwargs):
         return SimpleNamespace(
@@ -1003,16 +985,15 @@ async def test_turn_limit_reached():
         chat=SimpleNamespace(completions=SimpleNamespace(create=create))
     )
     ctx = Context()
-    ctx.use(RunCommandService)
-    ctx.use(ReadFileService)
-    ctx.use(CoreLoopService)
+    for cls in AGENT_SERVICES:
+        ctx.use(cls)
     await ctx.flush()
+    ctx.client._openai = client  # type: ignore[attr-defined]
     messages = [{"role": "user", "content": "keep going forever"}]
     try:
         await ctx.core_loop(
             model="test/model",
             messages=messages,
-            client=client,
             max_turns=2,
         )
         assert False, "Expected TurnLimitReached"
@@ -1029,6 +1010,8 @@ async def test_execute_tool_injects_read_files(monkeypatch):
 
     ctx = Context()
     ctx.use(RunCommandService)
+    ctx.use(ToolService)
+    ctx.use(SandboxService)
     await ctx.flush()
 
     seen = {}
@@ -1040,7 +1023,11 @@ async def test_execute_tool_injects_read_files(monkeypatch):
 
         return SandboxResult(stdout="ok\n", stderr="", exit_code=0, timed_out=False)
 
-    with patch("magecode.sandbox.run_in_sandbox", new=fake_sandbox):
+    with patch.object(
+        SandboxService,
+        "run",
+        new=lambda self, command, **kw: fake_sandbox(command, **kw),
+    ):
         result = execute_tool(
             ctx,
             "run_command",
@@ -1064,6 +1051,7 @@ def test_execute_tool_service_raises():
             raise ValueError("boom")
 
     ctx = Context()
+    ctx.use(ToolService)
     ctx.reflect.provide("failing", FailingService(ctx))
     result = execute_tool(ctx, "failing", '{"value": "x"}')
     assert result.startswith("Error: ValueError: boom.")
@@ -1171,3 +1159,20 @@ def test_service_schema_name_from_class():
 
     schema2 = service_schema(NoSuffix)
     assert schema2["function"]["name"] == "NoSuffix"
+
+
+def test_parse_docstring_args_line_without_colon_skipped():
+    """A line inside Args: without a colon is skipped, not a section end."""
+    from magecode.tools.registry import _parse_docstring
+
+    desc, params = _parse_docstring(
+        """Do something.
+
+        Args:
+            name: The name.
+            a line without a colon
+            age: The age.
+        """
+    )
+    assert desc == "Do something."
+    assert params == {"name": "The name.", "age": "The age."}

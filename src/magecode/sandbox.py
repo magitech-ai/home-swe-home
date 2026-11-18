@@ -32,6 +32,8 @@ import subprocess
 import uuid
 from dataclasses import dataclass
 
+from anima import Context, Service
+
 DEFAULT_IMAGE = "python:3.12-slim"
 DEFAULT_TIMEOUT = 30
 DEFAULT_MEMORY = "256m"
@@ -226,3 +228,36 @@ def _cap(text: str) -> str:
     if len(text) > OUTPUT_CAP:
         return text[:OUTPUT_CAP] + f"\n[output capped at {OUTPUT_CAP} bytes]"
     return text
+
+
+class SandboxService(Service):
+    """Process-confinement capability mounted as ``ctx.sandbox``.
+
+    Delegates to :func:`run_in_sandbox`; the function stays available for
+    direct use and tests. Consumers call ``ctx.sandbox.run(...)``.
+    """
+
+    def __init__(self, ctx: Context) -> None:
+        super().__init__(ctx, "sandbox")
+
+    def run(
+        self,
+        command: str,
+        *,
+        timeout: int = DEFAULT_TIMEOUT,
+        workdir: str = ".",
+        image: str = DEFAULT_IMAGE,
+        memory: str = DEFAULT_MEMORY,
+        cpus: str = DEFAULT_CPUS,
+        pids_limit: int = DEFAULT_PIDS_LIMIT,
+    ) -> SandboxResult:
+        """Run *command* inside a throwaway Docker container."""
+        return run_in_sandbox(
+            command,
+            timeout=timeout,
+            workdir=workdir,
+            image=image,
+            memory=memory,
+            cpus=cpus,
+            pids_limit=pids_limit,
+        )

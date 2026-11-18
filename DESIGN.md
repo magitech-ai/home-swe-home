@@ -64,8 +64,8 @@ the session. Ctrl-C aborts the current turn only.
 | Default model | `nvidia/nemotron-3.5-lightning-30b-a3b` | Nemotron 3.5 Lightning — NVIDIA's 30B MoE model for agentic tasks; free tier available; overridable with `--model` or `/model`. (`nvidia/nemotron-3-super-vl-120b-a12b` was tried first but returned 404 on the integrate endpoint; it may need to be deployed on build.nvidia.com before it can be called.) |
 | Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes. Each model call prints `[context: N tokens]` before sending. | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
-| Core loop | `CoreLoopService`: non-streaming: call model → append assistant message verbatim → if tool calls, `execute_tool` looks up the service on the Context, runs it, and appends tool results → repeat; stop when the model returns a final text message. Default max 20 tool-calling turns per turn (``TurnLimitReached`` if exceeded). Streaming deferred | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
-| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs` — each an anima `Service` | `context.py::build_context()` mounts all services on the Context. `service_schema()` derives model-facing tool schemas from each `__call__`. `edit_file`/`reload_module` only work on paths read via `read_file` (per-turn `read_files` set injected by `execute_tool`); `run_command` runs unsandboxed by default (`MAGECODE_SANDBOX=1`/`--sandbox` for Docker); `web_search` uses DuckDuckGo HTML |
+| Core loop | `CoreLoopService`: non-streaming: call `ctx.client` → append assistant message verbatim → if tool calls, `ctx.tools.execute` looks up the tool service on the Context, runs it, and appends tool results → repeat; stop when the model returns a final text message. Default max 20 tool-calling turns per turn (``TurnLimitReached`` if exceeded). Streaming deferred | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
+| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs` — each an anima `Service` | `context.py::build_context()` mounts every capability as a Service on the Context: `ctx.client` (model adapter), `ctx.instructions` (prompt + tokens), `ctx.tools` (execution), `ctx.sandbox`, `ctx.core_loop`, and the 12 tools. `service_schema()` derives model-facing tool schemas from each `__call__`. `edit_file`/`reload_module` only work on paths read via `read_file` (per-turn `read_files` set injected by `ctx.tools.execute`); `run_command` runs unsandboxed by default (`MAGECODE_SANDBOX=1`/`--sandbox` for Docker); `web_search` uses DuckDuckGo HTML |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
 | Sandbox | Docker container: `--network none`, `--read-only`, `--user <host UID:GID>`, `--cap-drop ALL`, `no-new-privileges`, CPU/memory/pids limits, `ulimit nofile/fsize`, `--rm`, hard timeout, workdir confined to CWD tree | `run_command` runs unsandboxed by default; sandbox mode is opt-in via `MAGECODE_SANDBOX=1` or `--sandbox`. Fail-closed if Docker CLI/daemon is unavailable in sandbox mode. |
@@ -126,7 +126,7 @@ class MyToolService(Service):
 * Parameter descriptions from the docstring `Args:` section
 * Parameter types and requiredness from the `__call__` signature annotations
 * `self` / `cls` / `read_files` are excluded (`read_files` is injected at call
-  time by `execute_tool`)
+  time by `ctx.tools.execute`)
 
 Wiring a new tool requires: define the Service class, re-export it in
 `tools/__init__.py`, and add it to `TOOL_SERVICES` in `context.py`. No separate
@@ -134,7 +134,7 @@ registry edits — schema and execution both come from the Service.
 
 ## Read-before-edit rule
 
-The turn loop tracks a `read_files` set per turn, which `execute_tool` injects
+The turn loop tracks a `read_files` set per turn, which `ctx.tools.execute` injects
 into any tool whose `__call__` accepts it. `edit_file` and `reload_module` are
 refused for any path not in that set. The model must call `read_file` on a path
 before it can `edit_file` that path or `reload_module` a module at that path.
@@ -170,14 +170,15 @@ count (cl100k_base encoding) before each model call.
 
 - `pyproject.toml` — metadata, dependencies (`anima`, `openai`), entry point `magecode`
 - `src/magecode/__init__.py`
-- `src/magecode/context.py` — builds the anima Context; mounts all services (`TOOL_SERVICES`)
-- `src/magecode/client.py` — NVIDIA/OpenAI-compatible client, key validation
-- `src/magecode/instructions.py` — system message builder, token counting
+- `src/magecode/context.py` — builds the anima Context; mounts all services (`AGENT_SERVICES`)
+- `src/magecode/client.py` — `ClientService` (model adapter) + config helpers
+- `src/magecode/instructions.py` — `InstructionsService` (system prompt + token counting)
+- `src/magecode/sandbox.py` — `SandboxService` (process confinement)
 - `src/magecode/core_loop.py` — `CoreLoopService`: core model ↔ tool loop
 - `src/magecode/tools/` — anima Service components, one file per tool
   - `__init__.py` — re-exports tool Service classes
   - `registry.py` — `service_schema()` inference from Service `__call__`
-  - `executor.py` — `execute_tool()` (looks up services on the Context)
+  - `executor.py` — `ToolService` mounted as `ctx.tools` (looks up tool services on the Context)
   - `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`,
     `list_directory.py`, `grep_files.py`, `run_command.py`,
     `web_search.py`, `code_metrics.py`, `find_duplicates.py`,

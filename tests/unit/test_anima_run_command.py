@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from anima import Context
 
+from magecode.sandbox import SandboxResult, SandboxService
 from magecode.tools.run_command import RunCommandService
 
 
@@ -87,19 +88,15 @@ async def test_run_command_service_host_command_not_found(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_command_service_sandbox_opt_in_env(monkeypatch):
     """MAGECODE_SANDBOX=1 routes to the Docker sandbox."""
-    from magecode.sandbox import SandboxResult
-
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        return SandboxResult(
-            stdout="sandboxed\n", stderr="", exit_code=0, timed_out=False
-        )
-
     monkeypatch.setenv("MAGECODE_SANDBOX", "1")
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
 
     ctx = Context()
     ctx.use(RunCommandService)
+    ctx.use(SandboxService)
     await ctx.flush()
+    ctx.sandbox.run = lambda command, **kw: SandboxResult(  # type: ignore[attr-defined]
+        stdout="sandboxed\n", stderr="", exit_code=0, timed_out=False
+    )
 
     result = ctx.run_command(command="echo hi", timeout=10)
     assert "sandboxed" in result
@@ -172,19 +169,15 @@ async def test_run_command_service_host_stderr_only(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_command_service_sandbox_with_stderr_and_timeout(monkeypatch):
     """Sandbox mode passes through stderr and timed_out flag."""
-    from magecode.sandbox import SandboxResult
-
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        return SandboxResult(
-            stdout="", stderr="sandbox err", exit_code=1, timed_out=True
-        )
-
     monkeypatch.setenv("MAGECODE_SANDBOX", "1")
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_sandbox)
 
     ctx = Context()
     ctx.use(RunCommandService)
+    ctx.use(SandboxService)
     await ctx.flush()
+    ctx.sandbox.run = lambda command, **kw: SandboxResult(  # type: ignore[attr-defined]
+        stdout="", stderr="sandbox err", exit_code=1, timed_out=True
+    )
 
     result = ctx.run_command(command="bad cmd", timeout=10)
     assert "sandbox err" in result

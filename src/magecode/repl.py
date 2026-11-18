@@ -1,16 +1,19 @@
-"""Interactive chat REPL."""
+"""Interactive chat REPL.
+
+Entry point for interactive mode. Capabilities come from the anima Context:
+``ctx.instructions`` for prompt assembly and token counts, ``ctx.core_loop``
+for turns. All tools and the model adapter are mounted on the Context.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
 from anima import Context
-from openai import OpenAI
 
-from .client import MiniClaudeError, create_client
+from .client import MiniClaudeError
 from .context import build_context
 from .core_loop import TurnInterrupted, TurnLimitReached
-from .instructions import build_system_instructions, count_tokens
 
 PROMPT = "> "
 
@@ -18,15 +21,13 @@ PROMPT = "> "
 async def run_repl(
     *,
     model: str,
-    client: OpenAI | None = None,
     system_content: str | None = None,
     ctx: Context | None = None,
 ) -> None:
     """Run the interactive chat loop until the user exits with Ctrl-D."""
-    client = client or create_client()  # validate configuration up front
-    system_content = system_content or build_system_instructions(model=model)
-    messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
     ctx = ctx or await build_context()
+    system_content = system_content or ctx.instructions.build(model=model)
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
     print("magecode interactive chat")
     print("  /model <id>   switch model")
     print("  /context      show context window and token counts")
@@ -53,7 +54,7 @@ async def run_repl(
             print(f"model: {model}")
             continue
         if text == "/context":
-            _show_context(messages)
+            _show_context(messages, ctx)
             continue
 
         messages.append({"role": "user", "content": text})
@@ -61,7 +62,6 @@ async def run_repl(
             await ctx.core_loop(
                 model=model,
                 messages=messages,
-                client=client,
                 reply_prefix="< ",
                 max_turns=20,
             )
@@ -73,9 +73,9 @@ async def run_repl(
             print(f"\nmagecode: {error}")
 
 
-def _show_context(messages: list[dict[str, Any]]) -> None:
+def _show_context(messages: list[dict[str, Any]], ctx: Context) -> None:
     """Print the context window contents and token counts."""
-    total = count_tokens(messages)
+    total = ctx.instructions.count(messages)
     print(f"--- context window: {len(messages)} messages, {total} tokens ---")
     for index, message in enumerate(messages):
         role = message.get("role", "?")

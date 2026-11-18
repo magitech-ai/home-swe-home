@@ -1,11 +1,9 @@
-"""The core turn loop.
+"""The core turn loop as an anima Service component.
 
-Ask the model, append its reply exactly as it came back, run any tools it
-requests, feed the results back, and repeat until the model stops asking for
-tools. Ctrl-C aborts the current turn only.
-
-Implemented as an anima Service component mounted on a Context. Tool calls are
-dispatched through the context's service registry via ``execute_tool``.
+Ask the model, append its reply verbatim, run any tools it requests, feed the
+results back, and repeat until the model stops asking. Ctrl-C aborts the turn
+only. Every capability is reached through the Context: ``ctx.client``,
+``ctx.instructions``, ``ctx.tools``.
 """
 
 from __future__ import annotations
@@ -13,11 +11,9 @@ from __future__ import annotations
 from typing import Any
 
 from anima import Context, Service
-from openai import OpenAI
 
-from .client import chat_complete
-from .instructions import count_tokens
-from .tools import execute_tool, service_schema
+from .tools import TOOL_SERVICES
+from .tools.registry import service_schema
 
 
 class TurnInterrupted(Exception):
@@ -31,7 +27,7 @@ class TurnLimitReached(Exception):
 class CoreLoopService(Service):
     """Core turn loop: send task to model, run tools, repeat."""
 
-    def __init__(self, ctx: Context):
+    def __init__(self, ctx: Context) -> None:
         super().__init__(ctx, "core_loop")
 
     async def __call__(
@@ -39,21 +35,18 @@ class CoreLoopService(Service):
         *,
         model: str,
         messages: list[dict[str, Any]],
-        client: OpenAI,
         reply_prefix: str = "",
         max_turns: int = 20,
     ) -> list[dict[str, Any]]:
         """Run one turn until the model stops asking for tools.
 
         ``messages`` is mutated and returned. Model replies are appended
-        exactly as they came back; tool results are appended as ``tool``
-        messages. Raises ``TurnInterrupted`` if the user hits Ctrl-C during
-        this turn. Raises ``TurnLimitReached`` if ``max_turns`` model calls
-        are made without a final answer.
+        verbatim; tool results as ``tool`` messages. Raises ``TurnInterrupted``
+        on Ctrl-C and ``TurnLimitReached`` after ``max_turns`` calls without a
+        final answer. The token count prints only in headless mode.
 
-        ``reply_prefix`` is printed before assistant content (chat mode uses
-        ``< ``; headless leaves it empty so output stays raw).  The token
-        count is printed only in headless mode (``reply_prefix == ""``).
+        ``reply_prefix`` is printed before assistant content (``"< "`` in
+        chat mode); headless leaves it empty so output stays raw.
         """
         read_files: set[str] = set()
         turn_count = 0
@@ -67,14 +60,13 @@ class CoreLoopService(Service):
                         "a final answer."
                     )
 
-                tokens = count_tokens(messages)
+                tokens = self.ctx.instructions.count(messages)
                 if is_headless:
                     print(f"[context: {tokens} tokens]")
-                response = chat_complete(
-                    client,
+                response = self.ctx.client.chat_complete(
                     model=model,
                     messages=messages,
-                    tools=_tool_schemas_from_ctx(self.ctx),
+                    tools=self._tool_schemas(),
                 )
 
                 assistant_message = response.choices[0].message
@@ -92,8 +84,7 @@ class CoreLoopService(Service):
                 for tool_call in tool_calls:
                     name = tool_call.function.name
                     print(f"[tool: {name}]")
-                    result = execute_tool(
-                        self.ctx,
+                    result = self.ctx.tools.execute(
                         name,
                         tool_call.function.arguments,
                         read_files=read_files,
@@ -108,14 +99,13 @@ class CoreLoopService(Service):
         except KeyboardInterrupt:
             raise TurnInterrupted() from None
 
-
-def _tool_schemas_from_ctx(ctx: Context) -> list[dict[str, Any]]:
-    """Build OpenAI-compatible schemas for all mounted tool services."""
-    schemas: list[dict[str, Any]] = []
-    for impl in ctx.reflect.store.values():
-        service = impl.value
-        schemas.append(service_schema(type(service), name=impl.name))
-    return schemas
+    def _tool_schemas(self) -> list[dict[str, Any]]:
+        """Build OpenAI-compatible schemas for all mounted tool services."""
+        return [
+            service_schema(type(impl.value), name=impl.name)
+            for impl in self.ctx.reflect.store.values()
+            if isinstance(impl.value, TOOL_SERVICES)
+        ]
 
 
 def _assistant_message_dict(message: Any) -> dict[str, Any]:

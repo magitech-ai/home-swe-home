@@ -1,15 +1,19 @@
 """Context assembly for magecode.
 
-Builds an anima Context with all tool services mounted. Shared by the CLI and
+Builds an anima Context with all agent services mounted. Shared by the CLI and
 REPL so there is a single source of truth for which components make up an
-agent session.
+agent session. Every capability — model adapter, instructions, tool execution,
+sandbox, core loop, and each tool — is a Service here.
 """
 
 from __future__ import annotations
 
 from anima import Context
 
+from .client import ClientService
 from .core_loop import CoreLoopService
+from .instructions import InstructionsService
+from .sandbox import SandboxService
 from .tools import (
     CodeMetricsService,
     DeleteFileService,
@@ -24,9 +28,14 @@ from .tools import (
     WebSearchService,
     WriteFileService,
 )
+from .tools.executor import ToolService
 
-# All tool services, in dependency order (no deps between tools currently)
-TOOL_SERVICES = [
+# All agent services, in dependency order (no deps between tools currently)
+AGENT_SERVICES = [
+    ClientService,
+    InstructionsService,
+    ToolService,
+    SandboxService,
     ReadFileService,
     WriteFileService,
     EditFileService,
@@ -46,7 +55,7 @@ TOOL_SERVICES = [
 async def build_context() -> Context:
     """Create an anima Context and mount all agent services."""
     ctx = Context()
-    for service_cls in TOOL_SERVICES:
+    for service_cls in AGENT_SERVICES:
         ctx.use(service_cls)
     await ctx.flush()
     return ctx

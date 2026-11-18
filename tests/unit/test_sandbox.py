@@ -6,11 +6,30 @@ import os
 import subprocess
 from types import SimpleNamespace
 
-from magecode.sandbox import SandboxResult, run_in_sandbox
+from anima import Context
+
+from magecode.sandbox import SandboxResult, SandboxService, run_in_sandbox
 
 
 def _completed(returncode=0, stdout="", stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
+
+def test_sandbox_service_run(monkeypatch):
+    """SandboxService.run delegates to run_in_sandbox via its params."""
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SandboxResult(stdout="ok\n", stderr="", exit_code=0, timed_out=False)
+
+    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_run)
+    ctx = Context()
+    ctx.use(SandboxService)
+    result = ctx.sandbox.run("echo hi", timeout=5, workdir=".")
+    assert result.stdout == "ok\n"
+    assert calls[0][0] == "echo hi"
+    assert calls[0][1]["timeout"] == 5
 
 
 def test_current_uid_gid_posix(monkeypatch):

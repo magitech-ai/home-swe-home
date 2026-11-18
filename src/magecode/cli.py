@@ -1,4 +1,9 @@
-"""Command line interface for magecode."""
+"""Command line interface for magecode.
+
+Entry point only — all capabilities are Services mounted on the anima Context
+assembled by ``build_context()``. The CLI loads config, builds the Context, and
+starts headless or REPL mode.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +18,6 @@ from dotenv import load_dotenv
 from .client import ConfigurationError, MiniClaudeError, create_client
 from .context import build_context
 from .core_loop import TurnInterrupted, TurnLimitReached
-from .instructions import build_system_instructions
 from .repl import run_repl
 
 DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
@@ -44,15 +48,10 @@ async def _run_headless(
     *,
     model: str,
     messages: list[dict[str, Any]],
-    client: Any,
 ) -> int:
     ctx = await build_context()
     try:
-        await ctx.core_loop(
-            model=model,
-            messages=messages,
-            client=client,
-        )
+        await ctx.core_loop(model=model, messages=messages)
     except TurnInterrupted:
         print("\nTurn interrupted.", file=sys.stderr)
         return 130
@@ -69,34 +68,29 @@ async def _run_async(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # Load .env for local development. Existing environment variables take
-    # precedence over .env values (python-dotenv default behavior), so the
-    # fallback chain is: exported NVIDIA_API_KEY -> .env -> error.
+    # Load .env for local development. Existing env vars take precedence over
+    # .env values: exported NVIDIA_API_KEY -> .env -> error.
     load_dotenv()
 
-    # Opt-in sandboxing for shell commands. Set via --sandbox flag or
-    # MAGECODE_SANDBOX env var; checked at run_command call time.
     if args.sandbox:
         os.environ["MAGECODE_SANDBOX"] = "1"
 
+    # Fail fast on missing API key before assembling the Context.
     try:
-        client = create_client()
+        create_client()
     except ConfigurationError as error:
         print(f"magecode: {error}", file=sys.stderr)
         return 2
 
-    system_content = build_system_instructions(model=args.model)
-
+    ctx = await build_context()
+    system_content = ctx.instructions.build(model=args.model)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     if args.prompt is not None:
         messages.append({"role": "user", "content": args.prompt})
-        return await _run_headless(model=args.model, messages=messages, client=client)
+        return await _run_headless(model=args.model, messages=messages)
 
-    ctx = await build_context()
-    await run_repl(
-        model=args.model, client=client, system_content=system_content, ctx=ctx
-    )
+    await run_repl(model=args.model, system_content=system_content, ctx=ctx)
     return 0
 
 
