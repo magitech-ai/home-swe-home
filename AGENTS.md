@@ -12,7 +12,7 @@
   and mounts every capability as an anima Service (`AGENT_SERVICES`): the model
   adapter (`ctx.client`), system instructions (`ctx.instructions`), tool
   execution (`ctx.tools`), sandbox (`ctx.sandbox`), the core loop
-  (`ctx.core_loop`), and all 12 tools. Services are accessed by name on the
+  (`ctx.core_loop`), and all 13 tools. Services are accessed by name on the
   Context; no capability is called as a bare module function. Pure helpers
   live in `src/magecode/utils/` (`schema.py`, `text.py`, `harness.py`); config
   validation and the CLI/REPL entry points are the deliberate exceptions —

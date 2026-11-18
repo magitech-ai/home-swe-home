@@ -121,6 +121,14 @@ async def test_repl_api_error_prints_and_continues(capsys):
 
 
 @pytest.mark.asyncio
+async def test_repl_skill_command_prints_skill(monkeypatch, capsys):
+    ctx = await _build_context()
+    monkeypatch.setattr(ctx.skills, "load", lambda name: f"SKILL BODY: {name}")
+    with patch("magecode.repl.input", side_effect=["/skill tdd", EOFError]):
+        await run_repl(model="m", ctx=ctx)
+    assert "SKILL BODY: tdd" in capsys.readouterr().out
+
+
 async def test_repl_context_command(capsys):
     ctx = await _build_context()
     with patch(

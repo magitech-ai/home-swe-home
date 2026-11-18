@@ -14,6 +14,7 @@ from .client import ClientService
 from .core_loop import CoreLoopService
 from .instructions import InstructionsService
 from .sandbox import SandboxService
+from .skills import SkillsService
 from .tools import (
     CodeMetricsService,
     DeleteFileService,
@@ -22,6 +23,7 @@ from .tools import (
     GenerateDocsService,
     GrepFilesService,
     ListDirectoryService,
+    LoadSkillService,
     ReadFileService,
     ReloadModuleService,
     RunCommandService,
@@ -36,11 +38,13 @@ AGENT_SERVICES = [
     InstructionsService,
     ToolService,
     SandboxService,
+    SkillsService,
     ReadFileService,
     WriteFileService,
     EditFileService,
     DeleteFileService,
     ListDirectoryService,
+    LoadSkillService,
     GrepFilesService,
     RunCommandService,
     WebSearchService,

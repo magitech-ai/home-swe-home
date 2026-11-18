@@ -83,7 +83,9 @@ async def _run_async(argv: list[str] | None = None) -> int:
         return 2
 
     ctx = await build_context()
-    system_content = ctx.instructions.build(model=args.model)
+    system_content = ctx.instructions.build(
+        model=args.model, skills_catalog=ctx.skills.catalog()
+    )
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     if args.prompt is not None:

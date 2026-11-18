@@ -55,6 +55,24 @@ def test_save_config_without_repo(isolated_config, tmp_path):
     assert "repo" not in h.load_config()["home"]
 
 
+def test_trusted_projects_empty(isolated_config):
+    assert h.trusted_projects() == ()
+
+
+def test_trusted_projects_from_config(isolated_config):
+    isolated_config.write_text(
+        '[skills]\ntrusted_projects = ["/a/project", "/b/project"]\n', encoding="utf-8"
+    )
+    assert h.trusted_projects() == ("/a/project", "/b/project")
+
+
+def test_trusted_projects_ignores_wrong_type(isolated_config):
+    isolated_config.write_text(
+        '[skills]\ntrusted_projects = "not a list"\n', encoding="utf-8"
+    )
+    assert h.trusted_projects() == ()
+
+
 def test_looks_like_home_true(tmp_path):
     assert h.looks_like_home(_make_home(tmp_path))
 
