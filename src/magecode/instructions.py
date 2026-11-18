@@ -66,15 +66,16 @@ class InstructionsService(Service):
                 parts.append(f"\n--- AGENTS.md ---\n{content}\n--- end AGENTS.md ---\n")
         return "".join(parts)
 
-    def build(self, *, model: str) -> str:
+    def build(self, *, model: str, skills_catalog: str = "") -> str:
         """Build the full system message content."""
-        return "\n".join(
-            [
-                system_prompt(),
-                self.system_line(model=model, cwd=os.getcwd()),
-                self.agents_md(),
-            ]
-        )
+        parts = [
+            system_prompt(),
+            self.system_line(model=model, cwd=os.getcwd()),
+            self.agents_md(),
+        ]
+        if skills_catalog:
+            parts.append(skills_catalog)
+        return "\n".join(parts)
 
     def count(self, messages: list[dict[str, Any]]) -> int:
         """Count tokens across all messages using cl100k_base encoding."""

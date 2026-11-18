@@ -43,6 +43,17 @@ def save_config(*, home_path: Path, repo: str = "") -> Path:
     return path
 
 
+def trusted_projects() -> tuple[str, ...]:
+    """Return absolute paths whose project-level skills may be loaded."""
+    section = load_config().get("skills")
+    if not isinstance(section, dict):
+        return ()
+    value = section.get("trusted_projects")
+    if not isinstance(value, list):
+        return ()
+    return tuple(str(entry) for entry in value)
+
+
 def looks_like_home(path: Path) -> bool:
     """Whether *path* has the shape of an agents-home checkout."""
     return (

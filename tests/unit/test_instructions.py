@@ -87,6 +87,14 @@ def test_build_ignores_unreadable_agents_md(tmp_path, monkeypatch):
     assert "AGENTS.md" not in _service().build(model="test/model")
 
 
+def test_build_includes_skills_catalog_when_supplied():
+    content = _service().build(
+        model="test/model", skills_catalog="## Available skills\n- **tdd**"
+    )
+    assert "## Available skills" in content
+    assert "**tdd**" in content
+
+
 def test_count_tokens_positive():
     messages = [
         {"role": "system", "content": "You are a helpful assistant."},

@@ -17,6 +17,7 @@ from . import (
     generate_docs,  # noqa: F401
     grep_files,  # noqa: F401
     list_directory,  # noqa: F401
+    load_skill,  # noqa: F401
     read_file,  # noqa: F401
     reload_module,  # noqa: F401
     run_command,  # noqa: F401
@@ -33,6 +34,7 @@ from .find_duplicates import FindDuplicatesService
 from .generate_docs import GenerateDocsService
 from .grep_files import GrepFilesService
 from .list_directory import ListDirectoryService
+from .load_skill import LoadSkillService
 from .read_file import ReadFileService
 from .reload_module import ReloadModuleService
 from .run_command import RunCommandService
@@ -47,6 +49,7 @@ TOOL_SERVICES = (
     EditFileService,
     DeleteFileService,
     ListDirectoryService,
+    LoadSkillService,
     GrepFilesService,
     RunCommandService,
     WebSearchService,

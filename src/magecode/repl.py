@@ -56,6 +56,9 @@ async def run_repl(
         if text == "/context":
             _show_context(messages, ctx)
             continue
+        if text.startswith("/skill "):
+            print(ctx.skills.load(text[len("/skill ") :].strip()))
+            continue
 
         messages.append({"role": "user", "content": text})
         try:
