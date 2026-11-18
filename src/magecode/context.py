@@ -16,6 +16,7 @@ from .instructions import InstructionsService
 from .sandbox import SandboxService
 from .skills import SkillsService
 from .tools import (
+    AddRepoService,
     CodeMetricsService,
     DeleteFileService,
     EditFileService,
@@ -39,6 +40,7 @@ AGENT_SERVICES = [
     ToolService,
     SandboxService,
     SkillsService,
+    AddRepoService,
     ReadFileService,
     WriteFileService,
     EditFileService,
