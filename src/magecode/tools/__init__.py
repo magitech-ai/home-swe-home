@@ -22,6 +22,7 @@ from . import (
     read_file,  # noqa: F401
     reload_module,  # noqa: F401
     run_command,  # noqa: F401
+    verify_repo,  # noqa: F401
     web_search,  # noqa: F401
     write_file,  # noqa: F401
 )
@@ -40,6 +41,7 @@ from .load_skill import LoadSkillService
 from .read_file import ReadFileService
 from .reload_module import ReloadModuleService
 from .run_command import RunCommandService
+from .verify_repo import VerifyRepoService
 from .web_search import WebSearchService
 from .write_file import WriteFileService
 
@@ -55,6 +57,7 @@ TOOL_SERVICES = (
     LoadSkillService,
     GrepFilesService,
     RunCommandService,
+    VerifyRepoService,
     WebSearchService,
     ReloadModuleService,
     CodeMetricsService,
