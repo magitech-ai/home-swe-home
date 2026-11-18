@@ -61,3 +61,43 @@ def run_step(
     return StepResult(
         accepted=True, error="", candidate=written, rollout=run(written, task)
     )
+
+
+@dataclass(frozen=True)
+class CycleResult:
+    """The measured outcome of one full improvement cycle."""
+
+    scores: dict[str, float]
+    selection: object
+    final: dict[str, str]
+    final_dir: Path
+
+
+Evaluator = Callable[[Path, object], float]
+
+
+def run_cycle(
+    *,
+    base_dir: Path,
+    work_dir: Path,
+    tasks: object,
+    candidates: dict[str, dict[str, str]],
+    evaluate_fn: Evaluator,
+) -> CycleResult:
+    """Probe every candidate, select a strict winner, compose and persist it."""
+    from .utils.selection import compose, select
+
+    base = read_tree(base_dir)
+    scores: dict[str, float] = {}
+    valid: dict[str, dict[str, str]] = {}
+    for name, tree in candidates.items():
+        if validate_tree(tree):
+            continue
+        valid[name] = tree
+        candidate_dir = write_tree(tree, work_dir / "candidates" / name)
+        scores[name] = evaluate_fn(candidate_dir, tasks)
+
+    selection = select(scores)
+    final = compose(base, valid, scores)
+    final_dir = write_tree(final, work_dir / "final")
+    return CycleResult(scores, selection, final, final_dir)

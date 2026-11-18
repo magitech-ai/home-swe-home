@@ -152,6 +152,12 @@ harness change is measured to help.
 Tool results are redacted at `ToolService.execute()` so a model cannot extract
 API keys by asking a tool to read `.env`.
 
+`improve.run_cycle()` probes every candidate with the evaluator, selects a
+strict winner (`utils/selection.py`), composes per-file from the best candidate
+that changed each file, and persists the adopted tree plus a `cue`/`lesson`/
+`evidence` entry in a per-domain `library.Library`. Ties and regressions keep
+the base harness; invalid candidates never reach composition.
+
 ## Editable harness
 
 The system prompt and per-tool guidance are data files under
