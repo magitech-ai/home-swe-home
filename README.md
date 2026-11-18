@@ -39,6 +39,16 @@ The base prompt and per-tool guidance are editable data files under
 package, set `MAGECODE_HARNESS_DIR` to a directory containing `systemprompt.md`
 and `tool_guidance.md`.
 
+First-time setup (no home checkout yet):
+
+```sh
+uv run magecode --init-home --home-repo <owner>/agents-home
+```
+
+This scaffolds a home checkout (offering `~/.agents/agents-home` as the
+default path), provisions the private GitHub repo via `gh`, and records the
+path in `~/.agents/magecode/config.toml`. Every remote step is confirmed.
+
 ## Design
 
 See `DESIGN.md` for how to run, setup, and every decision.
