@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Local SearXNG config (container env holds the generated secret)
+.searxng/
+
 __pycache__/
 *.py[cod]
 .pytest_cache/
