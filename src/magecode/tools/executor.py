@@ -13,6 +13,8 @@ from typing import cast
 
 from anima import Context, Service
 
+from ..utils.secrets import redact
+
 
 class ToolService(Service):
     """The tool registry/execution pipeline mounted as ``ctx.tools``."""
@@ -45,7 +47,7 @@ class ToolService(Service):
             arguments["read_files"] = read_files
 
         try:
-            return cast(str, service(**arguments))
+            return redact(cast(str, service(**arguments)))
         except Exception as error:
             return (
                 f"Error: {type(error).__name__}: {error}. "
