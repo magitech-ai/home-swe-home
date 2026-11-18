@@ -15,6 +15,38 @@ DEFAULT_HARNESS_DIR = Path(__file__).resolve().parents[1] / "harness"
 _EDITABLE = frozenset({"systemprompt.md", "tool_guidance.md"})
 
 
+def read_tree(root: Path) -> dict[str, str]:
+    """Read every editable harness file present under *root*."""
+    tree: dict[str, str] = {}
+    for name in sorted(_EDITABLE):
+        path = Path(root) / name
+        if path.is_file():
+            tree[name] = path.read_text(encoding="utf-8")
+    return tree
+
+
+def write_tree(tree: dict[str, str], dest: Path) -> Path:
+    """Materialise a candidate tree, rejecting off-surface filenames."""
+    bad = sorted(set(tree) - _EDITABLE)
+    if bad:
+        raise ValueError(f"off-surface harness files: {', '.join(bad)}")
+    destination = Path(dest)
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, content in tree.items():
+        (destination / name).write_text(content, encoding="utf-8")
+    return destination
+
+
+def validate_tree(tree: dict[str, str]) -> str:
+    """Return an error string for an invalid tree, or ``''`` when valid."""
+    bad = sorted(set(tree) - _EDITABLE)
+    if bad:
+        return f"off-surface harness files: {', '.join(bad)}"
+    if not any(value.strip() for value in tree.values()):
+        return "empty harness tree"
+    return ""
+
+
 def harness_dir() -> Path:
     """Return the active harness directory (env override for candidate trees)."""
     override = os.environ.get("MAGECODE_HARNESS_DIR")
