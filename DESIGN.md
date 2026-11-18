@@ -133,6 +133,25 @@ Wiring a new tool requires: define the Service class, re-export it in
 `tools/__init__.py`, and add it to `TOOL_SERVICES` in `context.py`. No separate
 registry edits — schema and execution both come from the Service.
 
+## Measuring improvement
+
+Harness candidates are only adopted when an A/B evaluation shows a pass-rate
+gain on a fixed task suite. `eval.py` runs each task against a base or candidate
+harness via `MAGECODE_HARNESS_DIR` and records per-task outcomes; `improve.py`
+supplies the candidate. No source-code self-improvement is attempted until a
+harness change is measured to help.
+
+## Measuring improvement
+
+Harness candidates are adopted only when an A/B evaluation shows a pass-rate
+gain on a fixed task suite. `eval.py` runs each task against a base or candidate
+harness via `MAGECODE_HARNESS_DIR` and records per-task outcomes; `improve.py`
+supplies the candidate. Source-code self-improvement is not attempted until a
+harness change is measured to help.
+
+Tool results are redacted at `ToolService.execute()` so a model cannot extract
+API keys by asking a tool to read `.env`.
+
 ## Editable harness
 
 The system prompt and per-tool guidance are data files under
