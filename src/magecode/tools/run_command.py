@@ -93,9 +93,7 @@ class RunCommandService(Service):
         return "\n".join(parts)
 
     def _run_sandboxed(self, command: str, timeout: int) -> str:
-        from magecode import sandbox
-
-        result = sandbox.run_in_sandbox(command, timeout=timeout)
+        result = self.ctx.sandbox.run(command, timeout=timeout)
         parts: list[str] = []
         if result.stdout:
             parts.append(f"stdout:\n{result.stdout}")

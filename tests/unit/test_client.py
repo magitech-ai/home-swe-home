@@ -1,4 +1,4 @@
-"""Tests for magecode.client."""
+"""Tests for magecode.client (ClientService + config helpers)."""
 
 from __future__ import annotations
 
@@ -6,15 +6,38 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from anima import Context
 from openai import APIConnectionError, APIStatusError
 
 from magecode.client import (
+    ClientService,
     ConfigurationError,
     MiniClaudeError,
-    chat_complete,
     create_client,
     get_api_key,
 )
+
+
+def _service_with(openai_client) -> ClientService:
+    ctx = Context()
+    ctx.use(ClientService)
+    service = ctx.client  # type: ignore[assignment]
+    service._openai = openai_client  # inject fake; avoids env/network
+    return service
+
+
+def test_client_service_lazy_creation(monkeypatch):
+    """ClientService creates the OpenAI client on first use."""
+    from anima import Context
+
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
+    ctx = Context()
+    ctx.use(ClientService)
+    service = ctx.client  # type: ignore[assignment]
+    assert service._openai is None
+    openai = service.openai  # triggers lazy creation
+    assert openai is not None
+    assert service.openai is openai  # cached
 
 
 def test_get_api_key_returns_env_value(monkeypatch):
@@ -51,7 +74,8 @@ def test_chat_complete_returns_response():
             completions=SimpleNamespace(create=lambda **kwargs: response)
         )
     )
-    assert chat_complete(client, model="m", messages=[], tools=None) is response
+    service = _service_with(client)
+    assert service.chat_complete(model="m", messages=[], tools=None) is response
 
 
 def test_chat_complete_wraps_status_error():
@@ -59,10 +83,10 @@ def test_chat_complete_wraps_status_error():
         404, request=httpx.Request("POST", "https://x/v1/chat/completions")
     )
     error = APIStatusError("The model does not exist", response=response, body=None)
-    client = failing_client(error)
+    service = _service_with(failing_client(error))
     expected = "NVIDIA API error: The model does not exist"
     with pytest.raises(MiniClaudeError, match=expected):
-        chat_complete(client, model="nope/nope", messages=[], tools=None)
+        service.chat_complete(model="nope/nope", messages=[], tools=None)
 
 
 def test_chat_complete_wraps_connection_error():
@@ -70,9 +94,9 @@ def test_chat_complete_wraps_connection_error():
         message="failed to connect",
         request=httpx.Request("POST", "https://x"),
     )
-    client = failing_client(error)
+    service = _service_with(failing_client(error))
     with pytest.raises(MiniClaudeError, match="NVIDIA API error: failed to connect"):
-        chat_complete(client, model="m", messages=[], tools=None)
+        service.chat_complete(model="m", messages=[], tools=None)
 
 
 def patch_openai():

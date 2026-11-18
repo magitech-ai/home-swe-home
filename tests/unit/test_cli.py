@@ -155,11 +155,14 @@ async def test_sandbox_flag_sets_env(monkeypatch):
 
     seen = {}
 
-    async def fake_run_headless(*, model, messages, client):
+    async def fake_run_headless(*, model, messages):
         seen["sandbox"] = __import__("os").environ.get("MAGECODE_SANDBOX")
         return 0
 
-    with patch("magecode.cli._run_headless", new=fake_run_headless):
+    with (
+        patch("magecode.cli.load_dotenv"),  # avoid leaking .env into other tests
+        patch("magecode.cli._run_headless", new=fake_run_headless),
+    ):
         code = await _run_async(["-p", "hello", "--sandbox"])
     assert code == 0
     assert seen["sandbox"] == "1"

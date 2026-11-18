@@ -9,10 +9,14 @@
   the model requests, feeds the results back, and repeats until the model
   stops asking.
 - **Component Model**: `src/magecode/context.py` builds the session `Context`
-  and mounts all services (`build_context()`). Services are accessed by name
-  (`ctx.read_file`, `ctx.core_loop`). anima supports `inject = ["name"]` for
-  dependency-ordered mounting; magecode's services currently declare no
-  dependencies between each other.
+  and mounts every capability as an anima Service (`AGENT_SERVICES`): the model
+  adapter (`ctx.client`), system instructions (`ctx.instructions`), tool
+  execution (`ctx.tools`), sandbox (`ctx.sandbox`), the core loop
+  (`ctx.core_loop`), and all 12 tools. Services are accessed by name on the
+  Context; no capability is called as a bare module function. Pure helpers
+  (schema inference, config validation, docstring parsing) and the CLI/REPL
+  entry points are the deliberate exceptions — deepseek-harness likewise has
+  `packages/util/` utilities and special application launch.
 - **Core Loop** (`src/magecode/core_loop.py`): `CoreLoopService`, a non-streaming
   turn loop with `max_turns` (default 20). Model replies are appended verbatim;
   tool results are appended as `tool` messages. `Ctrl-C` raises
@@ -20,11 +24,11 @@
   schemas are derived from each Service's `__call__` signature/docstring via
   `service_schema()`.
 - **Tool Set** (`src/magecode/tools/`): 12 anima `Service` components.
-  `execute_tool()` looks up a service on the Context and calls it. `read_file`
-  marks a path readable; `edit_file` and `reload_module` are refused for unread
-  paths (read-before-edit rule tracked per turn via a `read_files` set that
-  `execute_tool` injects). Every tool returns text — even failures — so the
-  turn never crashes on a tool error.
+  `ctx.tools.execute()` looks up a tool service on the Context and calls it.
+  `read_file` marks a path readable; `edit_file` and `reload_module` are refused
+  for unread paths (read-before-edit rule tracked per turn via a `read_files`
+  set that `ctx.tools.execute` injects). Every tool returns text — even
+  failures — so the turn never crashes on a tool error.
 - **API Key** (`src/magecode/client.py`): `NVIDIA_API_KEY` from the environment
   only (`.env` fallback via python-dotenv, env var takes precedence). The key
   is never printed and never persisted. Missing key → clear message, exit 2.

@@ -1,9 +1,9 @@
 """magecode's tool services, built as anima components.
 
-Public API: ``service_schema()``, ``execute_tool()``, plus all individual
-tool Service classes. Individual tools live in their own files under
-``src/magecode/tools/`` with the filename matching the tool name
-(e.g. ``read_file.py`` defines ``ReadFileService``).
+Public API: ``service_schema()``, ``ToolService``, plus all individual tool
+Service classes. Each tool lives in its own file under ``src/magecode/tools/``
+with the filename matching the tool name (e.g. ``read_file.py`` defines
+``ReadFileService``).
 """
 
 from __future__ import annotations
@@ -25,17 +25,34 @@ from . import (
 )
 
 # Re-export individual tool service classes for direct use.
-from .code_metrics import CodeMetricsService  # noqa: F401
-from .delete_file import DeleteFileService  # noqa: F401
-from .edit_file import EditFileService  # noqa: F401
-from .executor import execute_tool, get_module_mtime  # noqa: F401
-from .find_duplicates import FindDuplicatesService  # noqa: F401
-from .generate_docs import GenerateDocsService  # noqa: F401
-from .grep_files import GrepFilesService  # noqa: F401
-from .list_directory import ListDirectoryService  # noqa: F401
-from .read_file import ReadFileService  # noqa: F401
+from .code_metrics import CodeMetricsService
+from .delete_file import DeleteFileService
+from .edit_file import EditFileService
+from .executor import ToolService, get_module_mtime  # noqa: F401
+from .find_duplicates import FindDuplicatesService
+from .generate_docs import GenerateDocsService
+from .grep_files import GrepFilesService
+from .list_directory import ListDirectoryService
+from .read_file import ReadFileService
 from .registry import service_schema  # noqa: F401
-from .reload_module import ReloadModuleService  # noqa: F401
-from .run_command import RunCommandService  # noqa: F401
-from .web_search import WebSearchService  # noqa: F401
-from .write_file import WriteFileService  # noqa: F401
+from .reload_module import ReloadModuleService
+from .run_command import RunCommandService
+from .web_search import WebSearchService
+from .write_file import WriteFileService
+
+# The services that are model-facing tools (used by CoreLoopService to build
+# the tool schema list and by tests to enumerate tools).
+TOOL_SERVICES = (
+    ReadFileService,
+    WriteFileService,
+    EditFileService,
+    DeleteFileService,
+    ListDirectoryService,
+    GrepFilesService,
+    RunCommandService,
+    WebSearchService,
+    ReloadModuleService,
+    CodeMetricsService,
+    FindDuplicatesService,
+    GenerateDocsService,
+)
