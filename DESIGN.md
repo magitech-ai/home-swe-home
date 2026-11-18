@@ -149,6 +149,54 @@ redirect reads elsewhere. This is the prerequisite for Harness²-style
 Propose–Probe–Compose refinement; the loop itself is deliberately not in this
 package yet.
 
+In home-first mode the **home repo's** `harness/` tree is authoritative; the
+packaged copy is only a template for `--init-home` scaffolding. See ADR 0004.
+
+## Home-first agent architecture
+
+magecode is the agent run *from* `agents-home`, taking over the role that
+`agents-home/README.md` currently describes as a convention ("Start agent
+sessions here when a task may span multiple repositories"). It is not a
+standalone any-cwd agent: the home repo is always its starting point.
+
+**Home resolution, in order:**
+
+1. `~/.agents/magecode/config.toml` — absolute `home_path` plus repo identity. Authoritative; this is what makes "config on `/home`, checkout on a different SSD" work.
+2. `AGENTS_HOME_PATH` environment override.
+3. Name-based walk-up from cwd looking for a directory named `agents-home` with `AGENTS.md`, `skills/` and the `## Other Repos` map.
+
+`MAGECODE_HARNESS_DIR` is unrelated: it swaps a candidate harness tree for a
+rollout, not the home location.
+
+**Onboarding.** If no home is found, a wizard (human-only steps) runs: `gh auth
+login` if needed, choose a local path (offered default `~/.agents/agents-home`,
+always confirmed), scaffold from packaged templates, offer `gh repo create
+--private` plus initial push with explicit consent, then write the config. An
+existing checkout skips all of this — it is treated as if onboarding had
+already recorded it. Tokens stay in the `gh` credential store, never in config.
+
+**What the home repo provides:** the authoritative harness tree, the canonical
+skills collection, the curated `## Other Repos` map (sibling paths + clone
+URLs), shared `AGENTS.md`, and the org's GitHub workflow conventions.
+
+**Multi-repo work** is map-driven: a GitHub link or local directory resolves
+through the map; missing repos are cloned as siblings only after confirmation;
+map edits go through a PR; each target repo's `AGENTS.md` is layered into the
+session; each affected repo's own checks must pass before the task is done.
+Execution uses one context initially — no sub-agents until evidence demands
+isolation.
+
+**Skills** follow agentskills.io (ADR 0005). Discovery roots: `agents-home/skills/`
+(native/client scope, authoritative), `~/.agents/skills/` (cross-client user
+scope), `<project>/.agents/skills/` (project-local, default-deny until trusted).
+No `~/.magecode/skills`. The catalog is `name` + `description` only, with no
+cap and no truncation; the planned seeker-rune component will address catalog
+budget later.
+
+**Phases:** (1) home-mode foundation — config/discovery, onboarding wizard,
+layered instructions, repo map, `gh` workflow, per-repo verification; (2)
+conformant skill integration; (3) the external Propose–Probe–Compose loop.
+
 ## Read-before-edit rule
 
 The turn loop tracks a `read_files` set per turn, which `ctx.tools.execute` injects
