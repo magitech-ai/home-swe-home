@@ -10,6 +10,7 @@ from __future__ import annotations
 
 # Import every tool service module so its Service class is available.
 from . import (
+    add_repo,  # noqa: F401
     code_metrics,  # noqa: F401
     delete_file,  # noqa: F401
     edit_file,  # noqa: F401
@@ -26,6 +27,7 @@ from . import (
 )
 
 # Re-export individual tool service classes for direct use.
+from .add_repo import AddRepoService
 from .code_metrics import CodeMetricsService
 from .delete_file import DeleteFileService
 from .edit_file import EditFileService
@@ -44,6 +46,7 @@ from .write_file import WriteFileService
 # The services that are model-facing tools (used by CoreLoopService to build
 # the tool schema list and by tests to enumerate tools).
 TOOL_SERVICES = (
+    AddRepoService,
     ReadFileService,
     WriteFileService,
     EditFileService,
