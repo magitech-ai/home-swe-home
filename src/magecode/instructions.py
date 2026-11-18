@@ -12,12 +12,14 @@ from __future__ import annotations
 import datetime
 import os
 import platform
+from pathlib import Path
 from typing import Any
 
 import tiktoken
 from anima import Context, Service
 
 from .utils.harness import system_prompt
+from .utils.home import find_home
 
 ENCODING = tiktoken.get_encoding("cl100k_base")
 
@@ -39,16 +41,30 @@ class InstructionsService(Service):
         )
 
     def agents_md(self) -> str:
-        """Return the project's AGENTS.md content if it exists."""
-        for path in (os.path.join(os.getcwd(), "AGENTS.md"), "AGENTS.md"):
+        """Return home guidance first, then the current repo's AGENTS.md.
+
+        Home guidance is always included; the current repo's file is appended
+        when it differs. Paths are deduplicated by resolved location so running
+        from the home checkout does not duplicate its guidance.
+        """
+        home = find_home()
+        paths = [home / "AGENTS.md"] if home is not None else []
+        paths.append(Path(os.getcwd()) / "AGENTS.md")
+
+        parts: list[str] = []
+        seen: set[Path] = set()
+        for path in paths:
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
             try:
-                with open(path, encoding="utf-8") as handle:
-                    content = handle.read()
+                content = resolved.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
             if content.strip():
-                return f"\n--- AGENTS.md ---\n{content}\n--- end AGENTS.md ---\n"
-        return ""
+                parts.append(f"\n--- AGENTS.md ---\n{content}\n--- end AGENTS.md ---\n")
+        return "".join(parts)
 
     def build(self, *, model: str) -> str:
         """Build the full system message content."""
