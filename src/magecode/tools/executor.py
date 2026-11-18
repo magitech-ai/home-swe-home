@@ -3,8 +3,6 @@
 Looks up a tool Service on the anima Context and calls it with parsed
 arguments. ``read_files`` is injected into any tool that accepts it. Failures
 are caught and returned as error text so the model can react.
-
-Module reload mtime tracking lives here because ``reload_module`` consults it.
 """
 
 from __future__ import annotations
@@ -14,13 +12,6 @@ import json
 from typing import cast
 
 from anima import Context, Service
-
-_module_mtimes: dict[str, float] = {}
-
-
-def get_module_mtime(module_name: str) -> float | None:
-    """Return the cached mtime for *module_name*, or ``None`` if never tracked."""
-    return _module_mtimes.get(module_name)
 
 
 class ToolService(Service):

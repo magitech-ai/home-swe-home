@@ -185,27 +185,6 @@ async def test_run_command_service_sandbox_with_stderr_and_timeout(monkeypatch):
     assert "timed out" in result
 
 
-def test_decode_text_none():
-    """_decode_text handles None input."""
-    from magecode.tools.run_command import _decode_text
-
-    assert _decode_text(None) == ""
-
-
-def test_decode_text_bytes():
-    """_decode_text decodes bytes input."""
-    from magecode.tools.run_command import _decode_text
-
-    assert _decode_text(b"hello bytes") == "hello bytes"
-
-
-def test_decode_text_str():
-    """_decode_text passes through str input."""
-    from magecode.tools.run_command import _decode_text
-
-    assert _decode_text("already str") == "already str"
-
-
 @pytest.mark.asyncio
 async def test_run_command_service_is_singleton_per_context():
     """Mounting twice returns the same service instance."""

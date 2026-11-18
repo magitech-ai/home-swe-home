@@ -14,8 +14,9 @@
   execution (`ctx.tools`), sandbox (`ctx.sandbox`), the core loop
   (`ctx.core_loop`), and all 12 tools. Services are accessed by name on the
   Context; no capability is called as a bare module function. Pure helpers
-  (schema inference, config validation, docstring parsing) and the CLI/REPL
-  entry points are the deliberate exceptions — deepseek-harness likewise has
+  live in `src/magecode/utils/` (`schema.py`, `text.py`); config validation and
+  the CLI/REPL entry points are the deliberate exceptions — deepseek-harness
+  likewise has
   `packages/util/` utilities and special application launch.
 - **Core Loop** (`src/magecode/core_loop.py`): `CoreLoopService`, a non-streaming
   turn loop with `max_turns` (default 20). Model replies are appended verbatim;

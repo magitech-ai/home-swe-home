@@ -177,12 +177,14 @@ count (cl100k_base encoding) before each model call.
 - `src/magecode/core_loop.py` — `CoreLoopService`: core model ↔ tool loop
 - `src/magecode/tools/` — anima Service components, one file per tool
   - `__init__.py` — re-exports tool Service classes
-  - `registry.py` — `service_schema()` inference from Service `__call__`
   - `executor.py` — `ToolService` mounted as `ctx.tools` (looks up tool services on the Context)
   - `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`,
     `list_directory.py`, `grep_files.py`, `run_command.py`,
     `web_search.py`, `code_metrics.py`, `find_duplicates.py`,
     `generate_docs.py`, `reload_module.py` — one `Service` per tool
+- `src/magecode/utils/` — pure helpers (the documented exception to "everything
+  is a component"): `schema.py` (JSON-schema inference), `text.py` (shared
+  decoder). Stateless, no lifecycle.
 - `src/magecode/repl.py` — interactive chat + `/model` + `/context`
 - `src/magecode/cli.py` — argparse: `-p`, `--model`, `--sandbox`
 - `DESIGN.md` — this file

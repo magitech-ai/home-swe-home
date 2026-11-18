@@ -1,9 +1,9 @@
 """magecode's tool services, built as anima components.
 
-Public API: ``service_schema()``, ``ToolService``, plus all individual tool
-Service classes. Each tool lives in its own file under ``src/magecode/tools/``
-with the filename matching the tool name (e.g. ``read_file.py`` defines
-``ReadFileService``).
+Public API: ``ToolService`` plus all individual tool Service classes.
+Schema inference lives in ``magecode.utils.schema``. Each tool lives in its
+own file under ``src/magecode/tools/`` with the filename matching the tool
+name (e.g. ``read_file.py`` defines ``ReadFileService``).
 """
 
 from __future__ import annotations
@@ -28,13 +28,12 @@ from . import (
 from .code_metrics import CodeMetricsService
 from .delete_file import DeleteFileService
 from .edit_file import EditFileService
-from .executor import ToolService, get_module_mtime  # noqa: F401
+from .executor import ToolService  # noqa: F401
 from .find_duplicates import FindDuplicatesService
 from .generate_docs import GenerateDocsService
 from .grep_files import GrepFilesService
 from .list_directory import ListDirectoryService
 from .read_file import ReadFileService
-from .registry import service_schema  # noqa: F401
 from .reload_module import ReloadModuleService
 from .run_command import RunCommandService
 from .web_search import WebSearchService

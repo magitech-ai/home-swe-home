@@ -13,7 +13,7 @@ from typing import Any
 from anima import Context, Service
 
 from .tools import TOOL_SERVICES
-from .tools.registry import service_schema
+from .utils.schema import service_schema
 
 
 class TurnInterrupted(Exception):
