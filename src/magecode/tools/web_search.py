@@ -1,11 +1,19 @@
-"""Search the web via DuckDuckGo (no API key required).
+"""Search the web via SearXNG (if configured) or DuckDuckGo (no API key).
 
-Tries the HTML endpoint first, then the Lite endpoint as a fallback (both
-free). Decodes DuckDuckGo's ``uddg=`` redirect wrappers so results contain
-real target URLs. Detects bot challenges using several known signals.
+If ``SEARXNG_URL`` is set, query that self-hosted instance's JSON API first —
+it is reliable and has no bot detection. The instance must have the ``json``
+format enabled (``search.formats: [json]``); a 403 falls back cleanly.
+
+Otherwise try DuckDuckGo's HTML endpoint, then Lite. Decodes DDG's ``uddg=``
+redirect wrappers so results contain real target URLs, and detects bot
+challenges using several known signals.
 """
 
+from __future__ import annotations
+
 import html as html_mod
+import json
+import os
 import re
 import urllib.error
 import urllib.parse
@@ -16,6 +24,7 @@ from anima import Context, Service
 _MAX_RESULTS = 8
 _TIMEOUT = 15
 _UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
+_SEARXNG_ENV = "SEARXNG_URL"
 
 # Parsers for the two free DuckDuckGo endpoints: (url template, link regex).
 _ENDPOINTS = [
@@ -74,10 +83,46 @@ def _parse_results(page: str, pattern: re.Pattern[str]) -> list[str]:
     return results
 
 
-class WebSearchService(Service):
-    """Search the web via DuckDuckGo (HTML endpoint, Lite fallback).
+def _searxng_url() -> str | None:
+    return (os.environ.get(_SEARXNG_ENV) or "").strip().rstrip("/") or None
 
-    Returns result titles and real URLs. No API key required.
+
+def _search_searxng(base_url: str, query: str) -> list[str] | None:
+    """Query a SearXNG instance's JSON API; None means 'fall back'.
+
+    The instance must have the json format enabled. A 403 (format disabled),
+    network error, or malformed response all return None so the caller can
+    fall back to DuckDuckGo rather than failing outright.
+    """
+    params = urllib.parse.urlencode({"q": query, "format": "json"})
+    url = f"{base_url}/search?{params}"
+    req = urllib.request.Request(url, headers=_UA)
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as response:
+            body = response.read().decode("utf-8")
+    except (urllib.error.URLError, OSError):
+        return None
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    results: list[str] = []
+    for item in data.get("results", []):
+        title = str(item.get("title", "")).strip()
+        href = str(item.get("url", "")).strip()
+        if title and href:
+            results.append(f"{title}: {href}")
+        if len(results) >= _MAX_RESULTS:
+            break
+    return results
+
+
+class WebSearchService(Service):
+    """Search the web via SearXNG (if configured) or DuckDuckGo.
+
+    With ``SEARXNG_URL`` set, uses that instance's JSON API first (reliable,
+    no key, no bot detection); falls back to DuckDuckGo. Otherwise uses
+    DuckDuckGo's HTML endpoint with a Lite fallback.
 
     Args:
         query: Search query string.
@@ -90,6 +135,12 @@ class WebSearchService(Service):
         super().__init__(ctx, "web_search")
 
     def __call__(self, *, query: str) -> str:
+        base_url = _searxng_url()
+        if base_url:
+            results = _search_searxng(base_url, query)
+            if results:
+                return "\n".join(results)
+
         encoded = urllib.parse.urlencode({"q": query})
         bot_blocked = False
         network_errors: list[str] = []

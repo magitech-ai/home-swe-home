@@ -794,6 +794,180 @@ def test_web_search_bot_signal_anomaly(monkeypatch):
     assert _is_bot_challenge("<html><body>nothing special</body></html>") is False
 
 
+def test_web_search_searxng_first(monkeypatch):
+    """SEARXNG_URL routes to the instance's JSON API and returns real URLs."""
+    import json
+
+    from magecode.tools.web_search import _search_searxng
+
+    calls = []
+
+    def fake_urlopen(req, timeout):
+        calls.append(req.full_url)
+        assert "format=json" in req.full_url
+        assert "mysearch.local/search" in req.full_url
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "results": [
+                            {
+                                "title": "SearXNG Result",
+                                "url": "https://example.com/searx",
+                                "content": "snippet",
+                                "engine": "google",
+                            }
+                        ]
+                    }
+                ).encode()
+
+        return Response()
+
+    monkeypatch.setattr(
+        "magecode.tools.web_search.urllib.request.urlopen", fake_urlopen
+    )
+    results = _search_searxng("https://mysearch.local", "test query")
+    assert results == ["SearXNG Result: https://example.com/searx"]
+    assert len(calls) == 1
+
+
+def test_web_search_searxng_service_uses_json(monkeypatch):
+    """With SEARXNG_URL set, the service calls SearXNG and skips DDG."""
+    import json
+
+    monkeypatch.setenv("SEARXNG_URL", "https://mysearch.local")
+
+    def fake_urlopen(req, timeout):
+        assert "mysearch.local/search" in req.full_url
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {"results": [{"title": "Found", "url": "https://found.example/a"}]}
+                ).encode()
+
+        return Response()
+
+    monkeypatch.setattr(
+        "magecode.tools.web_search.urllib.request.urlopen", fake_urlopen
+    )
+    result = _tool(_build_context(), "web_search")(query="test")
+    assert result == "Found: https://found.example/a"
+
+
+def test_web_search_searxng_falls_back_on_403(monkeypatch):
+    """A SearXNG 403 (json format disabled) falls back to DuckDuckGo."""
+    from urllib.error import HTTPError
+
+    monkeypatch.setenv("SEARXNG_URL", "https://mysearch.local")
+
+    calls = []
+
+    def fake_urlopen(req, timeout):
+        calls.append(req.full_url)
+        if "mysearch.local" in req.full_url:
+            raise HTTPError(req.full_url, 403, "forbidden", {}, None)
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return (
+                    b'<html><a rel="nofollow" class="result__a" '
+                    b'href="https://ddg.example/x">DDG Result</a></html>'
+                )
+
+        return Response()
+
+    monkeypatch.setattr(
+        "magecode.tools.web_search.urllib.request.urlopen", fake_urlopen
+    )
+    result = _tool(_build_context(), "web_search")(query="test")
+    assert "DDG Result: https://ddg.example/x" in result
+    assert any("duckduckgo.com" in url for url in calls)  # DDG was actually called
+
+
+def test_web_search_searxng_bad_json_falls_back(monkeypatch):
+    """Malformed SearXNG JSON returns None so the caller falls back."""
+    from magecode.tools.web_search import _search_searxng
+
+    def fake_urlopen(req, timeout):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b"not json"
+
+        return Response()
+
+    monkeypatch.setattr(
+        "magecode.tools.web_search.urllib.request.urlopen", fake_urlopen
+    )
+    assert _search_searxng("https://mysearch.local", "q") is None
+
+
+def test_web_search_searxng_env_strip(monkeypatch):
+    """SEARXNG_URL is stripped of surrounding whitespace and trailing slash."""
+    from magecode.tools.web_search import _searxng_url
+
+    monkeypatch.setenv("SEARXNG_URL", "  https://mysearch.local/  ")
+    assert _searxng_url() == "https://mysearch.local"
+    monkeypatch.delenv("SEARXNG_URL")
+    assert _searxng_url() is None
+
+
+def test_web_search_searxng_skips_empty_and_caps():
+    """SearXNG items missing title/url are skipped; results capped at 8."""
+    import json
+
+    from magecode.tools.web_search import _search_searxng
+
+    items = [{"title": "", "url": "https://skip.example"}, {"title": "No URL"}] + [
+        {"title": f"R{i}", "url": f"https://example.com/{i}"} for i in range(12)
+    ]
+
+    def fake_urlopen(req, timeout):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return json.dumps({"results": items}).encode()
+
+        return Response()
+
+    with patch("magecode.tools.web_search.urllib.request.urlopen", new=fake_urlopen):
+        results = _search_searxng("https://mysearch.local", "q")
+    assert results is not None
+    assert len(results) == 8  # capped
+    assert all("skip.example" not in r for r in results)
+    assert results[0] == "R0: https://example.com/0"
+
+
 @pytest.mark.asyncio
 async def test_turn_limit_reached():
     """CoreLoopService should raise TurnLimitReached when max_turns exceeded."""
