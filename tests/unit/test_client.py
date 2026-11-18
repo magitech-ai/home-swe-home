@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import httpx
+import httpx2
 import pytest
 from anima import Context
 from openai import APIConnectionError, APIStatusError
@@ -79,8 +79,8 @@ def test_chat_complete_returns_response():
 
 
 def test_chat_complete_wraps_status_error():
-    response = httpx.Response(
-        404, request=httpx.Request("POST", "https://x/v1/chat/completions")
+    response = httpx2.Response(
+        404, request=httpx2.Request("POST", "https://x/v1/chat/completions")
     )
     error = APIStatusError("The model does not exist", response=response, body=None)
     service = _service_with(failing_client(error))
@@ -92,7 +92,7 @@ def test_chat_complete_wraps_status_error():
 def test_chat_complete_wraps_connection_error():
     error = APIConnectionError(
         message="failed to connect",
-        request=httpx.Request("POST", "https://x"),
+        request=httpx2.Request("POST", "https://x"),
     )
     service = _service_with(failing_client(error))
     with pytest.raises(MiniClaudeError, match="NVIDIA API error: failed to connect"):
