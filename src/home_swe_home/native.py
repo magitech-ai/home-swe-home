@@ -4,23 +4,35 @@ from __future__ import annotations
 
 from typing import Any
 
+from .contracts import (
+    FunctionResult,
+    FunctionTool,
+    NativeGenerationConfig,
+    NativeRequest,
+    TextContent,
+)
 from .utils.native_events import NativeTranslator
+
+
+def native_tool_models(tools: list[dict[str, Any]] | None) -> list[FunctionTool]:
+    """Convert OpenAI tool schemas to validated Interactions function models."""
+    result: list[FunctionTool] = []
+    for tool in tools or []:
+        function = tool.get("function", {})
+        result.append(
+            FunctionTool(
+                type="function",
+                name=function.get("name", ""),
+                description=function.get("description", ""),
+                parameters=function.get("parameters", {}),
+            )
+        )
+    return result
 
 
 def native_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     """Convert OpenAI tool schemas to the Interactions API `Function` shape."""
-    result: list[dict[str, Any]] = []
-    for tool in tools or []:
-        function = tool.get("function", {})
-        result.append(
-            {
-                "type": "function",
-                "name": function.get("name", ""),
-                "description": function.get("description", ""),
-                "parameters": function.get("parameters", {}),
-            }
-        )
-    return result
+    return [declared.model_dump() for declared in native_tool_models(tools)]
 
 
 def native_system_instruction(messages: list[dict[str, Any]]) -> str:
@@ -53,22 +65,23 @@ def native_input(
         tail += 1
     if tail and has_interaction:
         for message in messages[-tail:]:
-            results.append(
-                {
-                    "type": "function_result",
-                    "name": names.get(message.get("tool_call_id", ""), ""),
-                    "call_id": message.get("tool_call_id", ""),
-                    "result": [
-                        {"type": "text", "text": str(message.get("content", ""))}
-                    ],
-                }
+            declared = FunctionResult(
+                type="function_result",
+                name=names.get(message.get("tool_call_id", ""), ""),
+                call_id=message.get("tool_call_id", ""),
+                result=[TextContent(type="text", text=str(message.get("content", "")))],
             )
+            results.append(declared.model_dump())
         return results, results
 
     parts: list[dict[str, str]] = []
     for message in reversed(messages):
         if message.get("role") == "user":
-            parts.append({"type": "text", "text": str(message.get("content", ""))})
+            parts.append(
+                TextContent(
+                    type="text", text=str(message.get("content", ""))
+                ).model_dump()
+            )
             break
     return parts, results
 
@@ -85,23 +98,23 @@ def native_stream(
     effort: str = "medium",
 ) -> Any:
     """Yield OpenAI-shaped chunks from a native Interactions stream."""
-    current, results = native_input(messages, has_interaction=bool(interaction_id))
-    params: dict[str, Any] = {
-        "model": model,
-        "input": current,
-        "tools": native_tools(tools),
-        "stream": True,
-        "store": True,
-    }
-    if interaction_id:
-        params["previous_interaction_id"] = interaction_id
-    system_instruction = native_system_instruction(messages)
-    if system_instruction:
-        params["system_instruction"] = system_instruction
-    generation: dict[str, Any] = {"thinking_level": effort}
-    if reasoning:
-        generation["thinking_summaries"] = "auto"
-    params["generation_config"] = generation
+    current, _ = native_input(messages, has_interaction=bool(interaction_id))
+    system_instruction = native_system_instruction(messages) or None
+    generation = NativeGenerationConfig(
+        thinking_level=effort,
+        thinking_summaries="auto" if reasoning else None,
+    )
+    request = NativeRequest(
+        model=model,
+        input=current,
+        system_instruction=system_instruction,
+        tools=native_tool_models(tools) or None,
+        stream=True,
+        store=True,
+        previous_interaction_id=interaction_id,
+        generation_config=generation,
+    )
+    params: dict[str, Any] = request.wire()
 
     translator = NativeTranslator(
         on_interaction=on_interaction,
