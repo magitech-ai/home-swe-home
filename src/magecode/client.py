@@ -1,7 +1,8 @@
-"""NVIDIA (OpenAI-compatible) API client Service for magecode.
+"""Model API client Service for magecode (OpenAI-compatible endpoints).
 
-The NVIDIA API key is read from ``NVIDIA_API_KEY`` in the environment. It is
-never printed and never persisted by this program.
+NVIDIA is the default provider; set ``MAGECODE_PROVIDER=gemini`` and export
+``GEMINI_API_KEY`` to use Gemini's OpenAI-compatible endpoint instead. Keys are
+never printed or persisted by this program.
 
 As anima Service component: ``ctx.client.chat_complete(...)``. Config errors
 and API errors are wrapped into types callers can report clearly.
@@ -16,6 +17,22 @@ from anima import Context, Service
 from openai import APIError, OpenAI
 
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+def provider_config() -> tuple[str, str, str]:
+    """Return (base_url, api_key, label) for the active provider."""
+    provider = os.environ.get("MAGECODE_PROVIDER", "nvidia")
+    if provider == "gemini":
+        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not key:
+            raise ConfigurationError(
+                "GEMINI_API_KEY is not set. Export it: export GEMINI_API_KEY=<your key>"
+            )
+        return GEMINI_BASE_URL, key, "Gemini"
+    if provider != "nvidia":
+        raise ConfigurationError(f"unknown MAGECODE_PROVIDER: {provider!r}")
+    return NVIDIA_BASE_URL, get_api_key(), "NVIDIA"
 
 
 class MiniClaudeError(Exception):
@@ -38,8 +55,9 @@ def get_api_key() -> str:
 
 
 def create_client() -> OpenAI:
-    """Build the NVIDIA-compatible OpenAI client, failing fast on no key."""
-    return OpenAI(base_url=NVIDIA_BASE_URL, api_key=get_api_key())
+    """Build the OpenAI-compatible client, failing fast on no key."""
+    base_url, key, _label = provider_config()
+    return OpenAI(base_url=base_url, api_key=key)
 
 
 class ClientService(Service):
@@ -76,4 +94,9 @@ class ClientService(Service):
                 tools=tools,  # type: ignore[arg-type]
             )
         except APIError as error:
-            raise MiniClaudeError(f"NVIDIA API error: {error}") from error
+            label = (
+                "Gemini"
+                if os.environ.get("MAGECODE_PROVIDER") == "gemini"
+                else "NVIDIA"
+            )
+            raise MiniClaudeError(f"{label} API error: {error}") from error

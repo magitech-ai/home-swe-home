@@ -14,6 +14,10 @@ uv sync                      # installs anima + dependencies and this package
 export NVIDIA_API_KEY=nvapi-...   # https://build.nvidia.com; never echo it
 ```
 
+Set `MAGECODE_PROVIDER=gemini` and export `GEMINI_API_KEY` (or
+`GOOGLE_API_KEY`) to use Gemini's OpenAI-compatible endpoint; choose the model
+with `--model` or `MAGECODE_MODEL`.
+
 ## Run
 
 ```sh

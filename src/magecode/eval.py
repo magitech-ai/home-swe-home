@@ -130,7 +130,7 @@ class _Tally:
 
 def _record(tally: _Tally, task: Task, transcript: str, label: str) -> None:
     """Classify one transcript as a pass, a failure, or an infrastructure error."""
-    if "NVIDIA API error" in transcript or "[timed out]" in transcript:
+    if "API error" in transcript or "[timed out]" in transcript:
         tally.errors.append(label)
         return
     matched = task.checker(transcript) if task.checker else task.expected in transcript

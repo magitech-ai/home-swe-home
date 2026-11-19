@@ -198,3 +198,18 @@ async def test_init_home_accepted(monkeypatch):
         code = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/home"])
     assert code == 0
     assert wizard.called
+
+
+@pytest.mark.asyncio
+async def test_model_default_from_env(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
+    monkeypatch.setenv("MAGECODE_MODEL", "gemini-2.5-flash")
+    seen = {}
+
+    async def fake_core_loop(*args, **kwargs):
+        seen["model"] = kwargs.get("model")
+
+    with patch("magecode.core_loop.CoreLoopService.__call__", new=fake_core_loop):
+        code = await _run_async(["-p", "hello"])
+    assert code == 0
+    assert seen["model"] == "gemini-2.5-flash"
