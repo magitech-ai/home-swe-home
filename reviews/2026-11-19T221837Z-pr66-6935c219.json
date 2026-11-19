@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 66,
+  "commit": "6935c219426604e00a63984225456b8fbcf619b0",
+  "trigger_issue": 64,
+  "author_model": "google/gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44627330846,
+  "recorded_at": "2026-11-19T22:18:37Z",
+  "verdict": "APPROVE",
+  "summary": "The broad '*/tmp*/**' omit glob was successfully removed from pyproject.toml under [tool.coverage.run] per acceptance criteria, with no extraneous changes.",
+  "findings": [],
+  "elapsed_seconds": 1.884,
+  "prompt_tokens": 1597,
+  "completion_tokens": 54,
+  "evidence_check": []
+}
