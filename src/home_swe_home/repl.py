@@ -35,8 +35,12 @@ async def run_repl(
     print("home-swe-home interactive chat")
     print("  /model <id>   switch model")
     print("  /context      show context window and token counts")
+    print("  /reminders    show passive due/upcoming reminders")
     print("  Ctrl-D        exit")
     print(f"  model: {model}")
+    reminder_summary = ctx.reminders.summary_line()
+    if reminder_summary:
+        print(reminder_summary)
     while True:
         try:
             user_input = input(PROMPT)
@@ -59,6 +63,9 @@ async def run_repl(
             continue
         if text == "/context":
             _show_context(messages, ctx)
+            continue
+        if text == "/reminders":
+            print(ctx.reminders.report())
             continue
         if text.startswith("/skill "):
             print(ctx.skills.load(text[len("/skill ") :].strip()))

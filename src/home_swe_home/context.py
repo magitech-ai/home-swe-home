@@ -13,6 +13,7 @@ from anima import Context
 from .client import ClientService
 from .core_loop import CoreLoopService
 from .instructions import InstructionsService
+from .reminders import RemindersService
 from .sandbox import SandboxService
 from .skills import SkillsService
 from .tools import (
@@ -41,6 +42,7 @@ AGENT_SERVICES = [
     ToolService,
     SandboxService,
     SkillsService,
+    RemindersService,
     AddRepoService,
     VerifyRepoService,
     ReadFileService,

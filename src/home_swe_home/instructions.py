@@ -66,7 +66,13 @@ class InstructionsService(Service):
                 parts.append(f"\n--- AGENTS.md ---\n{content}\n--- end AGENTS.md ---\n")
         return "".join(parts)
 
-    def build(self, *, model: str, skills_catalog: str = "") -> str:
+    def build(
+        self,
+        *,
+        model: str,
+        skills_catalog: str = "",
+        reminders_block: str = "",
+    ) -> str:
         """Build the full system message content."""
         parts = [
             system_prompt(),
@@ -75,6 +81,8 @@ class InstructionsService(Service):
         ]
         if skills_catalog:
             parts.append(skills_catalog)
+        if reminders_block:
+            parts.append(reminders_block)
         return "\n".join(parts)
 
     def count(self, messages: list[dict[str, Any]]) -> int:
