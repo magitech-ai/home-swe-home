@@ -8,6 +8,8 @@ src/home_swe_home/context.py
 src/home_swe_home/contracts.py
 src/home_swe_home/core_loop.py
 src/home_swe_home/eval.py
+src/home_swe_home/evidence.py
+src/home_swe_home/gate.py
 src/home_swe_home/improve.py
 src/home_swe_home/instructions.py
 src/home_swe_home/library.py

@@ -24,6 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Check kill switch
+        env:
+          HOME_SWE_HOME_REVIEW_ENABLED: ${{ vars.AGENT_REVIEW_ENABLED }}
+        run: PYTHONPATH=src python3 -m home_swe_home.gate
+
       - uses: astral-sh/setup-uv@v7
       - name: Set up Python
         run: uv python install 3.12
