@@ -27,7 +27,7 @@ from .client import PROVIDERS, ConfigurationError, config_for
 DEFAULT_AUTHOR_PROVIDER = "gemini"
 DEFAULT_AUTHOR_MODEL = "gemini-4-hydrogen"
 DEFAULT_REVIEWER_PROVIDER = "nvidia"
-DEFAULT_REVIEWER_MODEL = "mistralai/mistral-large-4-1t-a52b"
+DEFAULT_REVIEWER_MODEL = "google/gemma-4-31b-it"
 REVIEW_TIMEOUT_SECONDS = 180.0
 MAX_DIFF_CHARS = 100_000
 

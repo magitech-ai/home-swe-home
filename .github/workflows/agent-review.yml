@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-      REVIEWER_MODEL: mistralai/mistral-large-4-1t-a52b
+      REVIEWER_MODEL: google/gemma-4-31b-it
       REVIEWER_PROVIDER: nvidia
     steps:
       - uses: actions/checkout@v5
