@@ -16,8 +16,9 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-      REVIEWER_MODEL: google/gemma-4-31b-it
-      REVIEWER_PROVIDER: nvidia
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      REVIEWER_MODEL: gemini-3.8-flash
+      REVIEWER_PROVIDER: gemini
       PR: ${{ github.event.number }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       RUN_ID: ${{ github.run_id }}

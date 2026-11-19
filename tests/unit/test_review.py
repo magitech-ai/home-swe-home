@@ -109,6 +109,23 @@ def test_parse_verdict_rejects_approve_with_findings() -> None:
         review.parse_verdict(payload)
 
 
+def test_default_reviewer_model_is_current() -> None:
+    assert review.DEFAULT_REVIEWER_MODEL == "gemini-3.8-flash"
+    assert review.DEFAULT_REVIEWER_PROVIDER == "gemini"
+
+
+def test_main_uses_default_reviewer_when_not_supplied(monkeypatch, tmp_path) -> None:
+    diff, spec, _ = _setup_files(tmp_path)
+    client, _ = _client(APPROVE)
+    _patch_provider(monkeypatch, client)
+    out = tmp_path / "verdict.json"
+    code = review.main(["--diff", str(diff), "--spec", str(spec), "--out", str(out)])
+    assert code == 0
+    payload = json.loads(out.read_text())
+    assert payload["reviewer_model"] == "gemini-3.8-flash"
+    assert payload["reviewer_provider"] == "gemini"
+
+
 def test_run_review_with_usage_records_tokens() -> None:
     client, _ = _client(APPROVE)
     usage = SimpleNamespace(prompt_tokens=100, completion_tokens=20)
@@ -186,7 +203,7 @@ def test_main_approve_writes_verdict(monkeypatch, tmp_path, capsys) -> None:
     assert payload["verdict"] == "APPROVE"
     assert payload["author_model"] == "gemini-4-hydrogen"
     assert payload["reviewer_model"] == "mistral-large"
-    assert payload["reviewer_provider"] == "nvidia"
+    assert payload["reviewer_provider"] == "gemini"
     assert payload["prompt_tokens"] == 0
     assert payload["completion_tokens"] == 0
     assert payload["elapsed_seconds"] >= 0

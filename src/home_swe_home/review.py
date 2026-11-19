@@ -29,8 +29,8 @@ from .evidence import check_finding_evidence
 
 DEFAULT_AUTHOR_PROVIDER = "gemini"
 DEFAULT_AUTHOR_MODEL = "gemini-4-hydrogen"
-DEFAULT_REVIEWER_PROVIDER = "nvidia"
-DEFAULT_REVIEWER_MODEL = "google/gemma-4-31b-it"
+DEFAULT_REVIEWER_PROVIDER = "gemini"
+DEFAULT_REVIEWER_MODEL = "gemini-3.8-flash"
 REVIEW_TIMEOUT_SECONDS = 180.0
 MAX_DIFF_CHARS = 100_000
 
