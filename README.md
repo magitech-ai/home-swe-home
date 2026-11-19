@@ -53,6 +53,8 @@ The base prompt and per-tool guidance are editable data files under
 package, set `MAGECODE_HARNESS_DIR` to a directory containing `systemprompt.md`
 and `tool_guidance.md`.
 
+`MAGECODE_CONFIG_PATH` isolates config for testing; `--dry-run` with `--init-home` scaffolds and records config without GitHub writes.
+
 First-time setup (no home checkout yet):
 
 ```sh

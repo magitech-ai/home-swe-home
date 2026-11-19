@@ -80,6 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="scaffold and provision a home checkout, then exit",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="with --init-home, scaffold and record config without GitHub writes",
+    )
+    parser.add_argument(
         "--home-repo",
         default="",
         metavar="OWNER/NAME",
@@ -136,6 +141,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
             Path(args.init_home),
             args.home_repo,
             confirm=lambda _question: answer.strip().lower().startswith("y"),
+            dry_run=args.dry_run,
         )
         return 0 if accepted else 1
 

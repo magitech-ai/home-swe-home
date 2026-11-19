@@ -97,6 +97,7 @@ def run_wizard(
     *,
     confirm: Confirm,
     runner: Runner = default_runner,
+    dry_run: bool = False,
 ) -> bool:
     """Scaffold and provision a home checkout, returning whether it ran."""
     question = (
@@ -105,7 +106,8 @@ def run_wizard(
     if not confirm(question):
         return False
     scaffold(root)
-    for command in provision_commands(repo, root):
-        runner(command)
+    if not dry_run:
+        for command in provision_commands(repo, root):
+            runner(command)
     save_config(home_path=Path(root), repo=repo)
     return True
