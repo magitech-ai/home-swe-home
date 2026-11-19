@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 67,
+  "commit": "a1355cdd98803b15c3898b740ee4f86977805a54",
+  "trigger_issue": 65,
+  "author_model": "google/gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44628144012,
+  "recorded_at": "2026-11-19T22:23:40Z",
+  "verdict": "APPROVE",
+  "summary": "The PR template and AGENTS.md documentation pointer were correctly added matching the specified acceptance criteria and contract format.",
+  "findings": [],
+  "elapsed_seconds": 1.647,
+  "prompt_tokens": 1870,
+  "completion_tokens": 41,
+  "evidence_check": []
+}
