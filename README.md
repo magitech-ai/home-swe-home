@@ -20,6 +20,8 @@ with `--model` or `HOME_SWE_HOME_MODEL`.
 
 ## Run
 
+`hsh` is a short alias for `home-swe-home`; both run the same CLI.
+
 ```sh
 # Headless: one task and exit
 uv run home-swe-home -p "say hi in three words"
