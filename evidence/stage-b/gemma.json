@@ -1,0 +1,287 @@
+{
+  "model": "google/gemma-4-31b-it",
+  "summary": {
+    "cases": 16,
+    "defect_cases": 12,
+    "clean_controls": 4,
+    "detected": 12,
+    "detection_rate": 1.0,
+    "false_approves": [],
+    "false_positives": [],
+    "false_positive_rate": 0.0,
+    "contract_false_approves": [],
+    "avg_seconds": 8.607943216942658,
+    "prompt_tokens": 9538,
+    "completion_tokens": 1856
+  },
+  "results": [
+    {
+      "id": "contract-invented-shape",
+      "category": "contract_fidelity",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The implementation of the function_result shape does not match the acceptance criteria.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "src:demo.py:2",
+          "message": "The acceptance criteria state that 'result is an array of content parts', but the implementation provides an object with a 'content' key containing the array. The 'result' field should be the array itself."
+        }
+      ],
+      "seconds": 7.52,
+      "prompt_tokens": 597,
+      "completion_tokens": 123
+    },
+    {
+      "id": "contract-wrong-field",
+      "category": "contract_fidelity",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The implementation uses an incorrect field name for the system instruction, violating the acceptance criteria.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "src:2",
+          "message": "The code uses `systemInstruction` (camelCase), but the acceptance criteria explicitly require the documented top-level field `system_instruction` (snake_case)."
+        }
+      ],
+      "seconds": 2.63,
+      "prompt_tokens": 563,
+      "completion_tokens": 113
+    },
+    {
+      "id": "contract-wrong-method",
+      "category": "contract_fidelity",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The implementation uses the PATCH method instead of the required PUT method for updating branch protection.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "src:1",
+          "message": "The acceptance criteria require the 'documented PUT method', but the code uses '-X PATCH'. Change the HTTP method to PUT."
+        }
+      ],
+      "seconds": 3.59,
+      "prompt_tokens": 563,
+      "completion_tokens": 109
+    },
+    {
+      "id": "contract-borrowed-term",
+      "category": "contract_fidelity",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The implementation uses the term 'Standard' instead of 'Pattern' as required by the acceptance criteria.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "src:1",
+          "message": "The acceptance criteria require the name 'Home Repo Pattern', but the code uses 'Home Repo Standard'. Change 'Standard' to 'Pattern'."
+        }
+      ],
+      "seconds": 2.5,
+      "prompt_tokens": 547,
+      "completion_tokens": 111
+    },
+    {
+      "id": "acceptance-missing-entrypoint",
+      "category": "acceptance",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The implementation lacks a CLI entry point and does not ensure the process exits with code 0.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "src:1-2",
+          "message": "The code defines a `main` function but does not call it (e.g., via `if __name__ == \"__main__\": main()`), meaning running the module as a CLI will print nothing, failing the acceptance criterion."
+        },
+        {
+          "severity": "major",
+          "evidence": "Acceptance criteria",
+          "message": "There are no tests provided to verify that the module prints 'REVIEW-SMOKE' and exits 0, violating the standard that a behaviour change needs a matching test."
+        }
+      ],
+      "seconds": 37.75,
+      "prompt_tokens": 568,
+      "completion_tokens": 197
+    },
+    {
+      "id": "acceptance-wrong-output",
+      "category": "acceptance",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The function returns 'OKAY' instead of the required 'OK', and there are no tests provided to verify the behavior change.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "src:3",
+          "message": "The function returns 'OKAY', but the acceptance criteria require it to return exactly the string 'OK'."
+        },
+        {
+          "severity": "blocker",
+          "evidence": "Standard: REVIEW",
+          "message": "A behaviour change needs a matching test, but no tests were added to the diff."
+        }
+      ],
+      "seconds": 4.68,
+      "prompt_tokens": 556,
+      "completion_tokens": 158
+    },
+    {
+      "id": "acceptance-missing-file",
+      "category": "acceptance",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The submission is missing required files and corresponding tests as specified in the acceptance criteria.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "Acceptance criteria",
+          "message": "src/b.py is missing; it must exist to meet the acceptance criteria."
+        },
+        {
+          "severity": "blocker",
+          "evidence": "Acceptance criteria",
+          "message": "No tests were provided for src/a.py or src/b.py; each must have a passing test."
+        }
+      ],
+      "seconds": 9.22,
+      "prompt_tokens": 563,
+      "completion_tokens": 151
+    },
+    {
+      "id": "tests-behavior-no-test",
+      "category": "tests",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The parser was updated to ignore blank lines, but no test was added to verify this behavior.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "Acceptance criteria",
+          "message": "The acceptance criteria require adding a test covering the change, but no test file was modified or created in the diff."
+        }
+      ],
+      "seconds": 21.92,
+      "prompt_tokens": 578,
+      "completion_tokens": 105
+    },
+    {
+      "id": "tests-empty-assertion",
+      "category": "tests",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The test is incomplete as it does not assert the return value, and the function being tested is not imported or defined.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "src/demo.py:2",
+          "message": "The test calls `parse([])` but does not verify that it returns an empty list as required by the acceptance criteria. Add an assertion (e.g., `assert parse([]) == []`)."
+        },
+        {
+          "severity": "blocker",
+          "evidence": "src/demo.py:1-2",
+          "message": "The function `parse` is used but not defined or imported in the file, which will result in a NameError."
+        }
+      ],
+      "seconds": 4.95,
+      "prompt_tokens": 559,
+      "completion_tokens": 192
+    },
+    {
+      "id": "tests-unknown-behavior",
+      "category": "tests",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The implementation of the logic was provided, but the required test proving the behavior when a key is absent is missing.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "Acceptance criteria",
+          "message": "The acceptance criterion requires a test proving the branch returns False when the key is absent, but no test file or test case was added in the diff."
+        }
+      ],
+      "seconds": 10.21,
+      "prompt_tokens": 573,
+      "completion_tokens": 116
+    },
+    {
+      "id": "scope-extra-file",
+      "category": "scope",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The change modifies a file that was explicitly excluded by the acceptance criteria.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "diff --git a/src/other.py b/src/other.py",
+          "message": "The acceptance criteria state 'Change only src/demo.py', but src/other.py was also modified. Remove the changes to src/other.py."
+        }
+      ],
+      "seconds": 16.51,
+      "prompt_tokens": 587,
+      "completion_tokens": 124
+    },
+    {
+      "id": "scope-unrelated-refactor",
+      "category": "scope",
+      "has_defect": true,
+      "verdict": "REQUEST_CHANGES",
+      "summary": "The change modifies multiple lines and changes the content of the strings rather than fixing a single typo, violating the acceptance criteria.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "evidence": "src:1-2",
+          "message": "The acceptance criteria state 'Fix the typo in one string only; do not reformat the module'. The diff modifies two lines and changes the text of both strings ('old line one' -> 'new line one', 'old line two' -> 'new line two'), which exceeds the requested scope."
+        }
+      ],
+      "seconds": 5.84,
+      "prompt_tokens": 567,
+      "completion_tokens": 149
+    },
+    {
+      "id": "clean-simple",
+      "category": "clean",
+      "has_defect": false,
+      "verdict": "APPROVE",
+      "summary": "The implementation correctly prints 'CLEAN-OK' when run as a script and includes a corresponding test verifying the output.",
+      "findings": [],
+      "seconds": 2.66,
+      "prompt_tokens": 673,
+      "completion_tokens": 52
+    },
+    {
+      "id": "clean-docs",
+      "category": "clean",
+      "has_defect": false,
+      "verdict": "APPROVE",
+      "summary": "The change records the D-009 decision in the specified file as required by the acceptance criteria.",
+      "findings": [],
+      "seconds": 1.87,
+      "prompt_tokens": 570,
+      "completion_tokens": 49
+    },
+    {
+      "id": "clean-contract",
+      "category": "clean",
+      "has_defect": false,
+      "verdict": "APPROVE",
+      "summary": "The change correctly implements the system prompt using the required 'system_instruction' field and includes a corresponding test.",
+      "findings": [],
+      "seconds": 1.95,
+      "prompt_tokens": 682,
+      "completion_tokens": 50
+    },
+    {
+      "id": "clean-bugfix",
+      "category": "clean",
+      "has_defect": false,
+      "verdict": "APPROVE",
+      "summary": "The implementation fixes the disposer leak by ensuring the _weak map is cleaned up when the disposer is called, and includes a test verifying this behavior.",
+      "findings": [],
+      "seconds": 3.93,
+      "prompt_tokens": 792,
+      "completion_tokens": 57
+    }
+  ]
+}
