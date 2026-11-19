@@ -25,6 +25,7 @@ from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
 from .client import PROVIDERS, ConfigurationError, config_for
+from .evidence import check_finding_evidence
 
 DEFAULT_AUTHOR_PROVIDER = "gemini"
 DEFAULT_AUTHOR_MODEL = "gemini-4-hydrogen"
@@ -243,6 +244,12 @@ def main(argv: list[str] | None = None) -> int:
         "elapsed_seconds": round(elapsed, 3),
         "prompt_tokens": outcome.prompt_tokens,
         "completion_tokens": outcome.completion_tokens,
+        "evidence_check": [
+            check.to_dict()
+            for check in check_finding_evidence(
+                outcome.verdict.findings, diff=diff_text, root=Path.cwd()
+            )
+        ],
     }
     rendered = json.dumps(payload, indent=2)
     if args.out:
