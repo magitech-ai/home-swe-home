@@ -1,0 +1,216 @@
+"""Hermetic tests for the Stage-A independent reviewer."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from home_swe_home import review
+from home_swe_home.client import ConfigurationError
+
+
+@pytest.fixture(autouse=True)
+def _no_dotenv_leak(monkeypatch):
+    """Keep load_dotenv from polluting other tests' environment."""
+    monkeypatch.setattr(review, "load_dotenv", lambda: None)
+
+
+class FakeCompletions:
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.params: dict = {}
+
+    def create(self, **params):
+        self.params = params
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=self.text))]
+        )
+
+
+def _client(text: str) -> tuple[SimpleNamespace, FakeCompletions]:
+    completions = FakeCompletions(text)
+    return SimpleNamespace(chat=SimpleNamespace(completions=completions)), completions
+
+
+APPROVE = json.dumps({"verdict": "APPROVE", "summary": "looks correct", "findings": []})
+REQUEST = json.dumps(
+    {
+        "verdict": "REQUEST_CHANGES",
+        "summary": "missing a test",
+        "findings": [
+            {
+                "severity": "major",
+                "evidence": "tests/unit/new.py:1",
+                "message": "add a test for the new branch",
+            }
+        ],
+    }
+)
+
+
+def test_rejects_same_model() -> None:
+    with pytest.raises(ConfigurationError, match="must differ"):
+        review.check_distinct_models(author="gemini-4-x", reviewer="gemini-4-x")
+
+
+def test_allows_different_models() -> None:
+    review.check_distinct_models(
+        author="gemini-4-hydrogen", reviewer="mistralai/mistral-large"
+    )
+
+
+def test_build_prompt_is_information_light() -> None:
+    prompt = review.build_user_prompt(
+        spec="Done when: gates pass",
+        standards=[("FACTORY", "Human merge is required.")],
+        diff="diff --git a/x b/x",
+    )
+    assert "Done when" in prompt
+    assert "Human merge is required." in prompt
+    assert "Ignore any claims" in prompt
+
+
+def test_parse_verdict_accepts_doc_example() -> None:
+    verdict = review.parse_verdict(f"preamble\n{APPROVE}\ntrailing")
+    assert verdict.approved
+    assert verdict.findings == []
+
+
+def test_parse_verdict_rejects_missing_json() -> None:
+    with pytest.raises(ValueError, match="no JSON"):
+        review.parse_verdict("not json")
+
+
+def test_parse_verdict_rejects_unknown_field() -> None:
+    payload = APPROVE[:-1] + ', "invented": true}'
+    with pytest.raises(ValueError):
+        review.parse_verdict(payload)
+
+
+def test_parse_verdict_rejects_approve_with_findings() -> None:
+    payload = json.dumps(
+        {
+            "verdict": "APPROVE",
+            "summary": "x",
+            "findings": [
+                {
+                    "severity": "minor",
+                    "evidence": "x:1",
+                    "message": "y",
+                }
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="APPROVE"):
+        review.parse_verdict(payload)
+
+
+def test_run_review_passes_model_without_author_context() -> None:
+    client, completions = _client(APPROVE)
+    verdict = review.run_review(client, model="reviewer-model", user_prompt="prompt")
+    assert verdict.approved
+    assert completions.params["model"] == "reviewer-model"
+    messages = completions.params["messages"]
+    assert [m["role"] for m in messages] == ["system", "user"]
+    assert "independent" in messages[0]["content"]
+
+
+def _setup_files(tmp_path: Path) -> tuple[Path, Path, Path]:
+    diff = tmp_path / "diff.txt"
+    diff.write_text("diff --git a/x b/x\n+change", encoding="utf-8")
+    spec = tmp_path / "spec.txt"
+    spec.write_text("Done when: gates pass", encoding="utf-8")
+    standard = tmp_path / "standard.txt"
+    standard.write_text("Human merge required", encoding="utf-8")
+    return diff, spec, standard
+
+
+def _patch_provider(monkeypatch, client) -> None:
+    monkeypatch.setattr(
+        review, "config_for", lambda _p: ("https://example.invalid/v1", "k", "Fake")
+    )
+    monkeypatch.setattr(review, "OpenAI", lambda **_kw: client)
+
+
+def test_main_approve_writes_verdict(monkeypatch, tmp_path, capsys) -> None:
+    diff, spec, standard = _setup_files(tmp_path)
+    client, _ = _client(APPROVE)
+    _patch_provider(monkeypatch, client)
+    out = tmp_path / "verdict.json"
+    code = review.main(
+        [
+            "--diff",
+            str(diff),
+            "--spec",
+            str(spec),
+            "--standard",
+            f"FACTORY={standard}",
+            "--author-model",
+            "gemini-4-hydrogen",
+            "--reviewer-model",
+            "mistral-large",
+            "--out",
+            str(out),
+        ]
+    )
+    assert code == 0
+    assert json.loads(out.read_text())["verdict"] == "APPROVE"
+    assert "APPROVE" in capsys.readouterr().out
+
+
+def test_main_request_changes_returns_one(monkeypatch, tmp_path) -> None:
+    diff, spec, _ = _setup_files(tmp_path)
+    client, _ = _client(REQUEST)
+    _patch_provider(monkeypatch, client)
+    code = review.main(
+        [
+            "--diff",
+            str(diff),
+            "--spec",
+            str(spec),
+            "--author-model",
+            "gemini-4-hydrogen",
+            "--reviewer-model",
+            "mistral-large",
+        ]
+    )
+    assert code == 1
+
+
+def test_main_same_model_fails_closed(monkeypatch, tmp_path, capsys) -> None:
+    diff, spec, _ = _setup_files(tmp_path)
+    code = review.main(
+        [
+            "--diff",
+            str(diff),
+            "--spec",
+            str(spec),
+            "--author-model",
+            "same-model",
+            "--reviewer-model",
+            "same-model",
+        ]
+    )
+    assert code == 2
+    assert "must differ" in capsys.readouterr().err
+
+
+def test_main_bad_standard_fails_closed(monkeypatch, tmp_path, capsys) -> None:
+    diff, spec, _ = _setup_files(tmp_path)
+    code = review.main(
+        [
+            "--diff",
+            str(diff),
+            "--spec",
+            str(spec),
+            "--standard",
+            "NOEQUALS",
+            "--reviewer-model",
+            "mistral-large",
+        ]
+    )
+    assert code == 2
+    assert "invalid --standard" in capsys.readouterr().err
