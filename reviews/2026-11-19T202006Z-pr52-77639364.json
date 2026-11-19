@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 52,
+  "commit": "776393640bf9c425c0406c0c8308e0b43ae76ea9",
+  "trigger_issue": 51,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "google/gemma-4-31b-it",
+  "reviewer_provider": "nvidia",
+  "workflow_run_id": 44606136427,
+  "recorded_at": "2026-11-19T20:20:06Z",
+  "verdict": "APPROVE",
+  "summary": "Implemented mechanical validation of reviewer evidence citations, integrating the check into the review process and the final audit record.",
+  "findings": [],
+  "elapsed_seconds": 20.88,
+  "prompt_tokens": 5718,
+  "completion_tokens": 49,
+  "evidence_check": []
+}
