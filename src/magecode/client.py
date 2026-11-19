@@ -60,22 +60,50 @@ def create_client() -> OpenAI:
     return OpenAI(base_url=base_url, api_key=key)
 
 
-class ClientService(Service):
-    """Model adapter: one chat completion request against NVIDIA's endpoint.
+def gemini_api_mode() -> str:
+    """Return the Gemini API mode: native Interactions or OpenAI-compatible."""
+    mode = os.environ.get("MAGECODE_GEMINI_API", "interactions").lower()
+    if mode not in {"interactions", "openai"}:
+        raise ConfigurationError(
+            f"unknown MAGECODE_GEMINI_API: {mode!r} (use interactions or openai)"
+        )
+    return mode
 
-    Call via ``ctx.client.chat_complete(...)``. The OpenAI client is created
-    lazily on first use so config errors surface at the call site.
+
+class ClientService(Service):
+    """Model adapter: one chat completion request against the active provider.
+
+    Call via ``ctx.client.chat_complete(...)`` or ``chat_stream(...)``. Clients
+    are lazy so config errors surface at the call site.
     """
 
     def __init__(self, ctx: Context) -> None:
         super().__init__(ctx, "client")
         self._openai: OpenAI | None = None
+        self._native: Any | None = None
+        self._interaction_id: str | None = None
 
     @property
     def openai(self) -> OpenAI:
         if self._openai is None:
             self._openai = create_client()
         return self._openai
+
+    @property
+    def native(self) -> Any:
+        if self._native is None:
+            from google import genai
+
+            _base, key, _label = provider_config()
+            self._native = genai.Client(api_key=key)
+        return self._native
+
+    @property
+    def use_native(self) -> bool:
+        return (
+            os.environ.get("MAGECODE_PROVIDER", "nvidia") == "gemini"
+            and gemini_api_mode() == "interactions"
+        )
 
     def _create(
         self,
@@ -111,6 +139,15 @@ class ClientService(Service):
         tools: list[dict[str, Any]] | None,
     ) -> Any:
         """Ask the model for one complete assistant reply."""
+        if self.use_native:
+            from types import SimpleNamespace
+
+            from .utils.stream import consume_stream
+
+            message = consume_stream(
+                self.chat_stream(model=model, messages=messages, tools=tools)
+            )
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
         return self._create(model=model, messages=messages, tools=tools, stream=False)
 
     def chat_stream(
@@ -119,6 +156,24 @@ class ClientService(Service):
         model: str,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
+        reasoning: bool = False,
     ) -> Any:
         """Open a streamed assistant reply (one delta at a time)."""
+        if self.use_native:
+            from .native import native_stream
+
+            return native_stream(
+                self.native,
+                model=model,
+                messages=messages,
+                tools=tools,
+                reasoning=reasoning,
+                interaction_id=self._interaction_id,
+                on_interaction=self._set_interaction,
+            )
         return self._create(model=model, messages=messages, tools=tools, stream=True)
+
+    def _set_interaction(self, interaction_id: str) -> None:
+        """Remember the interaction id for stateful follow-up turns."""
+        if interaction_id:
+            self._interaction_id = interaction_id

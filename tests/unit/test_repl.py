@@ -155,6 +155,7 @@ async def test_repl_user_message_reaches_turn():
         reply_prefix: str = "",
         max_turns: int = 20,
         stream: bool = False,
+        show_reasoning: bool = False,
     ):
         seen["messages"] = messages
         seen["model"] = model

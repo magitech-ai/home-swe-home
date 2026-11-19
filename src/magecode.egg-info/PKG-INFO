@@ -8,6 +8,7 @@ Requires-Dist: openai<4,>=3
 Requires-Dist: python-dotenv>=1.0
 Requires-Dist: tiktoken>=0.8
 Requires-Dist: anima @ git+https://github.com/magitech-ai/anima.git
+Requires-Dist: google-genai>=3.6.1
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-cov>=6.0; extra == "dev"
@@ -19,7 +20,7 @@ Requires-Dist: ruff>=0.17; extra == "dev"
 
 A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
 micro-kernel (Magitech's Python implementation of Cordis). Everything is a
-component: the core loop and all 12 tools are anima Services mounted on a
+component: the core loop and all 15 tools are anima Services mounted on a
 Context. Core loop — send the task to the model, run the tools the model asks
 for, send the results back, repeat until the model stops asking. Model replies
 are printed exactly as they came back.
@@ -30,6 +31,10 @@ are printed exactly as they came back.
 uv sync                      # installs anima + dependencies and this package
 export NVIDIA_API_KEY=nvapi-...   # https://build.nvidia.com; never echo it
 ```
+
+Set `MAGECODE_PROVIDER=gemini` and export `GEMINI_API_KEY` (or
+`GOOGLE_API_KEY`) to use Gemini's OpenAI-compatible endpoint; choose the model
+with `--model` or `MAGECODE_MODEL`.
 
 ## Run
 
@@ -44,8 +49,11 @@ uv run magecode
 uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 ```
 
-In chat, `/model <id>` switches models; Ctrl-C aborts the current turn only;
-Ctrl-D exits.
+Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply.
+
+In chat, `/model <id>` switches models, `/skill <name>` loads a skill's full
+instructions, and `/context` shows the context window. Ctrl-C aborts the
+current turn only; Ctrl-D exits.
 
 Shell commands run unsandboxed on the host by default. Pass `--sandbox` or set
 `MAGECODE_SANDBOX=1` to run them inside an isolated Docker container.
@@ -54,6 +62,16 @@ The base prompt and per-tool guidance are editable data files under
 `src/magecode/harness/`. To try a modified copy without editing the installed
 package, set `MAGECODE_HARNESS_DIR` to a directory containing `systemprompt.md`
 and `tool_guidance.md`.
+
+First-time setup (no home checkout yet):
+
+```sh
+uv run magecode --init-home --home-repo <owner>/agents-home
+```
+
+This scaffolds a home checkout (offering `~/.agents/agents-home` as the
+default path), provisions the private GitHub repo via `gh`, and records the
+path in `~/.agents/magecode/config.toml`. Every remote step is confirmed.
 
 ## Design
 

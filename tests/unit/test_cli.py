@@ -155,7 +155,7 @@ async def test_sandbox_flag_sets_env(monkeypatch):
 
     seen = {}
 
-    async def fake_run_headless(*, model, messages, stream=True):
+    async def fake_run_headless(*, model, messages, **kwargs):
         seen["sandbox"] = __import__("os").environ.get("MAGECODE_SANDBOX")
         return 0
 

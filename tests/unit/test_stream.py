@@ -136,3 +136,24 @@ def test_consume_tool_call_without_function():
     ]
     message = consume_stream(stream)
     assert message.tool_calls[0].function.name == ""
+
+
+def test_consume_stream_forwards_reasoning_and_events():
+    event = SimpleNamespace(label=lambda: "x:y", known=False)
+    stream = [
+        _chunk(
+            SimpleNamespace(
+                content=None,
+                reasoning_content="THINK",
+                event=event,
+                tool_calls=None,
+            )
+        )
+    ]
+    reasoning, events = [], []
+    message = consume_stream(
+        stream, on_reasoning=reasoning.append, on_event=events.append
+    )
+    assert message.content == ""
+    assert reasoning == ["THINK"]
+    assert events == [event]

@@ -17,6 +17,8 @@ def consume_stream(
     stream: Any,
     *,
     on_delta: Callable[[str], None] = lambda _text: None,
+    on_reasoning: Callable[[str], None] = lambda _text: None,
+    on_event: Callable[[Any], None] = lambda _event: None,
 ) -> Any:
     """Consume *stream*, emitting content deltas and returning a message.
 
@@ -36,6 +38,12 @@ def consume_stream(
         if text:
             parts.append(text)
             on_delta(text)
+        reasoning = getattr(delta, "reasoning_content", None)
+        if reasoning:
+            on_reasoning(reasoning)
+        event = getattr(delta, "event", None)
+        if event is not None:
+            on_event(event)
         for call in getattr(delta, "tool_calls", None) or []:
             index = getattr(call, "index", None)
             key = str(

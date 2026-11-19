@@ -5,10 +5,15 @@ src/magecode/cli.py
 src/magecode/client.py
 src/magecode/context.py
 src/magecode/core_loop.py
+src/magecode/eval.py
+src/magecode/improve.py
 src/magecode/instructions.py
+src/magecode/library.py
+src/magecode/onboard.py
 src/magecode/py.typed
 src/magecode/repl.py
 src/magecode/sandbox.py
+src/magecode/skills.py
 src/magecode.egg-info/PKG-INFO
 src/magecode.egg-info/SOURCES.txt
 src/magecode.egg-info/dependency_links.txt
@@ -18,6 +23,7 @@ src/magecode.egg-info/top_level.txt
 src/magecode/harness/systemprompt.md
 src/magecode/harness/tool_guidance.md
 src/magecode/tools/__init__.py
+src/magecode/tools/add_repo.py
 src/magecode/tools/code_metrics.py
 src/magecode/tools/delete_file.py
 src/magecode/tools/edit_file.py
@@ -26,9 +32,11 @@ src/magecode/tools/find_duplicates.py
 src/magecode/tools/generate_docs.py
 src/magecode/tools/grep_files.py
 src/magecode/tools/list_directory.py
+src/magecode/tools/load_skill.py
 src/magecode/tools/read_file.py
 src/magecode/tools/reload_module.py
 src/magecode/tools/run_command.py
+src/magecode/tools/verify_repo.py
 src/magecode/tools/web_search.py
 src/magecode/tools/write_file.py
 src/magecode/utils/__init__.py
@@ -36,4 +44,10 @@ src/magecode/utils/harness.py
 src/magecode/utils/home.py
 src/magecode/utils/repo_map.py
 src/magecode/utils/schema.py
+src/magecode/utils/secrets.py
+src/magecode/utils/selection.py
+src/magecode/utils/skills.py
+src/magecode/utils/stream.py
 src/magecode/utils/text.py
+src/magecode/utils/tracker.py
+src/magecode/utils/verify.py

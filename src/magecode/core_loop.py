@@ -40,6 +40,7 @@ class CoreLoopService(Service):
         reply_prefix: str = "",
         max_turns: int = 20,
         stream: bool = False,
+        show_reasoning: bool = False,
     ) -> list[dict[str, Any]]:
         """Run one turn until the model stops asking for tools.
 
@@ -50,7 +51,9 @@ class CoreLoopService(Service):
 
         ``reply_prefix`` is printed before assistant content (``"< "`` in
         chat mode); headless leaves it empty so output stays raw. With
-        ``stream=True`` content deltas are printed as they arrive.
+        ``stream=True`` content deltas are printed as they arrive. With
+        ``show_reasoning=True`` readable thoughts are printed between
+        ``[reasoning]`` markers; they are never added to the message history.
         """
         read_files: set[str] = set()
         turn_count = 0
@@ -71,11 +74,43 @@ class CoreLoopService(Service):
                 if stream:
                     print(reply_prefix, end="", flush=True)
                     response = self.ctx.client.chat_stream(
-                        model=model, messages=messages, tools=tools
+                        model=model,
+                        messages=messages,
+                        tools=tools,
+                        reasoning=show_reasoning,
                     )
+                    reasoning_open = False
+
+                    def print_reasoning(text: str) -> None:
+                        nonlocal reasoning_open
+                        if not show_reasoning:
+                            return
+                        if not reasoning_open:
+                            print("[reasoning]", end="", flush=True)
+                            reasoning_open = True
+                        print(text, end="", flush=True)
+
+                    def print_content(text: str) -> None:
+                        nonlocal reasoning_open
+                        if reasoning_open:
+                            print("[/reasoning]", end="", flush=True)
+                            reasoning_open = False
+                        print(text, end="", flush=True)
+
+                    def print_event(event: Any) -> None:
+                        label = event.label() if hasattr(event, "label") else str(event)
+                        if not getattr(event, "known", True):
+                            label = "UNKNOWN:" + label
+                        print(f"\n[event: {label}]", end="", flush=True)
+
                     assistant_message = consume_stream(
-                        response, on_delta=lambda text: print(text, end="", flush=True)
+                        response,
+                        on_delta=print_content,
+                        on_reasoning=print_reasoning,
+                        on_event=print_event,
                     )
+                    if reasoning_open:
+                        print("[/reasoning]", end="", flush=True)
                 else:
                     response = self.ctx.client.chat_complete(
                         model=model, messages=messages, tools=tools
