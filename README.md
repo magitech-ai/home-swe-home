@@ -39,7 +39,7 @@ readable thought summaries; show them with `--show-reasoning` or
 events are translated and unknown ones are printed as `UNKNOWN:` so new upstream
 events are visible.
 
-Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply.
+Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply. Known provider events are quiet by default; `--show-events` (or `MAGECODE_SHOW_EVENTS=1`) prints them, while unknown event types are always printed as `UNKNOWN:`.
 
 In chat, `/model <id>` switches models, `/skill <name>` loads a skill's full
 instructions, and `/context` shows the context window. Ctrl-C aborts the

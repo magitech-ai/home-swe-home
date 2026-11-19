@@ -213,3 +213,32 @@ async def test_model_default_from_env(monkeypatch):
         code = await _run_async(["-p", "hello"])
     assert code == 0
     assert seen["model"] == "gemini-2.5-flash"
+
+
+@pytest.mark.asyncio
+async def test_show_events_flag_reaches_core_loop(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
+    monkeypatch.delenv("MAGECODE_SHOW_EVENTS", raising=False)
+    seen = {}
+
+    async def fake_core_loop(*args, **kwargs):
+        seen["show_events"] = kwargs.get("show_events")
+
+    with patch("magecode.core_loop.CoreLoopService.__call__", new=fake_core_loop):
+        code = await _run_async(["-p", "hello", "--show-events"])
+    assert code == 0
+    assert seen["show_events"] is True
+
+
+@pytest.mark.asyncio
+async def test_show_events_env_default(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
+    monkeypatch.setenv("MAGECODE_SHOW_EVENTS", "1")
+    seen = {}
+
+    async def fake_core_loop(*args, **kwargs):
+        seen["show_events"] = kwargs.get("show_events")
+
+    with patch("magecode.core_loop.CoreLoopService.__call__", new=fake_core_loop):
+        await _run_async(["-p", "hello"])
+    assert seen["show_events"] is True

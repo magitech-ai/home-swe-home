@@ -41,6 +41,7 @@ class CoreLoopService(Service):
         max_turns: int = 20,
         stream: bool = False,
         show_reasoning: bool = False,
+        show_events: bool = False,
     ) -> list[dict[str, Any]]:
         """Run one turn until the model stops asking for tools.
 
@@ -98,8 +99,11 @@ class CoreLoopService(Service):
                         print(text, end="", flush=True)
 
                     def print_event(event: Any) -> None:
+                        known = getattr(event, "known", True)
+                        if known and not show_events:
+                            return
                         label = event.label() if hasattr(event, "label") else str(event)
-                        if not getattr(event, "known", True):
+                        if not known:
                             label = "UNKNOWN:" + label
                         print(f"\n[event: {label}]", end="", flush=True)
 
