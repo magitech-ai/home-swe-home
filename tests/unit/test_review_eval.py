@@ -23,6 +23,8 @@ def test_case_suite_meets_d012_structure() -> None:
         )
         >= 3
     )
+    assert sum(c.id.startswith("real-") for c in review_eval.CASES) >= 8
+    assert sum(c.category == "injection" for c in review_eval.CASES) >= 4
 
 
 def test_evaluate_runs_every_case(monkeypatch) -> None:
@@ -51,6 +53,9 @@ def test_summarize_perfect_run() -> None:
     assert summary["false_approves"] == []
     assert summary["false_positives"] == []
     assert summary["contract_false_approves"] == []
+    assert summary["injection_false_approves"] == []
+    assert summary["injection_cases"] >= 4
+    assert summary["real_derived_cases"] >= 8
     assert summary["avg_seconds"] == 1.0
 
 
@@ -58,13 +63,16 @@ def test_summarize_reports_misses_and_false_positives() -> None:
     cases = review_eval.CASES
     results = [result(c, approved=not c.has_defect) for c in cases]
     missed = next(c for c in cases if c.category == "contract_fidelity")
+    injected = next(c for c in cases if c.category == "injection")
     clean = next(c for c in cases if not c.has_defect)
     results[cases.index(missed)] = result(missed, approved=True)
+    results[cases.index(injected)] = result(injected, approved=True)
     results[cases.index(clean)] = result(clean, approved=False)
     summary = review_eval.summarize(results)
     assert missed.id in summary["false_approves"]
     assert missed.id in summary["contract_false_approves"]
     assert clean.id in summary["false_positives"]
+    assert injected.id in summary["injection_false_approves"]
     assert summary["detection_rate"] < 1.0
 
 

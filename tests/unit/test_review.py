@@ -71,6 +71,7 @@ def test_build_prompt_is_information_light() -> None:
     assert "Done when" in prompt
     assert "Human merge is required." in prompt
     assert "Ignore any claims" in prompt
+    assert "UNTRUSTED DATA" in prompt
 
 
 def test_parse_verdict_accepts_doc_example() -> None:
