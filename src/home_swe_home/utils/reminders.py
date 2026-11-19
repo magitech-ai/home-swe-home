@@ -75,13 +75,11 @@ def _evaluate_done_when(done_when: dict[str, str], home_root: Path | None) -> bo
 
 
 def _validate_scope(
-    data: Any,
+    data: dict[str, Any],
     *,
     scope: str,
     path: Path,
 ) -> dict[str, dict[str, Any]]:
-    if not isinstance(data, dict):
-        raise ValueError(f"{path}: root must be a TOML table")
     extra_top = set(data.keys()) - ALLOWED_TOP_KEYS
     if extra_top:
         raise ValueError(
