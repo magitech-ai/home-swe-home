@@ -9,10 +9,8 @@ magecode is a small coding agent: a turn loop that calls the NVIDIA API, runs
 the tools the model requests, and feeds results back. It began with a plain
 function-based core loop and `@tool`-decorated functions with a hand-rolled
 registry (`_TOOLS`, `_TOOL_SCHEMAS`). The Magitech ecosystem already has a
-component micro-kernel, anima (the Python implementation of Cordis), which
-magitech-harness and mth-plugins build on. DeepSeek's harness
-(`deepseek-ai/deepseek-harness`, 282k stars) validates the "everything is a
-plugin/component" architecture at scale on Cordis.
+component micro-kernel, anima, which magitech-harness and mth-plugins build
+on. The component pattern is validated at scale by large agent harnesses.
 
 A spike (`run_command` and `greeter` as anima Services) confirmed:
 - Services mount on a `Context` and are accessible by name (`ctx.run_command`)

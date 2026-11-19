@@ -19,7 +19,7 @@ Requires-Dist: ruff>=0.17; extra == "dev"
 # magecode
 
 A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
-micro-kernel (Magitech's Python implementation of Cordis). Everything is a
+micro-kernel. Everything is a
 component: the core loop and all 15 tools are anima Services mounted on a
 Context. Core loop — send the task to the model, run the tools the model asks
 for, send the results back, repeat until the model stops asking. Model replies
@@ -29,7 +29,7 @@ are printed exactly as they came back.
 
 ```sh
 uv sync                      # installs anima + dependencies and this package
-export NVIDIA_API_KEY=nvapi-...   # https://build.nvidia.com; never echo it
+export GEMINI_API_KEY=...        # default provider is Gemini; or export NVIDIA_API_KEY and set MAGECODE_PROVIDER=nvidia
 ```
 
 Set `MAGECODE_PROVIDER=gemini` and export `GEMINI_API_KEY` (or
@@ -46,7 +46,7 @@ uv run magecode -p "say hi in three words"
 uv run magecode
 
 # Pick a model
-uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
+uv run magecode --model gemini-4-hydrogen --effort medium -p "..."
 ```
 
 Gemini has two API modes under `MAGECODE_PROVIDER=gemini`: native
@@ -57,7 +57,7 @@ readable thought summaries; show them with `--show-reasoning` or
 events are translated and unknown ones are printed as `UNKNOWN:` so new upstream
 events are visible.
 
-Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply.
+Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply. Known provider events are quiet by default; `--show-events` (or `MAGECODE_SHOW_EVENTS=1`) prints them, while unknown event types are always printed as `UNKNOWN:`.
 
 In chat, `/model <id>` switches models, `/skill <name>` loads a skill's full
 instructions, and `/context` shows the context window. Ctrl-C aborts the
@@ -70,6 +70,8 @@ The base prompt and per-tool guidance are editable data files under
 `src/magecode/harness/`. To try a modified copy without editing the installed
 package, set `MAGECODE_HARNESS_DIR` to a directory containing `systemprompt.md`
 and `tool_guidance.md`.
+
+`MAGECODE_CONFIG_PATH` isolates config for testing; `--dry-run` with `--init-home` scaffolds and records config without GitHub writes. `--plan` prints (optionally as `--json`) exactly what would happen without writing anything; `--yes` confirms non-interactively for agents/scripts; `--force` is required if a home checkout already exists, so onboarding never silently replaces the real home.
 
 First-time setup (no home checkout yet):
 
