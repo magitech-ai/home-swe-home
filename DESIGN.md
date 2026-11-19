@@ -152,6 +152,19 @@ harness change is measured to help.
 Tool results are redacted at `ToolService.execute()` so a model cannot extract
 API keys by asking a tool to read `.env`.
 
+`BUILTIN_TASKS` is too easy — tool-prescribing prompts score at ceiling and
+cannot discriminate. `HARD_TASKS` uses outcome checkers instead (including
+`contains_all` and `count_at_least`) and is the suite used for adoption
+decisions. A single hung rollout is recorded as a failure by `cli_runner`
+rather than aborting the run.
+
+Measured 2026-11-18, four trials per arm: base 20/24 (0.833), a prompt targeted
+at the observed failures 22/24 (0.917), delta +0.083. The gain came entirely
+from `skill-router` (1/4 → 4/4); the targeted arm lost two `repo-count` trials
+that base passed, so the sample is small and the change was not auto-adopted.
+Earlier "call tools verbatim", "never call tools" and canary-only arms produced
+no defensible general-capability gain and were not adopted.
+
 `improve.run_cycle()` probes every candidate with the evaluator, selects a
 strict winner (`utils/selection.py`), composes per-file from the best candidate
 that changed each file, and persists the adopted tree plus a `cue`/`lesson`/

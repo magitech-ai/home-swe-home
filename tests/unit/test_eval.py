@@ -81,3 +81,44 @@ def test_cli_runner_clears_harness_dir_for_base(monkeypatch):
 
     monkeypatch.setattr("magecode.eval.subprocess.run", fake_run)
     cli_runner("task", None)
+
+
+def test_evaluate_uses_custom_checker():
+    from magecode.eval import contains_all
+
+    tasks = (Task("custom", "do it", checker=contains_all("A", "B")),)
+    assert evaluate(tasks, lambda *_: "A then B").passes == 1
+    assert evaluate(tasks, lambda *_: "A only").passes == 0
+
+
+def test_contains_all():
+    from magecode.eval import contains_all
+
+    assert contains_all("x", "y")("y x")
+    assert not contains_all("x", "z")("y x")
+
+
+def test_count_at_least():
+    from magecode.eval import count_at_least
+
+    assert count_at_least("[tool: a]", 2)("[tool: a] [tool: a]")
+    assert not count_at_least("[tool: a]", 2)("[tool: a]")
+
+
+def test_cli_runner_treats_timeout_as_transcript(monkeypatch):
+    import subprocess
+
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            args[0], kwargs["timeout"], output=b"partial", stderr=b""
+        )
+
+    monkeypatch.setattr("magecode.eval.subprocess.run", fake_run)
+    assert "[timed out]" in cli_runner("task", None)
+
+
+def test_hard_tasks_are_well_formed():
+    from magecode.eval import HARD_TASKS
+
+    assert len(HARD_TASKS) == 6
+    assert all(task.prompt and task.checker is not None for task in HARD_TASKS)
