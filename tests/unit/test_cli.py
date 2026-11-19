@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -177,25 +179,34 @@ async def test_init_home_requires_repo(capsys):
 
 
 @pytest.mark.asyncio
-async def test_init_home_declined(monkeypatch):
+async def test_init_home_declined(monkeypatch, tmp_path):
+    monkeypatch.setenv("MAGECODE_CONFIG_PATH", str(tmp_path / "none.json"))
+    monkeypatch.setattr("magecode.utils.home.CONFIG_PATH", tmp_path / "none.json")
     with (
         patch("magecode.cli.load_dotenv"),
+        patch("magecode.cli.find_home", return_value=None),
         patch("magecode.cli.input", return_value="n"),
         patch("magecode.cli.run_wizard", return_value=False) as wizard,
     ):
-        code = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/home"])
+        code = await _run_async(
+            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home"]
+        )
     assert code == 1
     assert wizard.called
 
 
 @pytest.mark.asyncio
-async def test_init_home_accepted(monkeypatch):
+async def test_init_home_accepted(monkeypatch, tmp_path):
+    monkeypatch.setenv("MAGECODE_CONFIG_PATH", str(tmp_path / "none.json"))
     with (
         patch("magecode.cli.load_dotenv"),
+        patch("magecode.cli.find_home", return_value=None),
         patch("magecode.cli.input", return_value="y"),
         patch("magecode.cli.run_wizard", return_value=True) as wizard,
     ):
-        code = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/home"])
+        code = await _run_async(
+            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home"]
+        )
     assert code == 0
     assert wizard.called
 
@@ -242,3 +253,95 @@ async def test_show_events_env_default(monkeypatch):
     with patch("magecode.core_loop.CoreLoopService.__call__", new=fake_core_loop):
         await _run_async(["-p", "hello"])
     assert seen["show_events"] is True
+
+
+@pytest.mark.asyncio
+async def test_init_home_guard_refuses_existing(monkeypatch, capsys):
+    with (
+        patch("magecode.cli.load_dotenv"),
+        patch("magecode.cli.find_home", return_value=Path("/home/agents-home")),
+        patch("magecode.cli.run_wizard") as wizard,
+    ):
+        code = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/home"])
+    assert code == 2
+    assert not wizard.called
+    assert "already exists" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+async def test_init_home_plan_is_non_mutating(monkeypatch, capsys, tmp_path):
+    with patch("magecode.cli.load_dotenv"), patch("magecode.cli.run_wizard") as wizard:
+        code = await _run_async(
+            [
+                "--init-home",
+                str(tmp_path / "home"),
+                "--home-repo",
+                "org/home",
+                "--plan",
+                "--json",
+            ]
+        )
+    assert code == 0
+    assert not wizard.called
+    assert json.loads(capsys.readouterr().out)["repo"] == "org/home"
+
+
+@pytest.mark.asyncio
+async def test_init_home_yes_flag_skips_input(monkeypatch, tmp_path):
+    with (
+        patch("magecode.cli.load_dotenv"),
+        patch("magecode.cli.find_home", return_value=None),
+        patch("magecode.cli.input") as prompt,
+        patch("magecode.cli.run_wizard", return_value=True),
+    ):
+        code = await _run_async(
+            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--yes"]
+        )
+    assert code == 0
+    assert not prompt.called
+
+
+@pytest.mark.asyncio
+async def test_init_home_plain_plan_output(monkeypatch, capsys, tmp_path):
+    with patch("magecode.cli.load_dotenv"):
+        code = await _run_async(
+            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--plan"]
+        )
+    assert code == 0
+    assert "repo: org/home" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_init_home_json_result(monkeypatch, capsys, tmp_path):
+    with (
+        patch("magecode.cli.load_dotenv"),
+        patch("magecode.cli.find_home", return_value=None),
+        patch("magecode.cli.input", return_value="y"),
+        patch("magecode.cli.run_wizard", return_value=True),
+    ):
+        code = await _run_async(
+            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--json"]
+        )
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["accepted"] is True
+
+
+@pytest.mark.asyncio
+async def test_init_home_force_bypasses_guard(monkeypatch, tmp_path):
+    with (
+        patch("magecode.cli.load_dotenv"),
+        patch("magecode.cli.find_home", return_value=None),
+        patch("magecode.cli.input", return_value="y"),
+        patch("magecode.cli.run_wizard", return_value=True) as wizard,
+    ):
+        code = await _run_async(
+            [
+                "--init-home",
+                str(tmp_path / "home"),
+                "--home-repo",
+                "org/home",
+                "--force",
+                "--yes",
+            ]
+        )
+    assert code == 0 and wizard.called

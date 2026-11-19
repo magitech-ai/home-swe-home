@@ -53,7 +53,7 @@ The base prompt and per-tool guidance are editable data files under
 package, set `MAGECODE_HARNESS_DIR` to a directory containing `systemprompt.md`
 and `tool_guidance.md`.
 
-`MAGECODE_CONFIG_PATH` isolates config for testing; `--dry-run` with `--init-home` scaffolds and records config without GitHub writes.
+`MAGECODE_CONFIG_PATH` isolates config for testing; `--dry-run` with `--init-home` scaffolds and records config without GitHub writes. `--plan` prints (optionally as `--json`) exactly what would happen without writing anything; `--yes` confirms non-interactively for agents/scripts; `--force` is required if a home checkout already exists, so onboarding never silently replaces the real home.
 
 First-time setup (no home checkout yet):
 
