@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 59,
+  "commit": "2dae034933b2b5df8cd2f43ec5b0e8be3bd3400f",
+  "trigger_issue": 60,
+  "author_model": "google/gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44623069351,
+  "recorded_at": "2026-11-19T21:52:33Z",
+  "verdict": "APPROVE",
+  "summary": "RemindersService implements passive reminder discovery with schema validation, conditional done_when resolution, headless omission, interactive prompt tail insertion, and REPL support with complete test coverage.",
+  "findings": [],
+  "elapsed_seconds": 2.451,
+  "prompt_tokens": 10851,
+  "completion_tokens": 64,
+  "evidence_check": []
+}
