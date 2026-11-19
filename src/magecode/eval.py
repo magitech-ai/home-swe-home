@@ -171,6 +171,7 @@ def compare_arms(
     *,
     candidate_dir: Path | None = None,
     trials: int = 1,
+    delay: Callable[[], None] = lambda: None,
 ) -> tuple[EvalResult, EvalResult]:
     """Interleave arms so time drift and rate limits affect both equally."""
     base_tally = _Tally()
@@ -185,6 +186,7 @@ def compare_arms(
                 candidate_runner(task.prompt, candidate_dir),
                 label,
             )
+            delay()
     total = len(tasks) * trials
 
     def result(name: str, tally: _Tally) -> EvalResult:
