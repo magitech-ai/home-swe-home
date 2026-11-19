@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 63,
+  "commit": "2aa8d3aefb314e75f64e54e92622b204142f38db",
+  "trigger_issue": 68,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44629265641,
+  "recorded_at": "2026-11-19T22:53:57Z",
+  "verdict": "APPROVE",
+  "summary": "The auto-revert workflow accurately implements all acceptance criteria without merging, correctly guards against reverts and duplicate open PRs, and supports workflow_dispatch.",
+  "findings": [],
+  "elapsed_seconds": 2.01,
+  "prompt_tokens": 2897,
+  "completion_tokens": 60,
+  "evidence_check": []
+}
