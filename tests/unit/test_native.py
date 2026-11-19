@@ -65,7 +65,7 @@ def test_native_input_tool_results_when_stateful():
     current, results = native_input(messages, has_interaction=True)
     assert current[0]["type"] == "function_result"
     assert current[0]["call_id"] == "c1"
-    assert current[0]["result"]["content"][0]["text"] == "DONE"
+    assert current[0]["result"] == [{"type": "text", "text": "DONE"}]
     assert results == current
 
 

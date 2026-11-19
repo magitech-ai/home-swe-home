@@ -58,11 +58,9 @@ def native_input(
                     "type": "function_result",
                     "name": names.get(message.get("tool_call_id", ""), ""),
                     "call_id": message.get("tool_call_id", ""),
-                    "result": {
-                        "content": [
-                            {"type": "text", "text": str(message.get("content", ""))}
-                        ]
-                    },
+                    "result": [
+                        {"type": "text", "text": str(message.get("content", ""))}
+                    ],
                 }
             )
         return results, results
