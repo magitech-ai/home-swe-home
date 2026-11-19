@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from home_swe_home.native import native_input, native_stream, native_tools
+from home_swe_home.native import (
+    native_input,
+    native_stream,
+    native_system_instruction,
+    native_tools,
+)
 
 
 def test_native_tools_conversion():
@@ -27,17 +32,23 @@ def test_native_tools_conversion():
     assert native_tools(None) == []
 
 
-def test_native_input_initial_call_includes_system_and_user():
+def test_native_input_initial_call_excludes_system_message():
     messages = [
         {"role": "system", "content": "SYS"},
         {"role": "user", "content": "USER"},
     ]
     current, results = native_input(messages, has_interaction=False)
-    assert current == [
-        {"type": "text", "text": "SYS"},
-        {"type": "text", "text": "USER"},
-    ]
+    assert current == [{"type": "text", "text": "USER"}]
     assert results == []
+
+
+def test_native_system_instruction_extracted_from_messages():
+    messages = [
+        {"role": "system", "content": "SYS"},
+        {"role": "user", "content": "USER"},
+    ]
+    assert native_system_instruction(messages) == "SYS"
+    assert native_system_instruction([{"role": "user", "content": "USER"}]) == ""
 
 
 def test_native_input_tool_results_when_stateful():
@@ -126,7 +137,10 @@ def test_native_stream_translates_all_event_kinds():
         native_stream(
             fake,
             model="gemini-4-neon",
-            messages=[{"role": "user", "content": "hi"}],
+            messages=[
+                {"role": "system", "content": "SYS"},
+                {"role": "user", "content": "hi"},
+            ],
             tools=None,
             reasoning=True,
             interaction_id=None,
@@ -146,6 +160,7 @@ def test_native_stream_translates_all_event_kinds():
         "thinking_summaries": "auto",
     }
     assert fake.interactions.params["store"] is True
+    assert fake.interactions.params["system_instruction"] == "SYS"
     assert "previous_interaction_id" not in fake.interactions.params
 
 
