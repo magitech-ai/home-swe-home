@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 63,
+  "commit": "ec08451d5a70d62f0a4f6f3c594a14711d9d04a1",
+  "trigger_issue": 68,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44625681276,
+  "recorded_at": "2026-11-19T22:20:12Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The workflow references `actions/checkout@v5`, which does not exist, causing workflow execution to fail.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": ".github/workflows/auto-revert.yml:30",
+      "message": "The step uses `actions/checkout@v5`, which does not exist as an official release of `actions/checkout` (the current major release is `actions/checkout@v4`). Update the action reference to `actions/checkout@v4`."
+    }
+  ],
+  "elapsed_seconds": 2.598,
+  "prompt_tokens": 2460,
+  "completion_tokens": 146,
+  "evidence_check": [
+    {
+      "evidence": ".github/workflows/auto-revert.yml:30",
+      "status": "unverifiable"
+    }
+  ]
+}
