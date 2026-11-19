@@ -31,6 +31,8 @@ uv run magecode
 uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 ```
 
+Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply.
+
 In chat, `/model <id>` switches models, `/skill <name>` loads a skill's full
 instructions, and `/context` shows the context window. Ctrl-C aborts the
 current turn only; Ctrl-D exits.

@@ -23,6 +23,7 @@ async def run_repl(
     model: str,
     system_content: str | None = None,
     ctx: Context | None = None,
+    stream: bool = True,
 ) -> None:
     """Run the interactive chat loop until the user exits with Ctrl-D."""
     ctx = ctx or await build_context()
@@ -67,6 +68,7 @@ async def run_repl(
                 messages=messages,
                 reply_prefix="< ",
                 max_turns=20,
+                stream=stream,
             )
         except TurnInterrupted:
             print("\nTurn interrupted.")

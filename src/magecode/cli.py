@@ -44,6 +44,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="run shell commands in a Docker sandbox (default: host execution)",
     )
     parser.add_argument(
+        "--no-stream",
+        dest="stream",
+        action="store_false",
+        default=True,
+        help="wait for the full reply instead of streaming content deltas",
+    )
+    parser.add_argument(
         "--init-home",
         nargs="?",
         const=str(Path.home() / ".agents" / "agents-home"),
@@ -63,10 +70,11 @@ async def _run_headless(
     *,
     model: str,
     messages: list[dict[str, Any]],
+    stream: bool = True,
 ) -> int:
     ctx = await build_context()
     try:
-        await ctx.core_loop(model=model, messages=messages)
+        await ctx.core_loop(model=model, messages=messages, stream=stream)
     except TurnInterrupted:
         print("\nTurn interrupted.", file=sys.stderr)
         return 130
@@ -117,9 +125,13 @@ async def _run_async(argv: list[str] | None = None) -> int:
 
     if args.prompt is not None:
         messages.append({"role": "user", "content": args.prompt})
-        return await _run_headless(model=args.model, messages=messages)
+        return await _run_headless(
+            model=args.model, messages=messages, stream=args.stream
+        )
 
-    await run_repl(model=args.model, system_content=system_content, ctx=ctx)
+    await run_repl(
+        model=args.model, system_content=system_content, ctx=ctx, stream=args.stream
+    )
     return 0
 
 

@@ -15,6 +15,7 @@ from anima import Context, Service
 from .tools import TOOL_SERVICES
 from .utils.harness import tool_guidance
 from .utils.schema import service_schema
+from .utils.stream import consume_stream
 
 
 class TurnInterrupted(Exception):
@@ -38,6 +39,7 @@ class CoreLoopService(Service):
         messages: list[dict[str, Any]],
         reply_prefix: str = "",
         max_turns: int = 20,
+        stream: bool = False,
     ) -> list[dict[str, Any]]:
         """Run one turn until the model stops asking for tools.
 
@@ -47,7 +49,8 @@ class CoreLoopService(Service):
         final answer. The token count prints only in headless mode.
 
         ``reply_prefix`` is printed before assistant content (``"< "`` in
-        chat mode); headless leaves it empty so output stays raw.
+        chat mode); headless leaves it empty so output stays raw. With
+        ``stream=True`` content deltas are printed as they arrive.
         """
         read_files: set[str] = set()
         turn_count = 0
@@ -64,17 +67,24 @@ class CoreLoopService(Service):
                 tokens = self.ctx.instructions.count(messages)
                 if is_headless:
                     print(f"[context: {tokens} tokens]")
-                response = self.ctx.client.chat_complete(
-                    model=model,
-                    messages=messages,
-                    tools=self._tool_schemas(),
-                )
+                tools = self._tool_schemas()
+                if stream:
+                    print(reply_prefix, end="", flush=True)
+                    response = self.ctx.client.chat_stream(
+                        model=model, messages=messages, tools=tools
+                    )
+                    assistant_message = consume_stream(
+                        response, on_delta=lambda text: print(text, end="", flush=True)
+                    )
+                else:
+                    response = self.ctx.client.chat_complete(
+                        model=model, messages=messages, tools=tools
+                    )
+                    assistant_message = response.choices[0].message
+                    if assistant_message.content:
+                        print(f"{reply_prefix}{assistant_message.content}", end="")
 
-                assistant_message = response.choices[0].message
                 messages.append(_assistant_message_dict(assistant_message))
-
-                if assistant_message.content:
-                    print(f"{reply_prefix}{assistant_message.content}", end="")
 
                 tool_calls = getattr(assistant_message, "tool_calls", None) or []
                 if not tool_calls:
