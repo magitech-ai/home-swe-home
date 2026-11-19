@@ -1,0 +1,130 @@
+[
+  {
+    "id": "contract-invented-shape",
+    "category": "contract_fidelity",
+    "spec": "Use the documented Gemini Interactions function_result shape: result is an array of content parts.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1,3 @@\n-old\n+result = {\"type\": \"function_result\", \"call_id\": \"c1\",\n+          \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"ok\"}]}}\n+return result",
+    "has_defect": true,
+    "hint": "result"
+  },
+  {
+    "id": "contract-wrong-field",
+    "category": "contract_fidelity",
+    "spec": "The request must use the documented top-level field `system_instruction`.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1 @@\n-old\n+create(model=\"m\", systemInstruction=\"you are helpful\", input=\"hi\")",
+    "has_defect": true,
+    "hint": "systemInstruction"
+  },
+  {
+    "id": "contract-wrong-method",
+    "category": "contract_fidelity",
+    "spec": "Branch protection must be updated with the documented PUT method.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1 @@\n-old\n+gh api -X PATCH repos/o/r/branches/main/protection --input payload.json",
+    "has_defect": true,
+    "hint": "PATCH"
+  },
+  {
+    "id": "contract-borrowed-term",
+    "category": "contract_fidelity",
+    "spec": "Keep the upstream name Matt Pocock used: Home Repo Pattern.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1 @@\n-old\n+# Home Repo Standard",
+    "has_defect": true,
+    "hint": "Standard"
+  },
+  {
+    "id": "acceptance-missing-entrypoint",
+    "category": "acceptance",
+    "spec": "Done when: running the module as a CLI prints exactly REVIEW-SMOKE and exits 0.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -0,0 +1,2 @@\n+def main() -> None:\n+    print(\"REVIEW-SMOKE\")",
+    "has_defect": true,
+    "hint": "main"
+  },
+  {
+    "id": "acceptance-wrong-output",
+    "category": "acceptance",
+    "spec": "Done when: the function returns exactly the string OK.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1 @@\n-old\n+def f() -> str:\n+    return \"OKAY\"",
+    "has_defect": true,
+    "hint": "OKAY"
+  },
+  {
+    "id": "acceptance-missing-file",
+    "category": "acceptance",
+    "spec": "Done when: both src/a.py and src/b.py exist with a passing test each.",
+    "diff": "diff --git a/src/a.py b/src/a.py\n--- /dev/null\n+++ b/src/a.py\n@@ -0,0 +1,2 @@\n+def a() -> int:\n+    return 1",
+    "has_defect": true,
+    "hint": "b.py"
+  },
+  {
+    "id": "tests-behavior-no-test",
+    "category": "tests",
+    "spec": "Change the parser to accept blank lines; add a test covering it.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1,3 @@\n-old\n+def parse(text: str) -> list[str]:\n+    return [line for line in text.splitlines() if line.strip()]",
+    "has_defect": true,
+    "hint": "test"
+  },
+  {
+    "id": "tests-empty-assertion",
+    "category": "tests",
+    "spec": "Add a test that verifies parse([]) returns an empty list.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -0,0 +1,2 @@\n+def test_parse_empty() -> None:\n+    parse([])",
+    "has_defect": true,
+    "hint": "assert"
+  },
+  {
+    "id": "tests-unknown-behavior",
+    "category": "tests",
+    "spec": "Add a test proving the new branch returns False when the key is absent.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1,3 @@\n-old\n+def has(m, k):\n+    if k in m:\n+        return True\n+    return False",
+    "has_defect": true,
+    "hint": "test"
+  },
+  {
+    "id": "scope-extra-file",
+    "category": "scope",
+    "spec": "Change only src/demo.py.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/src/other.py b/src/other.py\n--- a/src/other.py\n+++ b/src/other.py\n@@ -1 +1 @@\n+unrelated",
+    "has_defect": true,
+    "hint": "other.py"
+  },
+  {
+    "id": "scope-unrelated-refactor",
+    "category": "scope",
+    "spec": "Fix the typo in one string only; do not reformat the module.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1,20 +1,20 @@\n-old line one\n-old line two\n+new line one\n+new line two",
+    "has_defect": true,
+    "hint": "reformat"
+  },
+  {
+    "id": "clean-simple",
+    "category": "clean",
+    "spec": "Print exactly CLEAN-OK when the module runs as a script.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -0,0 +1,4 @@\n+def main() -> None:\n+    print(\"CLEAN-OK\")\n+\n+if __name__ == \"__main__\":\n+    main()\ndiff --git a/tests/test_demo.py b/tests/test_demo.py\n--- /dev/null\n+++ b/tests/test_demo.py\n@@ -0,0 +1,4 @@\n+from demo import main\n+\n+def test_main(capsys):\n+    main()\n+    assert capsys.readouterr().out.strip() == \"CLEAN-OK\"",
+    "has_defect": false,
+    "hint": ""
+  },
+  {
+    "id": "clean-docs",
+    "category": "clean",
+    "spec": "Record the D-009 decision in docs/DECISIONS.md, with no code changes.",
+    "diff": "diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md\n--- a/docs/DECISIONS.md\n+++ b/docs/DECISIONS.md\n@@ -0,0 +1,2 @@\n+## D-009\n+Use documented contracts exactly.",
+    "has_defect": false,
+    "hint": ""
+  },
+  {
+    "id": "clean-contract",
+    "category": "clean",
+    "spec": "Send the system prompt via the documented system_instruction field.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1,4 @@\n-old\n+def build_request():\n+    return {\"model\": \"m\", \"input\": \"hi\",\n+            \"system_instruction\": \"You are helpful.\",\n+            \"generation_config\": {\"thinking_level\": \"medium\"}}\ndiff --git a/tests/test_request.py b/tests/test_request.py\n--- /dev/null\n+++ b/tests/test_request.py\n@@ -0,0 +1,3 @@\n+from demo import build_request\n+\n+def test_system_instruction():\n+    assert build_request()[\"system_instruction\"] == \"You are helpful.\"",
+    "has_defect": false,
+    "hint": ""
+  },
+  {
+    "id": "clean-bugfix",
+    "category": "clean",
+    "spec": "Fix the disposer leak and add a test asserting _weak is cleaned.",
+    "diff": "diff --git a/src/demo.py b/src/demo.py\n--- a/src/demo.py\n+++ b/src/demo.py\n@@ -1 +1,10 @@\n-old\n+class DisposableList:\n+    def __init__(self):\n+        self._sn = 0\n+        self._map = {}\n+        self._weak = {}\n+    def push(self, value):\n+        self._sn += 1\n+        sn = self._sn\n+        self._map[sn] = value\n+        self._weak[value] = sn\n+        def dispose():\n+            self._map.pop(sn, None)\n+            if self._weak.get(value) == sn:\n+                self._weak.pop(value, None)\n+        return dispose\ndiff --git a/tests/test_weak.py b/tests/test_weak.py\n--- /dev/null\n+++ b/tests/test_weak.py\n@@ -0,0 +1,6 @@\n+from demo import DisposableList\n+\n+def test_disposer_clears_weak():\n+    d = DisposableList()\n+    dispose = d.push(\"a\")\n+    dispose()\n+    assert d._weak == {}",
+    "has_defect": false,
+    "hint": ""
+  }
+]

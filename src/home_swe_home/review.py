@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -108,13 +109,22 @@ def parse_verdict(text: str) -> Verdict:
     return verdict
 
 
-def run_review(
+@dataclass(frozen=True)
+class ReviewOutcome:
+    """A verdict plus the token cost of producing it."""
+
+    verdict: Verdict
+    prompt_tokens: int
+    completion_tokens: int
+
+
+def run_review_with_usage(
     client: Any,
     *,
     model: str,
     user_prompt: str,
-) -> Verdict:
-    """Ask the reviewer model for a verdict and parse it strictly."""
+) -> ReviewOutcome:
+    """Ask the reviewer model for a verdict, retaining token usage."""
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -123,7 +133,22 @@ def run_review(
         ],
         temperature=0,
     )
-    return parse_verdict(str(response.choices[0].message.content or ""))
+    usage = getattr(response, "usage", None)
+    return ReviewOutcome(
+        verdict=parse_verdict(str(response.choices[0].message.content or "")),
+        prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
+        completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+    )
+
+
+def run_review(
+    client: Any,
+    *,
+    model: str,
+    user_prompt: str,
+) -> Verdict:
+    """Ask the reviewer model for a verdict and parse it strictly."""
+    return run_review_with_usage(client, model=model, user_prompt=user_prompt).verdict
 
 
 def check_distinct_models(*, author: str, reviewer: str) -> None:
