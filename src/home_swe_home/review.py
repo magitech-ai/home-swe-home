@@ -31,6 +31,7 @@ DEFAULT_AUTHOR_PROVIDER = "gemini"
 DEFAULT_AUTHOR_MODEL = "gemini-4-hydrogen"
 DEFAULT_REVIEWER_PROVIDER = "gemini"
 DEFAULT_REVIEWER_MODEL = "gemini-3.8-flash"
+REVIEWER_REASONING_EFFORT = "low"
 REVIEW_TIMEOUT_SECONDS = 180.0
 MAX_DIFF_CHARS = 100_000
 
@@ -138,16 +139,24 @@ def run_review_with_usage(
     *,
     model: str,
     user_prompt: str,
+    reasoning_effort: str | None = None,
 ) -> ReviewOutcome:
-    """Ask the reviewer model for a verdict, retaining token usage."""
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
+    """Ask the reviewer model for a verdict, retaining token usage.
+
+    ``reasoning_effort`` is a documented OpenAI-compatible field on the Gemini
+    endpoint only; it must not be sent to providers that do not declare it.
+    """
+    params: dict[str, Any] = {
+        "model": model,
+        "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0,
-    )
+        "temperature": 0,
+    }
+    if reasoning_effort is not None:
+        params["reasoning_effort"] = reasoning_effort
+    response = client.chat.completions.create(**params)
     usage = getattr(response, "usage", None)
     return ReviewOutcome(
         verdict=parse_verdict(str(response.choices[0].message.content or "")),
@@ -229,7 +238,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         start = time.monotonic()
         outcome = run_review_with_usage(
-            client, model=args.reviewer_model, user_prompt=user_prompt
+            client,
+            model=args.reviewer_model,
+            user_prompt=user_prompt,
+            reasoning_effort=(
+                REVIEWER_REASONING_EFFORT
+                if args.reviewer_provider == "gemini"
+                else None
+            ),
         )
         elapsed = time.monotonic() - start
     except Exception as error:

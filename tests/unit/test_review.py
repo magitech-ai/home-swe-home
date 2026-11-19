@@ -116,7 +116,7 @@ def test_default_reviewer_model_is_current() -> None:
 
 def test_main_uses_default_reviewer_when_not_supplied(monkeypatch, tmp_path) -> None:
     diff, spec, _ = _setup_files(tmp_path)
-    client, _ = _client(APPROVE)
+    client, completions = _client(APPROVE)
     _patch_provider(monkeypatch, client)
     out = tmp_path / "verdict.json"
     code = review.main(["--diff", str(diff), "--spec", str(spec), "--out", str(out)])
@@ -124,6 +124,28 @@ def test_main_uses_default_reviewer_when_not_supplied(monkeypatch, tmp_path) -> 
     payload = json.loads(out.read_text())
     assert payload["reviewer_model"] == "gemini-3.8-flash"
     assert payload["reviewer_provider"] == "gemini"
+    assert completions.params["reasoning_effort"] == "low"
+
+
+def test_main_does_not_send_reasoning_effort_to_other_providers(
+    monkeypatch, tmp_path
+) -> None:
+    diff, spec, _ = _setup_files(tmp_path)
+    client, completions = _client(APPROVE)
+    _patch_provider(monkeypatch, client)
+    review.main(
+        [
+            "--diff",
+            str(diff),
+            "--spec",
+            str(spec),
+            "--reviewer-provider",
+            "nvidia",
+            "--reviewer-model",
+            "some-nvidia-model",
+        ]
+    )
+    assert "reasoning_effort" not in completions.params
 
 
 def test_run_review_with_usage_records_tokens() -> None:
