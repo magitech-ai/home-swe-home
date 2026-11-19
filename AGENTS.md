@@ -23,6 +23,8 @@ CI runs the full gate.
 ## Home-SWE-Home-Specific References
 
 - Issue tracker: GitHub Issues via `gh` CLI (`magitech-ai` organization).
+- PR body contract: `Agent review` requires `Trigger issue: #N` and
+  `Author model: <id>` in every PR body (`.github/PULL_REQUEST_TEMPLATE.md`).
 - Triage labels: [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
 - Domain docs: `DESIGN.md` + [docs/adr/](docs/adr/).
 - Adding a tool: [DESIGN.md](DESIGN.md#tools-as-anima-components) and the tests
