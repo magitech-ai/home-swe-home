@@ -15,9 +15,7 @@
   (`ctx.core_loop`), and all 15 tools. Services are accessed by name on the
   Context; no capability is called as a bare module function. Pure helpers
   live in `src/magecode/utils/` (`schema.py`, `text.py`, `harness.py`); config
-  validation and the CLI/REPL entry points are the deliberate exceptions —
-  deepseek-harness likewise has
-  `packages/util/` utilities and special application launch.
+  validation and the CLI/REPL entry points are the deliberate exceptions.
 - **Editable Harness** (`src/magecode/harness/`): data, not code. `systemprompt.md`
   is the base system prompt (read by `InstructionsService.build()`);
   `tool_guidance.md` holds optional `## <tool_name>` sections appended to each
