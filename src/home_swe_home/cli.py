@@ -207,8 +207,11 @@ async def _run_async(argv: list[str] | None = None) -> int:
         return 2
 
     ctx = await build_context()
+    reminders_block = ctx.reminders.due_block() if args.prompt is None else ""
     system_content = ctx.instructions.build(
-        model=args.model, skills_catalog=ctx.skills.catalog()
+        model=args.model,
+        skills_catalog=ctx.skills.catalog(),
+        reminders_block=reminders_block,
     )
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 

@@ -318,12 +318,18 @@ The system message contains:
 2. **System line** — OS, working folder, date, and model ID.
 3. **AGENTS.md** — if the project has an `AGENTS.md`, its full content is
    appended after a separator.
+4. **Skills & Reminders (tail)** — `SkillsService.catalog()` and, in
+   interactive REPL mode only, `RemindersService.due_block()` (appended last to
+   preserve the prompt cache prefix). Headless `-p` mode omits reminders by
+   default so one-off and automated tasks stay deterministic.
 
-### `/context` command
+### `/context` and `/reminders` commands
 
 In interactive chat, `/context` prints the full context window: every message
 with its role, a content preview, and any tool calls, plus the total token
-count (cl100k_base encoding) before each model call.
+count (cl100k_base encoding) before each model call. `/reminders` prints a
+read-only summary of due, upcoming, and auto-resolved passive reminders from
+`<agents-home>/reminders.local.toml` and `<agents-home>/reminders.toml`.
 
 ## File layout
 
@@ -332,6 +338,7 @@ count (cl100k_base encoding) before each model call.
 - `src/home_swe_home/context.py` — builds the anima Context; mounts all services (`AGENT_SERVICES`)
 - `src/home_swe_home/client.py` — `ClientService` (model adapter) + config helpers
 - `src/home_swe_home/instructions.py` — `InstructionsService` (system prompt + token counting)
+- `src/home_swe_home/reminders.py` — `RemindersService` (read-only passive reminder discovery)
 - `src/home_swe_home/harness/` — editable harness data (not code): `systemprompt.md`
   (base prompt), `tool_guidance.md` (`## <tool_name>` sections appended to tool
   descriptions). `HOME_SWE_HOME_HARNESS_DIR` swaps in a candidate tree for rollouts.
