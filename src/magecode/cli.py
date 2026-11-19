@@ -51,6 +51,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="display provider reasoning/thought summaries (never stored)",
     )
     parser.add_argument(
+        "--show-events",
+        action="store_true",
+        default=os.environ.get("MAGECODE_SHOW_EVENTS", "").lower()
+        in {"1", "true", "yes"},
+        help="print all provider events (unknown events are always printed)",
+    )
+    parser.add_argument(
         "--no-stream",
         dest="stream",
         action="store_false",
@@ -79,11 +86,16 @@ async def _run_headless(
     messages: list[dict[str, Any]],
     stream: bool = True,
     show_reasoning: bool = False,
+    show_events: bool = False,
 ) -> int:
     ctx = await build_context()
     try:
         await ctx.core_loop(
-            model=model, messages=messages, stream=stream, show_reasoning=show_reasoning
+            model=model,
+            messages=messages,
+            stream=stream,
+            show_reasoning=show_reasoning,
+            show_events=show_events,
         )
     except TurnInterrupted:
         print("\nTurn interrupted.", file=sys.stderr)
@@ -140,6 +152,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
             messages=messages,
             stream=args.stream,
             show_reasoning=args.show_reasoning,
+            show_events=args.show_events,
         )
 
     await run_repl(
@@ -148,6 +161,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
         ctx=ctx,
         stream=args.stream,
         show_reasoning=args.show_reasoning,
+        show_events=args.show_events,
     )
     return 0
 

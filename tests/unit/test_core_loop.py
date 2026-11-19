@@ -481,6 +481,7 @@ async def test_core_loop_surfaces_events_and_unknown(monkeypatch, capsys):
         model="m",
         messages=[{"role": "user", "content": "hi"}],
         stream=True,
+        show_events=True,
     )
     out = capsys.readouterr().out
     assert "[event: step.delta:text]" in out
@@ -613,3 +614,34 @@ async def test_core_loop_multiple_reasoning_deltas(monkeypatch, capsys):
         show_reasoning=True,
     )
     assert "[reasoning]ONETWO[/reasoning]" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_core_loop_hides_known_events_by_default(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+    known = SimpleNamespace(label=lambda: "step.delta:text", known=True)
+    unknown = SimpleNamespace(label=lambda: "future:thing", known=False)
+
+    def fake_stream(*, model, messages, tools, reasoning=False):
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content="OK", tool_calls=None, event=event
+                        )
+                    )
+                ]
+            )
+            for event in (known, unknown)
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    await ctx.core_loop(
+        model="m", messages=[{"role": "user", "content": "hi"}], stream=True
+    )
+    out = capsys.readouterr().out
+    assert "[event: step.delta:text]" not in out
+    assert "[event: UNKNOWN:future:thing]" in out
