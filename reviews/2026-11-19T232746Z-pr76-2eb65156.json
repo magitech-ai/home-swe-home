@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 76,
+  "commit": "2eb65156429da2ddb88d9f700b5f29412f24459b",
+  "trigger_issue": 75,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44637815264,
+  "recorded_at": "2026-11-19T23:27:46Z",
+  "verdict": "APPROVE",
+  "summary": "The workflow changes satisfy the acceptance criteria by using the auto-revert environment and a step-scoped secret token to push workflow reverts.",
+  "findings": [],
+  "elapsed_seconds": 2.005,
+  "prompt_tokens": 2269,
+  "completion_tokens": 46,
+  "evidence_check": []
+}
