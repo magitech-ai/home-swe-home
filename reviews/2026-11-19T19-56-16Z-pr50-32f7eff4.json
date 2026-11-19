@@ -1,0 +1,33 @@
+{
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The implementation fails to meet several acceptance criteria regarding the audit record fields and lacks sufficient test coverage for the new workflow logic.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": ".github/workflows/agent-review.yml:75",
+      "message": "The audit record is missing the 'latency' and 'tokens' fields required by the acceptance criteria. While the reviewer CLI now emits these values in 'verdict.json', the workflow's 'jq' command does not extract or map them into the final audit record."
+    },
+    {
+      "severity": "major",
+      "evidence": "Standard: REVIEW (Non-negotiables 3)",
+      "message": "The behavior change in the GitHub Actions workflow (checkout of audit branch, git commit/push logic, and audit record creation) is not covered by any tests. Only the CLI output is tested in 'tests/unit/test_review.py'."
+    },
+    {
+      "severity": "minor",
+      "evidence": ".github/workflows/agent-review.yml:85",
+      "message": "The audit record filename uses a timestamp format 'YYYY-MM-DDTHH-MM-SSZ' which is slightly inconsistent with the ISO 8601 'recorded_at' field, though this is a minor observation compared to the missing data."
+    }
+  ],
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "google/gemma-4-31b-it",
+  "reviewer_provider": "nvidia",
+  "elapsed_seconds": 88.27,
+  "prompt_tokens": 3803,
+  "completion_tokens": 331,
+  "status": "ok",
+  "pr": 50,
+  "commit": "32f7eff43b88c4a7ae10d252f15929944b28ae77",
+  "trigger_issue": 49,
+  "workflow_run_id": 44603167634,
+  "recorded_at": "2026-11-19T19:56:16Z"
+}
