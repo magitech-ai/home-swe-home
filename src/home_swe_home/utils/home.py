@@ -13,13 +13,13 @@ import os
 import tomllib
 from pathlib import Path
 
-CONFIG_PATH = Path.home() / ".agents" / "magecode" / "config.toml"
+CONFIG_PATH = Path.home() / ".agents" / "home-swe-home" / "config.toml"
 HOME_NAME = "agents-home"
 
 
 def config_path() -> Path:
     """Return the active config path; env override enables isolated sessions."""
-    override = os.environ.get("MAGECODE_CONFIG_PATH")
+    override = os.environ.get("HOME_SWE_HOME_CONFIG_PATH")
     return Path(override) if override else CONFIG_PATH
 
 

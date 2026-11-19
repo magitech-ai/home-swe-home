@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from magecode.native import native_input, native_stream, native_tools
+from home_swe_home.native import native_input, native_stream, native_tools
 
 
 def test_native_tools_conversion():

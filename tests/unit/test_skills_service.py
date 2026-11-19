@@ -6,8 +6,8 @@ from pathlib import Path
 
 from anima import Context
 
-from magecode.skills import SkillsService
-from magecode.tools.load_skill import LoadSkillService
+from home_swe_home.skills import SkillsService
+from home_swe_home.tools.load_skill import LoadSkillService
 
 
 def _skill(root: Path, name: str, description: str, *, disabled: bool = False) -> None:
@@ -36,8 +36,8 @@ def _service(monkeypatch, tmp_path, *, trusted=()):
     _skill(user / ".agents" / "skills", "review", "Review a diff.")
     _skill(project / ".agents" / "skills", "local", "Project-local skill.")
 
-    monkeypatch.setattr("magecode.skills.find_home", lambda: home)
-    monkeypatch.setattr("magecode.skills.trusted_projects", lambda: trusted)
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: home)
+    monkeypatch.setattr("home_swe_home.skills.trusted_projects", lambda: trusted)
     monkeypatch.setattr(Path, "home", lambda: user)
     monkeypatch.chdir(project)
     ctx = Context()
@@ -81,8 +81,8 @@ def test_warnings_reported(monkeypatch, tmp_path):
 
 
 def test_roots_without_home(monkeypatch, tmp_path):
-    monkeypatch.setattr("magecode.skills.find_home", lambda: None)
-    monkeypatch.setattr("magecode.skills.trusted_projects", lambda: ())
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.skills.trusted_projects", lambda: ())
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     ctx = Context()
     ctx.use(SkillsService)

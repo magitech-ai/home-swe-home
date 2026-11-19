@@ -8,8 +8,8 @@ from types import SimpleNamespace
 import pytest
 from anima import Context
 
-from magecode.sandbox import SandboxResult, SandboxService
-from magecode.tools.run_command import RunCommandService
+from home_swe_home.sandbox import SandboxResult, SandboxService
+from home_swe_home.tools.run_command import RunCommandService
 
 
 @pytest.mark.asyncio
@@ -27,7 +27,7 @@ async def test_run_command_service_mounts_and_is_accessible():
 @pytest.mark.asyncio
 async def test_run_command_service_host_default(monkeypatch):
     """run_command runs on the host by default (no sandbox)."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     calls = []
 
@@ -51,7 +51,7 @@ async def test_run_command_service_host_default(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_command_service_host_timeout(monkeypatch):
     """Host execution handles subprocess timeout."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     def fake_run(cmd, *, capture_output, text, timeout):
         raise subprocess.TimeoutExpired(cmd, 1)
@@ -70,7 +70,7 @@ async def test_run_command_service_host_timeout(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_command_service_host_command_not_found(monkeypatch):
     """Host execution reports missing commands clearly."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     def fake_run(cmd, *, capture_output, text, timeout):
         raise FileNotFoundError("no such file")
@@ -87,8 +87,8 @@ async def test_run_command_service_host_command_not_found(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_command_service_sandbox_opt_in_env(monkeypatch):
-    """MAGECODE_SANDBOX=1 routes to the Docker sandbox."""
-    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    """HOME_SWE_HOME_SANDBOX=1 routes to the Docker sandbox."""
+    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
 
     ctx = Context()
     ctx.use(RunCommandService)
@@ -106,7 +106,7 @@ async def test_run_command_service_sandbox_opt_in_env(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_command_service_host_timeout_with_output(monkeypatch):
     """Host timeout includes stdout and stderr when present."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     def fake_run(cmd, *, capture_output, text, timeout):
         raise subprocess.TimeoutExpired(
@@ -129,7 +129,7 @@ async def test_run_command_service_host_timeout_with_output(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_command_service_host_stdout_only(monkeypatch):
     """Host execution with stdout but no stderr."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     def fake_run(cmd, *, capture_output, text, timeout):
         return SimpleNamespace(returncode=0, stdout="just stdout\n", stderr="")
@@ -149,7 +149,7 @@ async def test_run_command_service_host_stdout_only(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_command_service_host_stderr_only(monkeypatch):
     """Host execution with stderr but no stdout."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     def fake_run(cmd, *, capture_output, text, timeout):
         return SimpleNamespace(returncode=1, stdout="", stderr="oops\n")
@@ -169,7 +169,7 @@ async def test_run_command_service_host_stderr_only(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_command_service_sandbox_with_stderr_and_timeout(monkeypatch):
     """Sandbox mode passes through stderr and timed_out flag."""
-    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
 
     ctx = Context()
     ctx.use(RunCommandService)

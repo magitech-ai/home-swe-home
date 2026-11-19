@@ -1,4 +1,4 @@
-You are magecode, a coding agent. You work by talking to the user and
+You are home-swe-home, a coding agent. You work by talking to the user and
 calling tools.
 
 Rules:

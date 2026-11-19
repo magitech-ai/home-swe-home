@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from magecode.utils.repo_map import RepoEntry, parse_repo_map, resolve_repo
+from home_swe_home.utils.repo_map import RepoEntry, parse_repo_map, resolve_repo
 
 _MAP = """\
 # Agents Home
@@ -16,8 +16,8 @@ Some preamble.
   <https://github.com/magitech-ai/anima.git> if missing. Read its
   `AGENTS.md` before changes.
 - **broken entry** with no usable path.
-- **magecode** (agent): `../magecode`. Clone from
-  <https://github.com/magitech-ai/magecode.git> if missing.
+- **home-swe-home** (agent): `../home-swe-home`. Clone from
+  <https://github.com/magitech-ai/home-swe-home.git> if missing.
 
 ## Plans
 
@@ -34,7 +34,7 @@ def test_parse_repo_map_stops_at_next_section():
     assert [entry.name for entry in entries] == [
         "Organization defaults",
         "anima",
-        "magecode",
+        "home-swe-home",
     ]
 
 
@@ -73,7 +73,7 @@ def test_resolve_repo_by_url_with_and_without_git_suffix():
 
 def test_resolve_repo_by_path():
     entries = parse_repo_map(_MAP)
-    assert resolve_repo(entries, "../magecode/") == entries[2]
+    assert resolve_repo(entries, "../home-swe-home/") == entries[2]
 
 
 def test_resolve_repo_ignores_empty_clone_url():

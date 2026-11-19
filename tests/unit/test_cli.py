@@ -1,4 +1,4 @@
-"""Tests for magecode.cli."""
+"""Tests for home_swe_home.cli."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ from unittest.mock import patch
 
 import pytest
 
-from magecode.cli import DEFAULT_MODEL, _run_async, main
-from magecode.client import MiniClaudeError
-from magecode.core_loop import TurnInterrupted, TurnLimitReached
+from home_swe_home.cli import DEFAULT_MODEL, _run_async, main
+from home_swe_home.client import MiniClaudeError
+from home_swe_home.core_loop import TurnInterrupted, TurnLimitReached
 
 
 @pytest.mark.asyncio
 async def test_main_no_api_key(monkeypatch, capsys):
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-    with patch("magecode.cli.load_dotenv"):
+    with patch("home_swe_home.cli.load_dotenv"):
         code = await _run_async(["-p", "say hi in three words"])
     assert code == 2
     stderr = capsys.readouterr().err
@@ -35,9 +35,9 @@ async def test_main_dotenv_fallback(monkeypatch, capsys):
         print("hello there friend")
 
     with (
-        patch("magecode.cli.load_dotenv", side_effect=fake_load_dotenv),
+        patch("home_swe_home.cli.load_dotenv", side_effect=fake_load_dotenv),
         patch(
-            "magecode.core_loop.CoreLoopService.__call__",
+            "home_swe_home.core_loop.CoreLoopService.__call__",
             new=fake_core_loop,
         ),
     ):
@@ -56,7 +56,7 @@ async def test_main_headless_runs_one_turn(monkeypatch, capsys):
         print("hello there friend")
 
     with patch(
-        "magecode.core_loop.CoreLoopService.__call__",
+        "home_swe_home.core_loop.CoreLoopService.__call__",
         new=fake_core_loop,
     ):
         code = await _run_async(
@@ -79,7 +79,7 @@ async def test_main_headless_interrupted(monkeypatch, capsys):
         raise TurnInterrupted()
 
     with patch(
-        "magecode.core_loop.CoreLoopService.__call__",
+        "home_swe_home.core_loop.CoreLoopService.__call__",
         new=fake_core_loop,
     ):
         code = await _run_async(["-p", "do something"])
@@ -95,12 +95,12 @@ async def test_main_headless_api_error(monkeypatch, capsys):
         raise MiniClaudeError("The model does not exist")
 
     with patch(
-        "magecode.core_loop.CoreLoopService.__call__",
+        "home_swe_home.core_loop.CoreLoopService.__call__",
         new=fake_core_loop,
     ):
         code = await _run_async(["-p", "do something"])
     assert code == 1
-    assert "magecode: The model does not exist" in capsys.readouterr().err
+    assert "home-swe-home: The model does not exist" in capsys.readouterr().err
 
 
 @pytest.mark.asyncio
@@ -111,7 +111,7 @@ async def test_main_headless_turn_limit_reached(monkeypatch, capsys):
         raise TurnLimitReached("Turn limit reached")
 
     with patch(
-        "magecode.core_loop.CoreLoopService.__call__",
+        "home_swe_home.core_loop.CoreLoopService.__call__",
         new=fake_core_loop,
     ):
         code = await _run_async(["-p", "do something"])
@@ -129,12 +129,12 @@ async def test_main_interactive(monkeypatch):
         called.append(model)
         system_seen.append(system_content)
 
-    with patch("magecode.cli.run_repl", side_effect=fake_repl):
+    with patch("home_swe_home.cli.run_repl", side_effect=fake_repl):
         code = await _run_async([])
     assert code == 0
     assert called == [DEFAULT_MODEL]
     assert system_seen[0] is not None
-    assert "magecode" in system_seen[0]
+    assert "home-swe-home" in system_seen[0]
 
 
 def test_main_wrapper(monkeypatch):
@@ -144,26 +144,26 @@ def test_main_wrapper(monkeypatch):
     async def fake_run_async(argv=None):
         return 0
 
-    with patch("magecode.cli._run_async", new=fake_run_async):
+    with patch("home_swe_home.cli._run_async", new=fake_run_async):
         code = main(["-p", "hello"])
     assert code == 0
 
 
 @pytest.mark.asyncio
 async def test_sandbox_flag_sets_env(monkeypatch):
-    """--sandbox sets MAGECODE_SANDBOX=1."""
+    """--sandbox sets HOME_SWE_HOME_SANDBOX=1."""
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     seen = {}
 
     async def fake_run_headless(*, model, messages, **kwargs):
-        seen["sandbox"] = __import__("os").environ.get("MAGECODE_SANDBOX")
+        seen["sandbox"] = __import__("os").environ.get("HOME_SWE_HOME_SANDBOX")
         return 0
 
     with (
-        patch("magecode.cli.load_dotenv"),  # avoid leaking .env into other tests
-        patch("magecode.cli._run_headless", new=fake_run_headless),
+        patch("home_swe_home.cli.load_dotenv"),  # avoid leaking .env into other tests
+        patch("home_swe_home.cli._run_headless", new=fake_run_headless),
     ):
         code = await _run_async(["-p", "hello", "--sandbox"])
     assert code == 0
@@ -172,7 +172,7 @@ async def test_sandbox_flag_sets_env(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_init_home_requires_repo(capsys):
-    with patch("magecode.cli.load_dotenv"):
+    with patch("home_swe_home.cli.load_dotenv"):
         code = await _run_async(["--init-home", "/tmp/home"])
     assert code == 2
     assert "--home-repo" in capsys.readouterr().err
@@ -180,13 +180,13 @@ async def test_init_home_requires_repo(capsys):
 
 @pytest.mark.asyncio
 async def test_init_home_declined(monkeypatch, tmp_path):
-    monkeypatch.setenv("MAGECODE_CONFIG_PATH", str(tmp_path / "none.json"))
-    monkeypatch.setattr("magecode.utils.home.CONFIG_PATH", tmp_path / "none.json")
+    monkeypatch.setenv("HOME_SWE_HOME_CONFIG_PATH", str(tmp_path / "none.json"))
+    monkeypatch.setattr("home_swe_home.utils.home.CONFIG_PATH", tmp_path / "none.json")
     with (
-        patch("magecode.cli.load_dotenv"),
-        patch("magecode.cli.find_home", return_value=None),
-        patch("magecode.cli.input", return_value="n"),
-        patch("magecode.cli.run_wizard", return_value=False) as wizard,
+        patch("home_swe_home.cli.load_dotenv"),
+        patch("home_swe_home.cli.find_home", return_value=None),
+        patch("home_swe_home.cli.input", return_value="n"),
+        patch("home_swe_home.cli.run_wizard", return_value=False) as wizard,
     ):
         code = await _run_async(
             ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home"]
@@ -197,12 +197,12 @@ async def test_init_home_declined(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_init_home_accepted(monkeypatch, tmp_path):
-    monkeypatch.setenv("MAGECODE_CONFIG_PATH", str(tmp_path / "none.json"))
+    monkeypatch.setenv("HOME_SWE_HOME_CONFIG_PATH", str(tmp_path / "none.json"))
     with (
-        patch("magecode.cli.load_dotenv"),
-        patch("magecode.cli.find_home", return_value=None),
-        patch("magecode.cli.input", return_value="y"),
-        patch("magecode.cli.run_wizard", return_value=True) as wizard,
+        patch("home_swe_home.cli.load_dotenv"),
+        patch("home_swe_home.cli.find_home", return_value=None),
+        patch("home_swe_home.cli.input", return_value="y"),
+        patch("home_swe_home.cli.run_wizard", return_value=True) as wizard,
     ):
         code = await _run_async(
             ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home"]
@@ -214,13 +214,13 @@ async def test_init_home_accepted(monkeypatch, tmp_path):
 @pytest.mark.asyncio
 async def test_model_default_from_env(monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    monkeypatch.setenv("MAGECODE_MODEL", "gemini-2.5-flash")
+    monkeypatch.setenv("HOME_SWE_HOME_MODEL", "gemini-2.5-flash")
     seen = {}
 
     async def fake_core_loop(*args, **kwargs):
         seen["model"] = kwargs.get("model")
 
-    with patch("magecode.core_loop.CoreLoopService.__call__", new=fake_core_loop):
+    with patch("home_swe_home.core_loop.CoreLoopService.__call__", new=fake_core_loop):
         code = await _run_async(["-p", "hello"])
     assert code == 0
     assert seen["model"] == "gemini-2.5-flash"
@@ -229,13 +229,13 @@ async def test_model_default_from_env(monkeypatch):
 @pytest.mark.asyncio
 async def test_show_events_flag_reaches_core_loop(monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    monkeypatch.delenv("MAGECODE_SHOW_EVENTS", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SHOW_EVENTS", raising=False)
     seen = {}
 
     async def fake_core_loop(*args, **kwargs):
         seen["show_events"] = kwargs.get("show_events")
 
-    with patch("magecode.core_loop.CoreLoopService.__call__", new=fake_core_loop):
+    with patch("home_swe_home.core_loop.CoreLoopService.__call__", new=fake_core_loop):
         code = await _run_async(["-p", "hello", "--show-events"])
     assert code == 0
     assert seen["show_events"] is True
@@ -244,13 +244,13 @@ async def test_show_events_flag_reaches_core_loop(monkeypatch):
 @pytest.mark.asyncio
 async def test_show_events_env_default(monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    monkeypatch.setenv("MAGECODE_SHOW_EVENTS", "1")
+    monkeypatch.setenv("HOME_SWE_HOME_SHOW_EVENTS", "1")
     seen = {}
 
     async def fake_core_loop(*args, **kwargs):
         seen["show_events"] = kwargs.get("show_events")
 
-    with patch("magecode.core_loop.CoreLoopService.__call__", new=fake_core_loop):
+    with patch("home_swe_home.core_loop.CoreLoopService.__call__", new=fake_core_loop):
         await _run_async(["-p", "hello"])
     assert seen["show_events"] is True
 
@@ -258,9 +258,9 @@ async def test_show_events_env_default(monkeypatch):
 @pytest.mark.asyncio
 async def test_init_home_guard_refuses_existing(monkeypatch, capsys):
     with (
-        patch("magecode.cli.load_dotenv"),
-        patch("magecode.cli.find_home", return_value=Path("/home/agents-home")),
-        patch("magecode.cli.run_wizard") as wizard,
+        patch("home_swe_home.cli.load_dotenv"),
+        patch("home_swe_home.cli.find_home", return_value=Path("/home/agents-home")),
+        patch("home_swe_home.cli.run_wizard") as wizard,
     ):
         code = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/home"])
     assert code == 2
@@ -270,7 +270,10 @@ async def test_init_home_guard_refuses_existing(monkeypatch, capsys):
 
 @pytest.mark.asyncio
 async def test_init_home_plan_is_non_mutating(monkeypatch, capsys, tmp_path):
-    with patch("magecode.cli.load_dotenv"), patch("magecode.cli.run_wizard") as wizard:
+    with (
+        patch("home_swe_home.cli.load_dotenv"),
+        patch("home_swe_home.cli.run_wizard") as wizard,
+    ):
         code = await _run_async(
             [
                 "--init-home",
@@ -289,10 +292,10 @@ async def test_init_home_plan_is_non_mutating(monkeypatch, capsys, tmp_path):
 @pytest.mark.asyncio
 async def test_init_home_yes_flag_skips_input(monkeypatch, tmp_path):
     with (
-        patch("magecode.cli.load_dotenv"),
-        patch("magecode.cli.find_home", return_value=None),
-        patch("magecode.cli.input") as prompt,
-        patch("magecode.cli.run_wizard", return_value=True),
+        patch("home_swe_home.cli.load_dotenv"),
+        patch("home_swe_home.cli.find_home", return_value=None),
+        patch("home_swe_home.cli.input") as prompt,
+        patch("home_swe_home.cli.run_wizard", return_value=True),
     ):
         code = await _run_async(
             ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--yes"]
@@ -303,7 +306,7 @@ async def test_init_home_yes_flag_skips_input(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_init_home_plain_plan_output(monkeypatch, capsys, tmp_path):
-    with patch("magecode.cli.load_dotenv"):
+    with patch("home_swe_home.cli.load_dotenv"):
         code = await _run_async(
             ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--plan"]
         )
@@ -314,10 +317,10 @@ async def test_init_home_plain_plan_output(monkeypatch, capsys, tmp_path):
 @pytest.mark.asyncio
 async def test_init_home_json_result(monkeypatch, capsys, tmp_path):
     with (
-        patch("magecode.cli.load_dotenv"),
-        patch("magecode.cli.find_home", return_value=None),
-        patch("magecode.cli.input", return_value="y"),
-        patch("magecode.cli.run_wizard", return_value=True),
+        patch("home_swe_home.cli.load_dotenv"),
+        patch("home_swe_home.cli.find_home", return_value=None),
+        patch("home_swe_home.cli.input", return_value="y"),
+        patch("home_swe_home.cli.run_wizard", return_value=True),
     ):
         code = await _run_async(
             ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--json"]
@@ -329,10 +332,10 @@ async def test_init_home_json_result(monkeypatch, capsys, tmp_path):
 @pytest.mark.asyncio
 async def test_init_home_force_bypasses_guard(monkeypatch, tmp_path):
     with (
-        patch("magecode.cli.load_dotenv"),
-        patch("magecode.cli.find_home", return_value=None),
-        patch("magecode.cli.input", return_value="y"),
-        patch("magecode.cli.run_wizard", return_value=True) as wizard,
+        patch("home_swe_home.cli.load_dotenv"),
+        patch("home_swe_home.cli.find_home", return_value=None),
+        patch("home_swe_home.cli.input", return_value="y"),
+        patch("home_swe_home.cli.run_wizard", return_value=True) as wizard,
     ):
         code = await _run_async(
             [

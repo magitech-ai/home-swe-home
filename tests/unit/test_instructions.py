@@ -1,17 +1,17 @@
-"""Tests for magecode.instructions (InstructionsService)."""
+"""Tests for home_swe_home.instructions (InstructionsService)."""
 
 from __future__ import annotations
 
 import pytest
 from anima import Context
 
-from magecode.instructions import InstructionsService
+from home_swe_home.instructions import InstructionsService
 
 
 @pytest.fixture(autouse=True)
 def _no_home(monkeypatch):
     """Keep these tests hermetic: no real agents-home checkout."""
-    monkeypatch.setattr("magecode.instructions.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.instructions.find_home", lambda: None)
 
 
 def _service() -> InstructionsService:
@@ -22,7 +22,7 @@ def _service() -> InstructionsService:
 
 def test_build_system_instructions_contains_rules():
     content = _service().build(model="test/model")
-    assert "magecode" in content
+    assert "home-swe-home" in content
     assert "Rules:" in content
     assert "Use tools" in content
 
@@ -64,7 +64,7 @@ def test_build_layers_home_then_repo_guidance(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / "AGENTS.md").write_text("REPO GUIDANCE\n", encoding="utf-8")
-    monkeypatch.setattr("magecode.instructions.find_home", lambda: home)
+    monkeypatch.setattr("home_swe_home.instructions.find_home", lambda: home)
     monkeypatch.chdir(repo)
 
     content = _service().build(model="test/model")
@@ -75,7 +75,7 @@ def test_build_from_home_does_not_duplicate_guidance(tmp_path, monkeypatch):
     home = tmp_path / "agents-home"
     home.mkdir()
     (home / "AGENTS.md").write_text("HOME GUIDANCE\n", encoding="utf-8")
-    monkeypatch.setattr("magecode.instructions.find_home", lambda: home)
+    monkeypatch.setattr("home_swe_home.instructions.find_home", lambda: home)
     monkeypatch.chdir(home)
 
     assert _service().build(model="test/model").count("HOME GUIDANCE") == 1

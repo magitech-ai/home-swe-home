@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from magecode.improve import StepResult, default_runner, run_step
-from magecode.utils.harness import (
+from home_swe_home.improve import StepResult, default_runner, run_step
+from home_swe_home.utils.harness import (
     DEFAULT_HARNESS_DIR,
     read_tree,
     validate_tree,
@@ -100,9 +100,9 @@ def test_default_runner_passes_candidate_in_env(tmp_path, monkeypatch):
         seen.update(kwargs["env"])
         return Completed()
 
-    monkeypatch.setattr("magecode.improve.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.improve.subprocess.run", fake_run)
     assert default_runner(tmp_path / "candidate", "task") == "out"
-    assert seen["MAGECODE_HARNESS_DIR"] == str(tmp_path / "candidate")
+    assert seen["HOME_SWE_HOME_HARNESS_DIR"] == str(tmp_path / "candidate")
 
 
 def test_step_result_is_frozen():

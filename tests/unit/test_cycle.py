@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from magecode.improve import CycleResult, run_cycle
-from magecode.utils.harness import DEFAULT_HARNESS_DIR, read_tree
+from home_swe_home.improve import CycleResult, run_cycle
+from home_swe_home.utils.harness import DEFAULT_HARNESS_DIR, read_tree
 
 
 def test_cycle_scores_selects_and_composes(tmp_path):

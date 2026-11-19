@@ -1,7 +1,7 @@
 """Parse the curated repository map in the home ``AGENTS.md``.
 
 The map is the home repo's source of truth for sibling checkout paths and
-clone URLs. Parsing it keeps magecode from duplicating that list in code.
+clone URLs. Parsing it keeps home-swe-home from duplicating that list in code.
 """
 
 from __future__ import annotations

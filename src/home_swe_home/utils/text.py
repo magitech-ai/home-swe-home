@@ -1,4 +1,4 @@
-"""Small text helpers shared by magecode's tool and sandbox Services."""
+"""Small text helpers shared by home-swe-home's tool and sandbox Services."""
 
 from __future__ import annotations
 

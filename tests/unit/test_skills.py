@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from magecode.utils.skills import (
+from home_swe_home.utils.skills import (
     Skill,
     discover_skills,
     parse_skill,

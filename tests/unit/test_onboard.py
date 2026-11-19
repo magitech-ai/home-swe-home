@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from magecode import onboard
+from home_swe_home import onboard
 
 
 def test_needs_onboarding_true(monkeypatch):
-    monkeypatch.setattr("magecode.onboard.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.onboard.find_home", lambda: None)
     assert onboard.needs_onboarding() is True
 
 
 def test_needs_onboarding_false(monkeypatch, tmp_path):
-    monkeypatch.setattr("magecode.onboard.find_home", lambda: tmp_path)
+    monkeypatch.setattr("home_swe_home.onboard.find_home", lambda: tmp_path)
     assert onboard.needs_onboarding() is False
 
 
@@ -42,7 +42,9 @@ def test_provision_commands_include_gh_and_git(tmp_path):
 
 
 def test_run_wizard_declined_does_nothing(tmp_path, monkeypatch):
-    monkeypatch.setattr("magecode.utils.home.CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setattr(
+        "home_swe_home.utils.home.CONFIG_PATH", tmp_path / "config.toml"
+    )
     seen: list[object] = []
     accepted = onboard.run_wizard(
         tmp_path / "home",
@@ -56,7 +58,9 @@ def test_run_wizard_declined_does_nothing(tmp_path, monkeypatch):
 
 
 def test_run_wizard_accepts_and_provisions(tmp_path, monkeypatch):
-    monkeypatch.setattr("magecode.utils.home.CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setattr(
+        "home_swe_home.utils.home.CONFIG_PATH", tmp_path / "config.toml"
+    )
     seen: list[object] = []
     accepted = onboard.run_wizard(
         tmp_path / "home",
@@ -77,14 +81,16 @@ def test_default_runner_invokes_subprocess(monkeypatch):
         seen.append((command, kwargs))
         return object()
 
-    monkeypatch.setattr("magecode.onboard.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.onboard.subprocess.run", fake_run)
     onboard.default_runner(("gh", "auth", "status"))
     assert seen[0][0] == ("gh", "auth", "status")
     assert seen[0][1]["check"] is True
 
 
 def test_run_wizard_dry_run_skips_commands(tmp_path, monkeypatch):
-    monkeypatch.setattr("magecode.utils.home.CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setattr(
+        "home_swe_home.utils.home.CONFIG_PATH", tmp_path / "config.toml"
+    )
     seen: list[object] = []
     accepted = onboard.run_wizard(
         tmp_path / "home",

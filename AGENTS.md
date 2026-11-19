@@ -1,9 +1,9 @@
 # Agent Guidelines
 
-## Magecode Architecture & Invariants
+## Home-SWE-Home Architecture & Invariants
 
-- `magecode` is a small coding agent on anima. Every capability is an anima
-  `Service` mounted by `src/magecode/context.py` (`AGENT_SERVICES`); the loop
+- `home-swe-home` is a small coding agent on anima. Every capability is an anima
+  `Service` mounted by `src/home_swe_home/context.py` (`AGENT_SERVICES`); the loop
   calls the model, runs requested tools, and repeats. Architecture, invariants,
   tool wiring, runtime config, and the editable harness are specified in
   [DESIGN.md](DESIGN.md).
@@ -20,7 +20,7 @@ Shared standards, workflow and quality gates:
 Run `python3 ../agents-home/scripts/check_all.py --fast` before committing;
 CI runs the full gate.
 
-## Magecode-Specific References
+## Home-SWE-Home-Specific References
 
 - Issue tracker: GitHub Issues via `gh` CLI (`magitech-ai` organization).
 - Triage labels: [docs/agents/triage-labels.md](docs/agents/triage-labels.md).

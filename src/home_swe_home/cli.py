@@ -1,4 +1,4 @@
-"""Command line interface for magecode.
+"""Command line interface for home-swe-home.
 
 Entry point only — all capabilities are Services mounted on the anima Context
 assembled by ``build_context()``. The CLI loads config, builds the Context, and
@@ -30,7 +30,7 @@ DEFAULT_EFFORT = "medium"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="magecode")
+    parser = argparse.ArgumentParser(prog="home-swe-home")
     parser.add_argument(
         "-p",
         "--prompt",
@@ -39,13 +39,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("MAGECODE_MODEL", DEFAULT_MODEL),
+        default=os.environ.get("HOME_SWE_HOME_MODEL", DEFAULT_MODEL),
         help=f"model id (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--effort",
         choices=("minimal", "low", "medium", "high"),
-        default=os.environ.get("MAGECODE_EFFORT", DEFAULT_EFFORT),
+        default=os.environ.get("HOME_SWE_HOME_EFFORT", DEFAULT_EFFORT),
         help=f"reasoning effort (default: {DEFAULT_EFFORT})",
     )
     parser.add_argument(
@@ -56,14 +56,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--show-reasoning",
         action="store_true",
-        default=os.environ.get("MAGECODE_SHOW_REASONING", "").lower()
+        default=os.environ.get("HOME_SWE_HOME_SHOW_REASONING", "").lower()
         in {"1", "true", "yes"},
         help="display provider reasoning/thought summaries (never stored)",
     )
     parser.add_argument(
         "--show-events",
         action="store_true",
-        default=os.environ.get("MAGECODE_SHOW_EVENTS", "").lower()
+        default=os.environ.get("HOME_SWE_HOME_SHOW_EVENTS", "").lower()
         in {"1", "true", "yes"},
         help="print all provider events (unknown events are always printed)",
     )
@@ -139,10 +139,10 @@ async def _run_headless(
         print("\nTurn interrupted.", file=sys.stderr)
         return 130
     except TurnLimitReached as error:
-        print(f"\nmagecode: {error}", file=sys.stderr)
+        print(f"\nhome-swe-home: {error}", file=sys.stderr)
         return 1
     except MiniClaudeError as error:
-        print(f"\nmagecode: {error}", file=sys.stderr)
+        print(f"\nhome-swe-home: {error}", file=sys.stderr)
         return 1
     return 0
 
@@ -157,7 +157,10 @@ async def _run_async(argv: list[str] | None = None) -> int:
 
     if args.init_home is not None:
         if not args.home_repo:
-            print("magecode: --init-home needs --home-repo OWNER/NAME", file=sys.stderr)
+            print(
+                "home-swe-home: --init-home needs --home-repo OWNER/NAME",
+                file=sys.stderr,
+            )
             return 2
         from .onboard import plan_wizard
 
@@ -171,7 +174,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
             return 0
         if find_home() is not None and not args.force:
             print(
-                "magecode: a home checkout already exists; "
+                "home-swe-home: a home checkout already exists; "
                 "refusing to replace it (use --force to override)",
                 file=sys.stderr,
             )
@@ -194,13 +197,13 @@ async def _run_async(argv: list[str] | None = None) -> int:
         return 0 if accepted else 1
 
     if args.sandbox:
-        os.environ["MAGECODE_SANDBOX"] = "1"
+        os.environ["HOME_SWE_HOME_SANDBOX"] = "1"
 
     # Fail fast on missing API key before assembling the Context.
     try:
         create_client()
     except ConfigurationError as error:
-        print(f"magecode: {error}", file=sys.stderr)
+        print(f"home-swe-home: {error}", file=sys.stderr)
         return 2
 
     ctx = await build_context()

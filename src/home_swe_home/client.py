@@ -1,6 +1,6 @@
-"""Model API client Service for magecode (OpenAI-compatible endpoints).
+"""Model API client Service for home-swe-home (OpenAI-compatible endpoints).
 
-NVIDIA is the default provider; set ``MAGECODE_PROVIDER=gemini`` and export
+NVIDIA is the default provider; set ``HOME_SWE_HOME_PROVIDER=gemini`` and export
 ``GEMINI_API_KEY`` to use Gemini's OpenAI-compatible endpoint instead. Keys are
 never printed or persisted by this program.
 
@@ -22,7 +22,7 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 def provider_config() -> tuple[str, str, str]:
     """Return (base_url, api_key, label) for the active provider."""
-    provider = os.environ.get("MAGECODE_PROVIDER", "gemini")
+    provider = os.environ.get("HOME_SWE_HOME_PROVIDER", "gemini")
     if provider == "gemini":
         key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not key:
@@ -31,12 +31,12 @@ def provider_config() -> tuple[str, str, str]:
             )
         return GEMINI_BASE_URL, key, "Gemini"
     if provider != "nvidia":
-        raise ConfigurationError(f"unknown MAGECODE_PROVIDER: {provider!r}")
+        raise ConfigurationError(f"unknown HOME_SWE_HOME_PROVIDER: {provider!r}")
     return NVIDIA_BASE_URL, get_api_key(), "NVIDIA"
 
 
 class MiniClaudeError(Exception):
-    """Base error for magecode."""
+    """Base error for home-swe-home."""
 
 
 class ConfigurationError(MiniClaudeError):
@@ -62,10 +62,10 @@ def create_client() -> OpenAI:
 
 def gemini_api_mode() -> str:
     """Return the Gemini API mode: native Interactions or OpenAI-compatible."""
-    mode = os.environ.get("MAGECODE_GEMINI_API", "interactions").lower()
+    mode = os.environ.get("HOME_SWE_HOME_GEMINI_API", "interactions").lower()
     if mode not in {"interactions", "openai"}:
         raise ConfigurationError(
-            f"unknown MAGECODE_GEMINI_API: {mode!r} (use interactions or openai)"
+            f"unknown HOME_SWE_HOME_GEMINI_API: {mode!r} (use interactions or openai)"
         )
     return mode
 
@@ -101,7 +101,7 @@ class ClientService(Service):
     @property
     def use_native(self) -> bool:
         return (
-            os.environ.get("MAGECODE_PROVIDER", "gemini") == "gemini"
+            os.environ.get("HOME_SWE_HOME_PROVIDER", "gemini") == "gemini"
             and gemini_api_mode() == "interactions"
         )
 
@@ -124,7 +124,7 @@ class ClientService(Service):
                 "tools": tools,
                 "stream": stream,
             }
-            if os.environ.get("MAGECODE_PROVIDER", "gemini") == "gemini":
+            if os.environ.get("HOME_SWE_HOME_PROVIDER", "gemini") == "gemini":
                 kwargs["reasoning_effort"] = effort
             return self.openai.chat.completions.create(  # type: ignore[arg-type]
                 **kwargs
@@ -132,7 +132,7 @@ class ClientService(Service):
         except APIError as error:
             label = (
                 "Gemini"
-                if os.environ.get("MAGECODE_PROVIDER") == "gemini"
+                if os.environ.get("HOME_SWE_HOME_PROVIDER") == "gemini"
                 else "NVIDIA"
             )
             raise MiniClaudeError(f"{label} API error: {error}") from error

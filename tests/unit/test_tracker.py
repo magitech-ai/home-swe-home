@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from magecode.utils.tracker import DEFAULT_LABELS, load_tracker
+from home_swe_home.utils.tracker import DEFAULT_LABELS, load_tracker
 
 
 def test_default_when_no_config(tmp_path):

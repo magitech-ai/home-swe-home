@@ -1,4 +1,4 @@
-"""Tests for magecode's pure utility helpers."""
+"""Tests for home-swe-home's pure utility helpers."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from typing import Optional, Union
 
 from anima import Service
 
-from magecode.utils.schema import (
+from home_swe_home.utils.schema import (
     _parse_docstring,
     _python_type_to_json_schema_type,
     service_schema,
 )
-from magecode.utils.text import decode_text
+from home_swe_home.utils.text import decode_text
 
 
 def test_decode_text_none():

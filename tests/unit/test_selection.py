@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from magecode.utils.selection import compose, select
+from home_swe_home.utils.selection import compose, select
 
 
 def test_select_empty():
