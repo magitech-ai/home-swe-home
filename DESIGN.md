@@ -165,6 +165,17 @@ An interleaved 3-trial run on 2026-11-18 was inconclusive: 34/36 trials were
 NVIDIA 429 responses, leaving one valid trial per arm. No adoption decision was
 made from it.
 
+Gemini is available as a second provider (`MAGECODE_PROVIDER=gemini`, key in
+`GEMINI_API_KEY`, model via `MAGECODE_MODEL`). Gemini thinking models return an
+encrypted `extra_content.google.thought_signature` on tool calls; the assistant
+message converter preserves it verbatim or the next turn fails with HTTP 400.
+
+On `gemini-4-neon`, an interleaved 3-trial A/B of the isolated `## load_skill`
+guidance measured base 11/13 (0.846) vs candidate 9/11 (0.818), delta -0.028.
+The candidate was **not adopted**. No harness change tested so far has produced
+a reproducible general-capability gain; the only positive result was a synthetic
+canary that encoded its own answer in the candidate prompt.
+
 Measured 2026-11-18, four trials per arm: base 20/24 (0.833), a prompt targeted
 at the observed failures 22/24 (0.917), delta +0.083. The gain came entirely
 from `skill-router` (1/4 → 4/4); the targeted arm lost two `repo-count` trials
