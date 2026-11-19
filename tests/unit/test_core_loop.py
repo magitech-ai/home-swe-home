@@ -282,3 +282,43 @@ async def test_core_loop_turn_limit_reached():
             messages=messages,
             max_turns=2,
         )
+
+
+def test_assistant_message_preserves_extra_content():
+    from types import SimpleNamespace
+
+    from magecode.core_loop import _assistant_message_dict
+
+    call = SimpleNamespace(
+        id="call-1",
+        type="function",
+        function=SimpleNamespace(name="grep_files", arguments="{}"),
+        extra_content={"google": {"thought_signature": "sig"}},
+    )
+    message = SimpleNamespace(role="assistant", content=None, tool_calls=[call])
+    assert _assistant_message_dict(message)["tool_calls"][0]["extra_content"] == {
+        "google": {"thought_signature": "sig"}
+    }
+
+
+def test_assistant_message_without_extra_content():
+    from types import SimpleNamespace
+
+    from magecode.core_loop import _assistant_message_dict
+
+    call = SimpleNamespace(
+        id="call-1",
+        type="function",
+        function=SimpleNamespace(name="read_file", arguments="{}"),
+    )
+    message = SimpleNamespace(role="assistant", content="hi", tool_calls=[call])
+    assert "extra_content" not in _assistant_message_dict(message)["tool_calls"][0]
+
+
+def test_assistant_message_without_tool_calls():
+    from types import SimpleNamespace
+
+    from magecode.core_loop import _assistant_message_dict
+
+    message = SimpleNamespace(role="assistant", content="hi", tool_calls=None)
+    assert _assistant_message_dict(message) == {"role": "assistant", "content": "hi"}

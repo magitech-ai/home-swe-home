@@ -118,8 +118,9 @@ def _assistant_message_dict(message: Any) -> dict[str, Any]:
         result["content"] = message.content
     tool_calls = getattr(message, "tool_calls", None) or []
     if tool_calls:
-        result["tool_calls"] = [
-            {
+        entries: list[dict[str, Any]] = []
+        for call in tool_calls:
+            entry: dict[str, Any] = {
                 "id": call.id,
                 "type": call.type,
                 "function": {
@@ -127,6 +128,12 @@ def _assistant_message_dict(message: Any) -> dict[str, Any]:
                     "arguments": call.function.arguments,
                 },
             }
-            for call in tool_calls
-        ]
+            # Gemini thinking models attach an encrypted thought signature to
+            # each tool call; dropping it makes the follow-up turn fail with
+            # HTTP 400. Preserve it verbatim when the provider supplies one.
+            extra = getattr(call, "extra_content", None)
+            if extra is not None:
+                entry["extra_content"] = extra
+            entries.append(entry)
+        result["tool_calls"] = entries
     return result

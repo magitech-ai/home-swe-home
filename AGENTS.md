@@ -3,9 +3,9 @@
 ## Magecode Architecture & Invariants
 
 - **Repository Role**: `magecode` is a small coding agent built on **anima**,
-  Magitech's Python micro-kernel (the Python implementation of Cordis). It
-  follows "everything is a component": every capability is an anima `Service`
-  mounted on a `Context`. The agent sends a task to the model, runs the tools
+  Magitech's Python micro-kernel. It follows "everything is a component":
+  every capability is an anima `Service` mounted on a `Context`.
+  The agent sends a task to the model, runs the tools
   the model requests, feeds the results back, and repeats until the model
   stops asking.
 - **Component Model**: `src/magecode/context.py` builds the session `Context`
