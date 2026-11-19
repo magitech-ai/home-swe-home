@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 62,
+  "commit": "4d1d1850cf006f7883a365f23d5d6c373bf84596",
+  "trigger_issue": 61,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44624835106,
+  "recorded_at": "2026-11-19T22:03:30Z",
+  "verdict": "APPROVE",
+  "summary": "The change scopes the Agent review job to the agent-review environment, allowing model API keys to be accessed as environment secrets.",
+  "findings": [],
+  "elapsed_seconds": 1.885,
+  "prompt_tokens": 1646,
+  "completion_tokens": 44,
+  "evidence_check": []
+}
