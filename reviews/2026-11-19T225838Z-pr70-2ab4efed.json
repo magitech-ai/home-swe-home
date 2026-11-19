@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 70,
+  "commit": "2ab4efed5e18a408868159a58104b41fdeb84de3",
+  "trigger_issue": 69,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44633483650,
+  "recorded_at": "2026-11-19T22:58:38Z",
+  "verdict": "APPROVE",
+  "summary": "The diff correctly implements passing author disputes as untrusted claims to hsh-review, defines withdrawal rules in the prompts, and adds auto-revert acceptance criteria in the review workflow.",
+  "findings": [],
+  "elapsed_seconds": 2.078,
+  "prompt_tokens": 4381,
+  "completion_tokens": 61,
+  "evidence_check": []
+}
