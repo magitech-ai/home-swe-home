@@ -35,6 +35,7 @@ def build_audit_record(
     reviewer_provider: str,
     workflow_run_id: int,
     recorded_at: str,
+    evidence_check: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Return a complete audit record, failing closed on missing data."""
     record: dict[str, Any] = {
@@ -55,6 +56,8 @@ def build_audit_record(
     if missing:
         raise ValueError(f"review output missing required fields: {', '.join(missing)}")
     record.update({field: verdict[field] for field in VERDICT_FIELDS})
+    if evidence_check is not None:
+        record["evidence_check"] = evidence_check
     return record
 
 
@@ -71,6 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewer-provider", required=True)
     parser.add_argument("--run-id", required=True, type=int)
     parser.add_argument("--recorded-at", required=True)
+    parser.add_argument("--evidence-check", metavar="FILE")
     return parser
 
 
@@ -82,6 +86,11 @@ def main(argv: list[str] | None = None) -> int:
             json.loads(verdict_path.read_text()) if verdict_path.is_file() else None
         )
         error = Path(args.error_file).read_text(encoding="utf-8")
+        evidence_check = (
+            json.loads(Path(args.evidence_check).read_text())
+            if args.evidence_check
+            else None
+        )
         record = build_audit_record(
             verdict=verdict,
             error=error,
@@ -93,6 +102,7 @@ def main(argv: list[str] | None = None) -> int:
             reviewer_provider=args.reviewer_provider,
             workflow_run_id=args.run_id,
             recorded_at=args.recorded_at,
+            evidence_check=evidence_check,
         )
     except Exception as error:
         print(f"hsh-audit: {error}", file=sys.stderr)

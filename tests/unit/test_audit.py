@@ -37,6 +37,14 @@ def test_record_carries_every_required_field() -> None:
         assert record[field] == value
 
 
+def test_evidence_check_is_recorded_when_present() -> None:
+    checks = [{"evidence": "src/a.py:1", "status": "diff"}]
+    record = audit.build_audit_record(
+        verdict=VERDICT, error="", evidence_check=checks, **CONTEXT
+    )
+    assert record["evidence_check"] == checks
+
+
 def test_missing_cost_fields_fail_closed() -> None:
     bad = dict(VERDICT)
     del bad["prompt_tokens"]
@@ -58,6 +66,10 @@ def test_main_writes_record(monkeypatch, tmp_path) -> None:
     verdict.write_text(json.dumps(VERDICT), encoding="utf-8")
     err = tmp_path / "error.txt"
     err.write_text("", encoding="utf-8")
+    checks = tmp_path / "checks.json"
+    checks.write_text(
+        json.dumps([{"evidence": "src/a.py:1", "status": "diff"}]), encoding="utf-8"
+    )
     out = tmp_path / "record.json"
     code = audit.main(
         [
@@ -83,10 +95,14 @@ def test_main_writes_record(monkeypatch, tmp_path) -> None:
             "44603167634",
             "--recorded-at",
             "2026-11-19T19:56:16Z",
+            "--evidence-check",
+            str(checks),
         ]
     )
     assert code == 0
-    assert json.loads(out.read_text())["status"] == "ok"
+    payload = json.loads(out.read_text())
+    assert payload["status"] == "ok"
+    assert payload["evidence_check"][0]["status"] == "diff"
 
 
 def test_main_fails_closed_on_bad_verdict(tmp_path, capsys) -> None:

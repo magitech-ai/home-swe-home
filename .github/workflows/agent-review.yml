@@ -79,6 +79,11 @@ jobs:
           set -euo pipefail
           NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           FILENAME="$(date -u +%Y-%m-%dT%H%M%SZ)-pr${PR}-${HEAD_SHA:0:8}.json"
+          if [ -f verdict.json ]; then
+            jq '.evidence_check // []' verdict.json > evidence-check.json
+          else
+            echo '[]' > evidence-check.json
+          fi
           uv run hsh-audit \
             --verdict verdict.json \
             --error-file review-error.txt \
@@ -90,7 +95,8 @@ jobs:
             --reviewer-model "$REVIEWER_MODEL" \
             --reviewer-provider "$REVIEWER_PROVIDER" \
             --run-id "$RUN_ID" \
-            --recorded-at "$NOW"
+            --recorded-at "$NOW" \
+            --evidence-check evidence-check.json
           mkdir -p audit-checkout/reviews
           cp audit-record.json "audit-checkout/reviews/$FILENAME"
           cd audit-checkout

@@ -190,6 +190,7 @@ def test_main_approve_writes_verdict(monkeypatch, tmp_path, capsys) -> None:
     assert payload["prompt_tokens"] == 0
     assert payload["completion_tokens"] == 0
     assert payload["elapsed_seconds"] >= 0
+    assert payload["evidence_check"] == []
     assert "APPROVE" in capsys.readouterr().out
 
 
@@ -210,6 +211,30 @@ def test_main_request_changes_returns_one(monkeypatch, tmp_path) -> None:
         ]
     )
     assert code == 1
+
+
+def test_main_records_evidence_check_for_findings(monkeypatch, tmp_path) -> None:
+    diff, spec, _ = _setup_files(tmp_path)
+    client, _ = _client(REQUEST)
+    _patch_provider(monkeypatch, client)
+    out = tmp_path / "verdict.json"
+    review.main(
+        [
+            "--diff",
+            str(diff),
+            "--spec",
+            str(spec),
+            "--author-model",
+            "gemini-4-hydrogen",
+            "--reviewer-model",
+            "mistral-large",
+            "--out",
+            str(out),
+        ]
+    )
+    check = json.loads(out.read_text())["evidence_check"]
+    assert len(check) == 1
+    assert check[0]["status"] == "unverifiable"
 
 
 def test_main_same_model_fails_closed(monkeypatch, tmp_path, capsys) -> None:
