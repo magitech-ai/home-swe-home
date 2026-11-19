@@ -17,6 +17,7 @@ dev = ["pytest>=8.0", "pytest-cov>=6.0", "pytest-asyncio>=1.4", "mypy>=1.11", "r
 
 [project.scripts]
 home-swe-home = "home_swe_home.cli:main"
+hsh = "home_swe_home.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
