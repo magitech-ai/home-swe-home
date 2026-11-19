@@ -16,6 +16,7 @@ src/home_swe_home/library.py
 src/home_swe_home/native.py
 src/home_swe_home/onboard.py
 src/home_swe_home/py.typed
+src/home_swe_home/reminders.py
 src/home_swe_home/repl.py
 src/home_swe_home/review.py
 src/home_swe_home/review_cases.json
@@ -51,6 +52,7 @@ src/home_swe_home/utils/__init__.py
 src/home_swe_home/utils/harness.py
 src/home_swe_home/utils/home.py
 src/home_swe_home/utils/native_events.py
+src/home_swe_home/utils/reminders.py
 src/home_swe_home/utils/repo_map.py
 src/home_swe_home/utils/schema.py
 src/home_swe_home/utils/secrets.py

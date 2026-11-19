@@ -42,17 +42,36 @@ jobs:
           set -euo pipefail
           gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" > diff.txt
           gh pr view "$PR" --repo "$GITHUB_REPOSITORY" \
-            --json body --jq .body > pr-body.txt
-          ISSUE=$(sed -n 's/.*Trigger issue: *#\?\([0-9][0-9]*\).*/\1/p' pr-body.txt | head -1)
-          AUTHOR_MODEL=$(sed -n 's/.*Author model: *//p' pr-body.txt | head -1 | tr -d '\r' | xargs)
-          if [ -z "${ISSUE}" ] || [ -z "${AUTHOR_MODEL}" ]; then
-            echo "PR body must record 'Trigger issue: #N' and 'Author model: <id>'" >&2
-            exit 2
+            --json body,labels --jq '{body: .body, labels: [.labels[].name]}' > pr-meta.json
+          jq -r .body pr-meta.json > pr-body.txt
+          LABELS=$(jq -r '.labels | join(",")' pr-meta.json)
+          if [[ ",$LABELS," == *",auto-revert,"* ]]; then
+            printf '%s\n' "Done when: this PR reverts exactly the commit named in its body, does not auto-merge, and preserves the auto-revert label." > spec.txt
+            ISSUE=0
+            AUTHOR_MODEL=auto-revert
+          else
+            ISSUE=$(sed -n 's/.*Trigger issue: *#\?\([0-9][0-9]*\).*/\1/p' pr-body.txt | head -1)
+            AUTHOR_MODEL=$(sed -n 's/.*Author model: *//p' pr-body.txt | head -1 | tr -d '\r' | xargs)
+            if [ -z "${ISSUE}" ] || [ -z "${AUTHOR_MODEL}" ]; then
+              echo "PR body must record 'Trigger issue: #N' and 'Author model: <id>'" >&2
+              exit 2
+            fi
+            gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" \
+              --json body --jq .body > spec.txt
           fi
-          gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" \
-            --json body --jq .body > spec.txt
           echo "ISSUE=${ISSUE}" >> "$GITHUB_ENV"
           echo "AUTHOR_MODEL=${AUTHOR_MODEL}" >> "$GITHUB_ENV"
+
+          # A marked author comment is passed as an untrusted claim, never as
+          # authority. Without this, rebuttals are invisible to the reviewer.
+          DISPUTE=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+            --jq '[.[] | select(.body | contains("<!-- review-dispute -->"))] | last | .body // empty')
+          if [ -n "$DISPUTE" ]; then
+            printf '%s\n' "$DISPUTE" > dispute.txt
+            echo "DISPUTE_PRESENT=1" >> "$GITHUB_ENV"
+          else
+            : > dispute.txt
+          fi
 
       - name: Run independent reviewer
         id: review
@@ -68,6 +87,7 @@ jobs:
             --author-model "$AUTHOR_MODEL" \
             --reviewer-provider "$REVIEWER_PROVIDER" \
             --reviewer-model "$REVIEWER_MODEL" \
+            --dispute dispute.txt \
             --out verdict.json > review-output.txt 2> review-error.txt
           CODE=$?
           set -e
