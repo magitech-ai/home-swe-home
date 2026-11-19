@@ -4,6 +4,7 @@ src/home_swe_home/__init__.py
 src/home_swe_home/cli.py
 src/home_swe_home/client.py
 src/home_swe_home/context.py
+src/home_swe_home/contracts.py
 src/home_swe_home/core_loop.py
 src/home_swe_home/eval.py
 src/home_swe_home/improve.py
@@ -13,6 +14,7 @@ src/home_swe_home/native.py
 src/home_swe_home/onboard.py
 src/home_swe_home/py.typed
 src/home_swe_home/repl.py
+src/home_swe_home/review.py
 src/home_swe_home/sandbox.py
 src/home_swe_home/skills.py
 src/home_swe_home.egg-info/PKG-INFO

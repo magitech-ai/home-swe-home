@@ -1,0 +1,78 @@
+name: Agent review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Agent review
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      REVIEWER_MODEL: google/gemma-4-31b-it
+      REVIEWER_PROVIDER: nvidia
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Collect review inputs
+        run: |
+          set -euo pipefail
+          gh pr diff "${{ github.event.number }}" --repo "$GITHUB_REPOSITORY" > diff.txt
+          gh pr view "${{ github.event.number }}" --repo "$GITHUB_REPOSITORY" \
+            --json body --jq .body > pr-body.txt
+          ISSUE=$(sed -n 's/.*Trigger issue: *#\?\([0-9][0-9]*\).*/\1/p' pr-body.txt | head -1)
+          AUTHOR_MODEL=$(sed -n 's/.*Author model: *//p' pr-body.txt | head -1 | tr -d '\r' | xargs)
+          if [ -z "${ISSUE}" ] || [ -z "${AUTHOR_MODEL}" ]; then
+            echo "PR body must record 'Trigger issue: #N' and 'Author model: <id>'" >&2
+            exit 2
+          fi
+          gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" \
+            --json body --jq .body > spec.txt
+          echo "ISSUE=${ISSUE}" >> "$GITHUB_ENV"
+          echo "AUTHOR_MODEL=${AUTHOR_MODEL}" >> "$GITHUB_ENV"
+
+      - name: Run independent reviewer
+        id: review
+        run: |
+          set +e
+          uv run hsh-review \
+            --diff diff.txt \
+            --spec spec.txt \
+            --standard AGENTS=AGENTS.md \
+            --standard REVIEW=docs/agents/review-standard.md \
+            --standard TRIAGE=docs/agents/triage-labels.md \
+            --author-provider gemini \
+            --author-model "$AUTHOR_MODEL" \
+            --reviewer-provider "$REVIEWER_PROVIDER" \
+            --reviewer-model "$REVIEWER_MODEL" \
+            --out verdict.json > review-output.txt 2> review-error.txt
+          CODE=$?
+          set -e
+          echo "code=${CODE}" >> "$GITHUB_OUTPUT"
+          if [ "$CODE" -eq 2 ]; then
+            cat review-error.txt >> review-output.txt
+          fi
+          gh pr comment "${{ github.event.number }}" --repo "$GITHUB_REPOSITORY" \
+            --body-file review-output.txt
+
+      - name: Enforce verdict
+        env:
+          CODE: ${{ steps.review.outputs.code }}
+        run: |
+          if [ "$CODE" -ne 0 ]; then
+            echo "Independent reviewer did not approve (exit $CODE)." >&2
+            exit 1
+          fi

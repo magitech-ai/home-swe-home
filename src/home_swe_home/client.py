@@ -20,9 +20,15 @@ NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
-def provider_config() -> tuple[str, str, str]:
-    """Return (base_url, api_key, label) for the active provider."""
-    provider = os.environ.get("HOME_SWE_HOME_PROVIDER", "gemini")
+PROVIDERS = ("gemini", "nvidia")
+
+
+def config_for(provider: str) -> tuple[str, str, str]:
+    """Return (base_url, api_key, label) for an explicit provider.
+
+    Used by the review agent so it can choose a different provider from the
+    author without mutating process-wide environment variables.
+    """
     if provider == "gemini":
         key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not key:
@@ -30,9 +36,14 @@ def provider_config() -> tuple[str, str, str]:
                 "GEMINI_API_KEY is not set. Export it: export GEMINI_API_KEY=<your key>"
             )
         return GEMINI_BASE_URL, key, "Gemini"
-    if provider != "nvidia":
-        raise ConfigurationError(f"unknown HOME_SWE_HOME_PROVIDER: {provider!r}")
-    return NVIDIA_BASE_URL, get_api_key(), "NVIDIA"
+    if provider == "nvidia":
+        return NVIDIA_BASE_URL, get_api_key(), "NVIDIA"
+    raise ConfigurationError(f"unknown HOME_SWE_HOME_PROVIDER: {provider!r}")
+
+
+def provider_config() -> tuple[str, str, str]:
+    """Return (base_url, api_key, label) for the active provider."""
+    return config_for(os.environ.get("HOME_SWE_HOME_PROVIDER", "gemini"))
 
 
 class MiniClaudeError(Exception):
