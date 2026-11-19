@@ -1,0 +1,38 @@
+{
+  "status": "ok",
+  "pr": 56,
+  "commit": "3e4280c6bfc1c5109f7deb779495106a3f0f799b",
+  "trigger_issue": 55,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44612575865,
+  "recorded_at": "2026-11-19T20:50:14Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The default reviewer configuration is updated to gemini-3.8-flash, but acceptance criterion D-017 is not satisfied in the diff and test coverage does not assert the new default reviewer model.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": "Review standard Non-negotiables item 1",
+      "message": "The acceptance criterion 'The decision and measured tradeoffs are recorded in agents-home D-017' is not evidenced or satisfied by the diff. Record D-017 or provide the required documentation change."
+    },
+    {
+      "severity": "major",
+      "evidence": "tests/unit/test_review.py:188",
+      "message": "The change to DEFAULT_REVIEWER_MODEL is not tested; test_main_approve_writes_verdict still asserts payload['reviewer_model'] == 'mistral-large'. Add a test verifying that the default reviewer model resolves to gemini-3.8-flash."
+    }
+  ],
+  "elapsed_seconds": 32.005,
+  "prompt_tokens": 2213,
+  "completion_tokens": 243,
+  "evidence_check": [
+    {
+      "evidence": "Review standard Non-negotiables item 1",
+      "status": "rule"
+    },
+    {
+      "evidence": "tests/unit/test_review.py:188",
+      "status": "diff"
+    }
+  ]
+}
