@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 59,
+  "commit": "f0555b1714908739e74668f5027a7178f0d482de",
+  "trigger_issue": 60,
+  "author_model": "google/gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44623521379,
+  "recorded_at": "2026-11-19T21:55:21Z",
+  "verdict": "APPROVE",
+  "summary": "RemindersService implements the D-018 specification: passive reminder discovery from local and home scopes, strict TOML validation, tail appending in InstructionsService for interactive mode, omission in headless mode, startup summary, /reminders REPL command, and full unit test coverage.",
+  "findings": [],
+  "elapsed_seconds": 2.468,
+  "prompt_tokens": 10825,
+  "completion_tokens": 80,
+  "evidence_check": []
+}
