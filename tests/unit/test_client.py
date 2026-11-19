@@ -10,11 +10,13 @@ from anima import Context
 from openai import APIConnectionError, APIStatusError
 
 from magecode.client import (
+    NVIDIA_BASE_URL,
     ClientService,
     ConfigurationError,
     MiniClaudeError,
     create_client,
     get_api_key,
+    provider_config,
 )
 
 
@@ -112,3 +114,39 @@ def failing_client(error):
     return SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=create))
     )
+
+
+def test_provider_config_nvidia(monkeypatch):
+    monkeypatch.delenv("MAGECODE_PROVIDER", raising=False)
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test")
+    assert provider_config()[2] == "NVIDIA"
+    assert provider_config()[0] == NVIDIA_BASE_URL
+
+
+def test_provider_config_gemini(monkeypatch):
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
+    base, key, label = provider_config()
+    assert label == "Gemini" and key == "gemini-test"
+    assert "generativelanguage" in base
+
+
+def test_provider_config_gemini_google_key(monkeypatch):
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "google-test")
+    assert provider_config()[1] == "google-test"
+
+
+def test_provider_config_gemini_missing_key(monkeypatch):
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    with pytest.raises(ConfigurationError, match="GEMINI_API_KEY"):
+        provider_config()
+
+
+def test_provider_config_unknown(monkeypatch):
+    monkeypatch.setenv("MAGECODE_PROVIDER", "bogus")
+    with pytest.raises(ConfigurationError, match="unknown MAGECODE_PROVIDER"):
+        provider_config()

@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL,
+        default=os.environ.get("MAGECODE_MODEL", DEFAULT_MODEL),
         help=f"model id (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
