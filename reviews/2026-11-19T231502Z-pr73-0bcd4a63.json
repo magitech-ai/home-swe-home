@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 73,
+  "commit": "0bcd4a6300ae739693bffad63e151f0a34beb43c",
+  "trigger_issue": 74,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44635976778,
+  "recorded_at": "2026-11-19T23:15:02Z",
+  "verdict": "APPROVE",
+  "summary": "The invalid workflows: write permission is removed, and target commits touching .github/workflows/ exit cleanly with an explanatory message.",
+  "findings": [],
+  "elapsed_seconds": 1.658,
+  "prompt_tokens": 1864,
+  "completion_tokens": 44,
+  "evidence_check": []
+}
