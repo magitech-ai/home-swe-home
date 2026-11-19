@@ -1,0 +1,76 @@
+name: Auto revert (dry run)
+
+# Opens a revert PR when CI fails on main. It NEVER merges the PR: a human
+# decides whether the revert is right. This is the dry-run form of the Stage C
+# rollback prerequisite; promoting it to auto-merge is a separate decision.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit SHA to revert (verification only)"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open-revert:
+    name: Open revert PR
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve target commit
+        id: target
+        run: |
+          set -euo pipefail
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          if [ -z "$SHA" ]; then
+            SHA="${{ github.event.inputs.commit }}"
+          fi
+          if [ -z "$SHA" ]; then
+            echo "No target commit resolved." >&2
+            exit 2
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Skip reverts and duplicates
+        id: guard
+        run: |
+          set -euo pipefail
+          MSG=$(git log -1 --format=%s "${{ steps.target.outputs.sha }}")
+          OPEN=$(gh pr list -R "$GITHUB_REPOSITORY" --label auto-revert --state open --json number --jq length)
+          if [[ "$MSG" == Revert* ]] || [ "$OPEN" -gt 0 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping: message='$MSG', open auto-revert PRs=$OPEN"
+          fi
+          echo "message=$MSG" >> "$GITHUB_OUTPUT"
+
+      - name: Create revert branch and PR
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          SHA="${{ steps.target.outputs.sha }}"
+          BRANCH="auto-revert/${SHA:0:8}"
+          git config user.name "home-swe-home auto-revert"
+          git config user.email "auto-revert@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git revert --no-edit "$SHA"
+          git push -u origin "$BRANCH"
+          BODY=$(printf 'Automatically opened because CI failed on main.\n\n- Target: `%s`\n- Trigger: `%s`\n- This PR is **not** auto-merged. A human must review the revert and decide.\n\nThe auto-revert label prevents a second revert PR while one is open.\n' "$SHA" "${{ github.event_name }}")
+          gh pr create -R "$GITHUB_REPOSITORY" \
+            --base main --head "$BRANCH" \
+            --label auto-revert \
+            --title "Revert ${SHA:0:8}" \
+            --body "$BODY"
