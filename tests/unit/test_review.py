@@ -186,7 +186,7 @@ def test_main_approve_writes_verdict(monkeypatch, tmp_path, capsys) -> None:
     assert payload["verdict"] == "APPROVE"
     assert payload["author_model"] == "gemini-4-hydrogen"
     assert payload["reviewer_model"] == "mistral-large"
-    assert payload["reviewer_provider"] == "nvidia"
+    assert payload["reviewer_provider"] == "gemini"
     assert payload["prompt_tokens"] == 0
     assert payload["completion_tokens"] == 0
     assert payload["elapsed_seconds"] >= 0
