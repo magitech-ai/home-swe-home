@@ -13,6 +13,7 @@ jobs:
   review:
     name: Agent review
     runs-on: ubuntu-latest
+    environment: agent-review
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
