@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 78,
+  "commit": "368236f861c26b35429953a99a924ba7b313caf0",
+  "trigger_issue": 77,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44639227828,
+  "recorded_at": "2026-11-19T23:37:53Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The diagnostic step inserted into .github/workflows/auto-revert.yml breaks workflow syntax by stranding step keys on the subsequent step.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": ".github/workflows/auto-revert.yml:68",
+      "message": "The diagnostic step does not define an `if` condition, and the following step (`Create revert branch and PR`) now starts with `if:` directly after the run block without preserving its step declaration, or leaving duplicate `env:` and invalid YAML structure for the steps sequence. Specifically, lines 68-71 show `if:` and `env:` orphaned from `Create revert branch and PR` or malforming step boundaries. Correct the YAML syntax so both steps are valid GitHub Actions step definitions."
+    }
+  ],
+  "elapsed_seconds": 5.099,
+  "prompt_tokens": 1838,
+  "completion_tokens": 183,
+  "evidence_check": [
+    {
+      "evidence": ".github/workflows/auto-revert.yml:68",
+      "status": "unverifiable"
+    }
+  ]
+}
