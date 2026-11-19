@@ -150,3 +150,26 @@ def test_provider_config_unknown(monkeypatch):
     monkeypatch.setenv("MAGECODE_PROVIDER", "bogus")
     with pytest.raises(ConfigurationError, match="unknown MAGECODE_PROVIDER"):
         provider_config()
+
+
+def test_chat_stream_passes_stream_flag():
+    service = _service_with(
+        SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=lambda **kwargs: kwargs)
+            )
+        )
+    )
+    result = service.chat_stream(model="m", messages=[], tools=None)
+    assert result["stream"] is True
+
+
+def test_chat_complete_passes_stream_false():
+    service = _service_with(
+        SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=lambda **kwargs: kwargs)
+            )
+        )
+    )
+    assert service.chat_complete(model="m", messages=[], tools=None)["stream"] is False

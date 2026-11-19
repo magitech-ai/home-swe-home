@@ -123,7 +123,7 @@ async def test_main_interactive(monkeypatch):
     called = []
     system_seen = []
 
-    async def fake_repl(*, model, client=None, system_content=None, ctx=None):
+    async def fake_repl(*, model, client=None, system_content=None, ctx=None, **kwargs):
         called.append(model)
         system_seen.append(system_content)
 
@@ -155,7 +155,7 @@ async def test_sandbox_flag_sets_env(monkeypatch):
 
     seen = {}
 
-    async def fake_run_headless(*, model, messages):
+    async def fake_run_headless(*, model, messages, stream=True):
         seen["sandbox"] = __import__("os").environ.get("MAGECODE_SANDBOX")
         return 0
 

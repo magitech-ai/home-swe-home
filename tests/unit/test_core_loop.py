@@ -322,3 +322,84 @@ def test_assistant_message_without_tool_calls():
 
     message = SimpleNamespace(role="assistant", content="hi", tool_calls=None)
     assert _assistant_message_dict(message) == {"role": "assistant", "content": "hi"}
+
+
+@pytest.mark.asyncio
+async def test_core_loop_streams_deltas(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+
+    def fake_stream(*, model, messages, tools):
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(content="Hel", tool_calls=None)
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(content="lo", tool_calls=None)
+                    )
+                ]
+            ),
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    await ctx.core_loop(
+        model="m", messages=[{"role": "user", "content": "hi"}], stream=True
+    )
+    out = capsys.readouterr().out
+    assert "Hello" in out
+
+
+@pytest.mark.asyncio
+async def test_core_loop_streams_tool_call(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+
+    turns = iter([True, False])
+
+    def fake_stream(*, model, messages, tools):
+        if next(turns):
+            return [
+                SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            delta=SimpleNamespace(
+                                content=None,
+                                tool_calls=[
+                                    SimpleNamespace(
+                                        index=0,
+                                        id="call-1",
+                                        type="function",
+                                        function=SimpleNamespace(
+                                            name="read_file",
+                                            arguments='{"path": "AGENTS.md"}',
+                                        ),
+                                    )
+                                ],
+                            )
+                        )
+                    ]
+                ),
+            ]
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(content="done", tool_calls=None)
+                    )
+                ]
+            )
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    messages = [{"role": "user", "content": "read"}]
+    await ctx.core_loop(model="m", messages=messages, stream=True)
+    assert any(m.get("role") == "tool" for m in messages)
+    assert "[tool: read_file]" in capsys.readouterr().out

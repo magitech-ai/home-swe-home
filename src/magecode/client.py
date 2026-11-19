@@ -77,14 +77,15 @@ class ClientService(Service):
             self._openai = create_client()
         return self._openai
 
-    def chat_complete(
+    def _create(
         self,
         *,
         model: str,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
+        stream: bool,
     ) -> Any:
-        """Ask the model for one assistant reply, wrapping API errors."""
+        """Call the model, wrapping provider API errors consistently."""
         try:
             # Raw dicts (including tool-result messages) are looser than
             # openai's strict param types.
@@ -92,6 +93,7 @@ class ClientService(Service):
                 model=model,
                 messages=messages,  # type: ignore[arg-type]
                 tools=tools,  # type: ignore[arg-type]
+                stream=stream,
             )
         except APIError as error:
             label = (
@@ -100,3 +102,23 @@ class ClientService(Service):
                 else "NVIDIA"
             )
             raise MiniClaudeError(f"{label} API error: {error}") from error
+
+    def chat_complete(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+    ) -> Any:
+        """Ask the model for one complete assistant reply."""
+        return self._create(model=model, messages=messages, tools=tools, stream=False)
+
+    def chat_stream(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+    ) -> Any:
+        """Open a streamed assistant reply (one delta at a time)."""
+        return self._create(model=model, messages=messages, tools=tools, stream=True)

@@ -189,6 +189,17 @@ that changed each file, and persists the adopted tree plus a `cue`/`lesson`/
 `evidence` entry in a per-domain `library.Library`. Ties and regressions keep
 the base harness; invalid candidates never reach composition.
 
+## Streaming
+
+`ClientService.chat_stream()` opens an OpenAI-compatible stream; `core_loop`
+consumes it with `utils/stream.consume_stream()`, printing `content` deltas as
+they arrive while accumulating tool calls. Provider differences are handled in
+the accumulator: NVIDIA streams `reasoning_content` before the answer (hidden),
+and Gemini attaches `extra_content.google.thought_signature` to tool-call
+chunks, which is preserved through `_assistant_message_dict` so the follow-up
+turn does not fail with HTTP 400. The CLI streams by default; `--no-stream`
+uses the original whole-response path.
+
 ## Editable harness
 
 The system prompt and per-tool guidance are data files under
