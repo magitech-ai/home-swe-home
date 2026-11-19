@@ -1,0 +1,17 @@
+{
+  "status": "ok",
+  "pr": 50,
+  "commit": "32c9840ec0c1b7bb65bee9f60a1122ee88e329fa",
+  "trigger_issue": 49,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "google/gemma-4-31b-it",
+  "reviewer_provider": "nvidia",
+  "workflow_run_id": 44603907755,
+  "recorded_at": "2026-11-19T19:59:23Z",
+  "verdict": "APPROVE",
+  "summary": "The change implements a durable audit logging system for agent reviews, including a new CLI tool for record creation, workflow integration for storage on an audit branch, and updated review output to include latency and token usage.",
+  "findings": [],
+  "elapsed_seconds": 7.932,
+  "prompt_tokens": 6651,
+  "completion_tokens": 69
+}
