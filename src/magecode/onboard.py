@@ -91,6 +91,25 @@ def default_runner(command: tuple[str, ...]) -> None:
     subprocess.run(command, check=True)
 
 
+def plan_wizard(root: Path, repo: str) -> dict[str, object]:
+    """Return a machine-readable plan for an onboarding run."""
+    return {
+        "root": str(Path(root).expanduser()),
+        "repo": repo,
+        "files": [
+            str(path)
+            for path in (
+                Path(root) / "AGENTS.md",
+                Path(root) / "skills" / "README.md",
+                Path(root) / "harness" / "systemprompt.md",
+                Path(root) / "harness" / "tool_guidance.md",
+            )
+        ],
+        "commands": [" ".join(command) for command in provision_commands(repo, root)],
+        "config": str(Path(root).resolve()),
+    }
+
+
 def run_wizard(
     root: Path,
     repo: str,

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ from .context import build_context
 from .core_loop import TurnInterrupted, TurnLimitReached
 from .onboard import run_wizard
 from .repl import run_repl
+from .utils.home import find_home
 
 DEFAULT_MODEL = "gemini-4-hydrogen"
 DEFAULT_PROVIDER = "gemini"
@@ -85,6 +87,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --init-home, scaffold and record config without GitHub writes",
     )
     parser.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="confirm onboarding non-interactively (for agents and scripts)",
+    )
+    parser.add_argument(
+        "--plan",
+        action="store_true",
+        help="with --init-home, print the machine-readable plan without writing",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable output for --init-home",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="allow --init-home to replace an existing home pointer",
+    )
+    parser.add_argument(
         "--home-repo",
         default="",
         metavar="OWNER/NAME",
@@ -136,13 +159,38 @@ async def _run_async(argv: list[str] | None = None) -> int:
         if not args.home_repo:
             print("magecode: --init-home needs --home-repo OWNER/NAME", file=sys.stderr)
             return 2
-        answer = input(f"Create {args.home_repo} at {args.init_home}? [y/N] ")
+        from .onboard import plan_wizard
+
+        plan = plan_wizard(Path(args.init_home), args.home_repo)
+        if args.plan:
+            if args.json:
+                print(json.dumps(plan))
+            else:
+                for key, value in plan.items():
+                    print(f"{key}: {value}")
+            return 0
+        if find_home() is not None and not args.force:
+            print(
+                "magecode: a home checkout already exists; "
+                "refusing to replace it (use --force to override)",
+                file=sys.stderr,
+            )
+            return 2
+        if args.yes:
+            accepted_confirm = True
+        else:
+            answer = input(f"Create {args.home_repo} at {args.init_home}? [y/N] ")
+            accepted_confirm = answer.strip().lower().startswith("y")
         accepted = run_wizard(
             Path(args.init_home),
             args.home_repo,
-            confirm=lambda _question: answer.strip().lower().startswith("y"),
+            confirm=lambda _question: accepted_confirm,
             dry_run=args.dry_run,
         )
+        if args.json:
+            print(json.dumps({"accepted": accepted, **plan}))
+        elif accepted:
+            print(f"Home scaffolded at {args.init_home}; next: review AGENTS.md.")
         return 0 if accepted else 1
 
     if args.sandbox:
