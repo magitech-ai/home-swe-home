@@ -15,6 +15,8 @@ src/home_swe_home/onboard.py
 src/home_swe_home/py.typed
 src/home_swe_home/repl.py
 src/home_swe_home/review.py
+src/home_swe_home/review_cases.json
+src/home_swe_home/review_eval.py
 src/home_swe_home/sandbox.py
 src/home_swe_home/skills.py
 src/home_swe_home.egg-info/PKG-INFO

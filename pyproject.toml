@@ -19,6 +19,7 @@ dev = ["pytest>=8.0", "pytest-cov>=6.0", "pytest-asyncio>=1.4", "mypy>=1.11", "r
 home-swe-home = "home_swe_home.cli:main"
 hsh = "home_swe_home.cli:main"
 hsh-review = "home_swe_home.review:main"
+hsh-review-eval = "home_swe_home.review_eval:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -28,7 +29,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-home_swe_home = ["py.typed", "harness/*.md"]
+home_swe_home = ["py.typed", "harness/*.md", "review_cases.json"]
 
 [tool.ruff]
 line-length = 88

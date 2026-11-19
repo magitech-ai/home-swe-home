@@ -108,6 +108,30 @@ def test_parse_verdict_rejects_approve_with_findings() -> None:
         review.parse_verdict(payload)
 
 
+def test_run_review_with_usage_records_tokens() -> None:
+    client, _ = _client(APPROVE)
+    usage = SimpleNamespace(prompt_tokens=100, completion_tokens=20)
+    client.chat.completions.create = lambda **_kw: SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=APPROVE))],
+        usage=usage,
+    )
+    outcome = review.run_review_with_usage(
+        client, model="reviewer", user_prompt="prompt"
+    )
+    assert outcome.prompt_tokens == 100
+    assert outcome.completion_tokens == 20
+    assert outcome.verdict.approved
+
+
+def test_run_review_with_usage_handles_missing_usage() -> None:
+    client, _ = _client(APPROVE)
+    outcome = review.run_review_with_usage(
+        client, model="reviewer", user_prompt="prompt"
+    )
+    assert outcome.prompt_tokens == 0
+    assert outcome.completion_tokens == 0
+
+
 def test_run_review_passes_model_without_author_context() -> None:
     client, completions = _client(APPROVE)
     verdict = review.run_review(client, model="reviewer-model", user_prompt="prompt")
