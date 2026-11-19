@@ -9,6 +9,7 @@ src/magecode/eval.py
 src/magecode/improve.py
 src/magecode/instructions.py
 src/magecode/library.py
+src/magecode/native.py
 src/magecode/onboard.py
 src/magecode/py.typed
 src/magecode/repl.py
@@ -42,6 +43,7 @@ src/magecode/tools/write_file.py
 src/magecode/utils/__init__.py
 src/magecode/utils/harness.py
 src/magecode/utils/home.py
+src/magecode/utils/native_events.py
 src/magecode/utils/repo_map.py
 src/magecode/utils/schema.py
 src/magecode/utils/secrets.py
