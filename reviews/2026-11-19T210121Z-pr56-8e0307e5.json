@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 56,
+  "commit": "8e0307e5fe45831586ff7421ee031706d78a5059",
+  "trigger_issue": 55,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44614473082,
+  "recorded_at": "2026-11-19T21:01:21Z",
+  "verdict": "APPROVE",
+  "summary": "The reviewer model and workflow configuration have been successfully updated to gemini-3.8-flash with matching tests and documentation.",
+  "findings": [],
+  "elapsed_seconds": 8.673,
+  "prompt_tokens": 3043,
+  "completion_tokens": 44,
+  "evidence_check": []
+}
