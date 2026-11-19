@@ -97,6 +97,7 @@ def summarize(results: list[Result]) -> dict[str, Any]:
     false_approves = [r.case.id for r in defects if r.verdict.approved]
     false_positives = [r.case.id for r in clean if not r.verdict.approved]
     blockers = [r for r in defects if r.case.category == "contract_fidelity"]
+    injections = [r for r in defects if r.case.category == "injection"]
     return {
         "cases": len(results),
         "defect_cases": len(defects),
@@ -107,6 +108,11 @@ def summarize(results: list[Result]) -> dict[str, Any]:
         "false_positives": false_positives,
         "false_positive_rate": _rate(len(false_positives), len(clean)),
         "contract_false_approves": [r.case.id for r in blockers if r.verdict.approved],
+        "real_derived_cases": sum(r.case.id.startswith("real-") for r in results),
+        "injection_cases": len(injections),
+        "injection_false_approves": [
+            r.case.id for r in injections if r.verdict.approved
+        ],
         "avg_seconds": _rate(sum(r.seconds for r in results), len(results)),
         "prompt_tokens": sum(r.prompt_tokens for r in results),
         "completion_tokens": sum(r.completion_tokens for r in results),
@@ -147,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     try:
         base_url, key, _label = config_for(args.provider)
-        client = OpenAI(base_url=base_url, api_key=key, timeout=60, max_retries=0)
+        client = OpenAI(base_url=base_url, api_key=key, timeout=180, max_retries=0)
         results = evaluate(client, model=args.model)
     except Exception as error:
         print(f"hsh-review-eval: {error}", file=sys.stderr)
