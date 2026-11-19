@@ -198,6 +198,18 @@ def test_main_same_model_fails_closed(monkeypatch, tmp_path, capsys) -> None:
     assert "must differ" in capsys.readouterr().err
 
 
+def test_main_oversized_diff_fails_closed(tmp_path, capsys) -> None:
+    diff = tmp_path / "diff.txt"
+    diff.write_text("x" * (review.MAX_DIFF_CHARS + 1), encoding="utf-8")
+    spec = tmp_path / "spec.txt"
+    spec.write_text("spec", encoding="utf-8")
+    code = review.main(
+        ["--diff", str(diff), "--spec", str(spec), "--reviewer-model", "other"]
+    )
+    assert code == 2
+    assert "split the pull request" in capsys.readouterr().err
+
+
 def test_main_bad_standard_fails_closed(monkeypatch, tmp_path, capsys) -> None:
     diff, spec, _ = _setup_files(tmp_path)
     code = review.main(

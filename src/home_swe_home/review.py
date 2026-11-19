@@ -28,6 +28,8 @@ DEFAULT_AUTHOR_PROVIDER = "gemini"
 DEFAULT_AUTHOR_MODEL = "gemini-4-hydrogen"
 DEFAULT_REVIEWER_PROVIDER = "nvidia"
 DEFAULT_REVIEWER_MODEL = "mistralai/mistral-large-4-1t-a52b"
+REVIEW_TIMEOUT_SECONDS = 180.0
+MAX_DIFF_CHARS = 100_000
 
 SYSTEM_PROMPT = """You are an independent code reviewer for a small
 autonomous software factory.
@@ -170,11 +172,21 @@ def main(argv: list[str] | None = None) -> int:
             if not path:
                 raise ConfigurationError(f"invalid --standard {item!r}; use NAME=FILE")
             standards.append((name, _read(path)))
+        diff_text = _read(args.diff)
+        if len(diff_text) > MAX_DIFF_CHARS:
+            raise ConfigurationError(
+                "diff exceeds the review size limit; split the pull request"
+            )
         user_prompt = build_user_prompt(
-            spec=_read(args.spec), standards=standards, diff=_read(args.diff)
+            spec=_read(args.spec), standards=standards, diff=diff_text
         )
         base_url, key, _label = config_for(args.reviewer_provider)
-        client = OpenAI(base_url=base_url, api_key=key)
+        client = OpenAI(
+            base_url=base_url,
+            api_key=key,
+            timeout=REVIEW_TIMEOUT_SECONDS,
+            max_retries=0,
+        )
         verdict = run_review(client, model=args.reviewer_model, user_prompt=user_prompt)
     except Exception as error:
         print(f"hsh-review: {error}", file=sys.stderr)
