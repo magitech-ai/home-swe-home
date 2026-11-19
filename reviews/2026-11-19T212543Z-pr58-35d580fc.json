@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 58,
+  "commit": "35d580fc001c73fcdf1c474d1b11926d6b7af0a2",
+  "trigger_issue": 57,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44618611546,
+  "recorded_at": "2026-11-19T21:25:43Z",
+  "verdict": "APPROVE",
+  "summary": "Sets reasoning_effort='low' for the Gemini reviewer provider and excludes it for other providers, with corresponding unit tests.",
+  "findings": [],
+  "elapsed_seconds": 2.038,
+  "prompt_tokens": 2720,
+  "completion_tokens": 43,
+  "evidence_check": []
+}
