@@ -87,8 +87,12 @@ done_when = { path_exists = "exists.txt" }
 
 
 def test_discover_reminders_handles_missing_home_and_relative_without_home(
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.delenv("AGENTS_REMINDERS_LOCAL_PATH", raising=False)
+    assert discover_reminders(home_root=None) == ([], [])
+
     local_path = tmp_path / "local.toml"
     local_path.write_text(
         """
