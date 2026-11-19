@@ -78,29 +78,19 @@ jobs:
         run: |
           set -euo pipefail
           NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          if [ -f verdict.json ]; then
-            jq --arg pr "$PR" --arg sha "$HEAD_SHA" --arg issue "$ISSUE" \
-               --arg author "$AUTHOR_MODEL" --arg reviewer "$REVIEWER_MODEL" \
-               --arg provider "$REVIEWER_PROVIDER" --arg run "$RUN_ID" \
-               --arg at "$NOW" \
-               '. + {status: "ok", pr: ($pr|tonumber), commit: $sha,
-                     trigger_issue: ($issue|tonumber), author_model: $author,
-                     reviewer_model: $reviewer, reviewer_provider: $provider,
-                     workflow_run_id: ($run|tonumber), recorded_at: $at}' \
-               verdict.json > audit-record.json
-          else
-            ERR=$(cat review-error.txt)
-            jq -n --arg pr "$PR" --arg sha "$HEAD_SHA" --arg issue "$ISSUE" \
-                  --arg author "$AUTHOR_MODEL" --arg reviewer "$REVIEWER_MODEL" \
-                  --arg provider "$REVIEWER_PROVIDER" --arg run "$RUN_ID" \
-                  --arg at "$NOW" --arg err "$ERR" \
-                  '{status: "error", error: $err, pr: ($pr|tonumber), commit: $sha,
-                    trigger_issue: ($issue|tonumber), author_model: $author,
-                    reviewer_model: $reviewer, reviewer_provider: $provider,
-                    workflow_run_id: ($run|tonumber), recorded_at: $at}' \
-               > audit-record.json
-          fi
-          FILENAME="$(date -u +%Y-%m-%dT%H-%M-%SZ)-pr${PR}-${HEAD_SHA:0:8}.json"
+          FILENAME="$(date -u +%Y-%m-%dT%H%M%SZ)-pr${PR}-${HEAD_SHA:0:8}.json"
+          uv run hsh-audit \
+            --verdict verdict.json \
+            --error-file review-error.txt \
+            --out audit-record.json \
+            --pr "$PR" \
+            --commit "$HEAD_SHA" \
+            --trigger-issue "$ISSUE" \
+            --author-model "$AUTHOR_MODEL" \
+            --reviewer-model "$REVIEWER_MODEL" \
+            --reviewer-provider "$REVIEWER_PROVIDER" \
+            --run-id "$RUN_ID" \
+            --recorded-at "$NOW"
           mkdir -p audit-checkout/reviews
           cp audit-record.json "audit-checkout/reviews/$FILENAME"
           cd audit-checkout

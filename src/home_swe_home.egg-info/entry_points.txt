@@ -1,5 +1,6 @@
 [console_scripts]
 home-swe-home = home_swe_home.cli:main
 hsh = home_swe_home.cli:main
+hsh-audit = home_swe_home.audit:main
 hsh-review = home_swe_home.review:main
 hsh-review-eval = home_swe_home.review_eval:main

@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 src/home_swe_home/__init__.py
+src/home_swe_home/audit.py
 src/home_swe_home/cli.py
 src/home_swe_home/client.py
 src/home_swe_home/context.py
