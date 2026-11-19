@@ -57,7 +57,7 @@ the session. Ctrl-C aborts the current turn only.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Foundation | **anima** micro-kernel (Magitech's Python implementation of Cordis) | "Everything is a component": every capability is an anima Service on a Context. Matches the ecosystem (magitech-harness, mth-plugins) and the pattern validated by deepseek-harness (282k stars). You control anima, so API changes are coordinateable. |
+| Foundation | **anima** micro-kernel | "Everything is a component": every capability is an anima Service on a Context. Matches the ecosystem (magitech-harness, mth-plugins) and the component pattern's proven scale. You control anima, so API changes are coordinateable. |
 | Language / runtime | Python 3.12+, `uv`-managed | anima requires 3.12+. Shared Magitech standards; strict mypy, ruff (line length 88), pytest |
 | API | NVIDIA build.nvidia.com, OpenAI-compatible, `https://integrate.api.nvidia.com/v1` | User's Nvidia API key; the `openai` Python client speaks this protocol natively |
 | Auth | `NVIDIA_API_KEY` environment variable only | Never print it, never save it in the project; checked up front so failure is a clear message, not a crash |
