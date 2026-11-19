@@ -31,6 +31,14 @@ uv run magecode
 uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 ```
 
+Gemini has two API modes under `MAGECODE_PROVIDER=gemini`: native
+Interactions (default, `MAGECODE_GEMINI_API=interactions`) and the
+OpenAI-compatible endpoint (`MAGECODE_GEMINI_API=openai`). Native mode supports
+readable thought summaries; show them with `--show-reasoning` or
+`MAGECODE_SHOW_REASONING=1` (display only — never stored in context). All native
+events are translated and unknown ones are printed as `UNKNOWN:` so new upstream
+events are visible.
+
 Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply.
 
 In chat, `/model <id>` switches models, `/skill <name>` loads a skill's full

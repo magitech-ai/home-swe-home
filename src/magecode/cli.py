@@ -44,6 +44,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="run shell commands in a Docker sandbox (default: host execution)",
     )
     parser.add_argument(
+        "--show-reasoning",
+        action="store_true",
+        default=os.environ.get("MAGECODE_SHOW_REASONING", "").lower()
+        in {"1", "true", "yes"},
+        help="display provider reasoning/thought summaries (never stored)",
+    )
+    parser.add_argument(
         "--no-stream",
         dest="stream",
         action="store_false",
@@ -71,10 +78,13 @@ async def _run_headless(
     model: str,
     messages: list[dict[str, Any]],
     stream: bool = True,
+    show_reasoning: bool = False,
 ) -> int:
     ctx = await build_context()
     try:
-        await ctx.core_loop(model=model, messages=messages, stream=stream)
+        await ctx.core_loop(
+            model=model, messages=messages, stream=stream, show_reasoning=show_reasoning
+        )
     except TurnInterrupted:
         print("\nTurn interrupted.", file=sys.stderr)
         return 130
@@ -126,11 +136,18 @@ async def _run_async(argv: list[str] | None = None) -> int:
     if args.prompt is not None:
         messages.append({"role": "user", "content": args.prompt})
         return await _run_headless(
-            model=args.model, messages=messages, stream=args.stream
+            model=args.model,
+            messages=messages,
+            stream=args.stream,
+            show_reasoning=args.show_reasoning,
         )
 
     await run_repl(
-        model=args.model, system_content=system_content, ctx=ctx, stream=args.stream
+        model=args.model,
+        system_content=system_content,
+        ctx=ctx,
+        stream=args.stream,
+        show_reasoning=args.show_reasoning,
     )
     return 0
 

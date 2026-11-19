@@ -173,3 +173,85 @@ def test_chat_complete_passes_stream_false():
         )
     )
     assert service.chat_complete(model="m", messages=[], tools=None)["stream"] is False
+
+
+def test_gemini_api_mode(monkeypatch):
+    from magecode.client import gemini_api_mode
+
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    assert gemini_api_mode() == "interactions"
+    monkeypatch.setenv("MAGECODE_GEMINI_API", "openai")
+    assert gemini_api_mode() == "openai"
+    monkeypatch.setenv("MAGECODE_GEMINI_API", "bad")
+    with pytest.raises(ConfigurationError, match="unknown MAGECODE_GEMINI_API"):
+        gemini_api_mode()
+
+
+def test_use_native_selection(monkeypatch):
+    from magecode.client import ClientService
+
+    ctx = Context()
+    ctx.use(ClientService)
+    service = ctx.client
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    assert service.use_native is True
+    monkeypatch.setenv("MAGECODE_GEMINI_API", "openai")
+    assert service.use_native is False
+    monkeypatch.setenv("MAGECODE_PROVIDER", "nvidia")
+    assert service.use_native is False
+
+
+def test_chat_stream_native_mode(monkeypatch):
+    from magecode.client import ClientService
+
+    ctx = Context()
+    ctx.use(ClientService)
+    service = ctx.client
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    service._native = object()
+    seen = {}
+
+    def fake_native_stream(client, **kwargs):
+        seen.update(kwargs)
+        return ["chunk"]
+
+    monkeypatch.setattr("magecode.native.native_stream", fake_native_stream)
+    assert service.chat_stream(model="m", messages=[], tools=None, reasoning=True) == [
+        "chunk"
+    ]
+    assert seen["reasoning"] is True
+    seen["on_interaction"]("i1")
+    assert service._interaction_id == "i1"
+    seen["on_interaction"]("")
+    assert service._interaction_id == "i1"
+
+
+def test_chat_complete_native_mode(monkeypatch):
+    from magecode.client import ClientService
+
+    ctx = Context()
+    ctx.use(ClientService)
+    service = ctx.client
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    service._native = object()
+    monkeypatch.setattr(service, "chat_stream", lambda **kwargs: [])
+    result = service.chat_complete(model="m", messages=[], tools=None)
+    assert result.choices[0].message.content == ""
+
+
+def test_native_client_is_lazy(monkeypatch):
+    from magecode.client import ClientService
+
+    ctx = Context()
+    ctx.use(ClientService)
+    service = ctx.client
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
+    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    monkeypatch.setattr("google.genai.Client", lambda **kwargs: "fake-client")
+    assert service.native == "fake-client"
+    assert service.native == "fake-client"

@@ -200,6 +200,23 @@ chunks, which is preserved through `_assistant_message_dict` so the follow-up
 turn does not fail with HTTP 400. The CLI streams by default; `--no-stream`
 uses the original whole-response path.
 
+## Gemini API modes
+
+`MAGECODE_PROVIDER=gemini` defaults to the native Interactions API
+(`MAGECODE_GEMINI_API=interactions`) using the official `google-genai` SDK.
+`MAGECODE_GEMINI_API=openai` keeps the OpenAI-compatible endpoint as a fallback.
+Native stateful calls carry `previous_interaction_id` and `store=True`, so
+thought signatures are managed server-side; function results are sent as
+`function_result` blocks. `utils/native_events.py` translates **every** event
+and delta type in the v1beta reference (8 event types, 24 delta types): text,
+reasoning and tool calls map to magecode's message shape; other events are
+recorded and printed as `[event: ...]`, and unrecognised ones are labelled
+`UNKNOWN:` instead of being silently dropped.
+
+`--show-reasoning` / `MAGECODE_SHOW_REASONING=1` prints `thought_summary` deltas
+between `[reasoning]` markers. Reasoning is display-only and never added to
+message history.
+
 ## Editable harness
 
 The system prompt and per-tool guidance are data files under

@@ -330,7 +330,7 @@ async def test_core_loop_streams_deltas(monkeypatch, capsys):
 
     ctx = await _build_context()
 
-    def fake_stream(*, model, messages, tools):
+    def fake_stream(*, model, messages, tools, reasoning=False):
         return [
             SimpleNamespace(
                 choices=[
@@ -364,7 +364,7 @@ async def test_core_loop_streams_tool_call(monkeypatch, capsys):
 
     turns = iter([True, False])
 
-    def fake_stream(*, model, messages, tools):
+    def fake_stream(*, model, messages, tools, reasoning=False):
         if next(turns):
             return [
                 SimpleNamespace(
@@ -403,3 +403,213 @@ async def test_core_loop_streams_tool_call(monkeypatch, capsys):
     await ctx.core_loop(model="m", messages=messages, stream=True)
     assert any(m.get("role") == "tool" for m in messages)
     assert "[tool: read_file]" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_core_loop_show_reasoning_is_delimited_and_not_stored(
+    monkeypatch, capsys
+):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+
+    def fake_stream(*, model, messages, tools, reasoning=False):
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content=None,
+                            reasoning_content="BECAUSE",
+                            tool_calls=None,
+                            event=None,
+                        )
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content="ANSWER", tool_calls=None, event=None
+                        )
+                    )
+                ]
+            ),
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    messages = [{"role": "user", "content": "hi"}]
+    await ctx.core_loop(model="m", messages=messages, stream=True, show_reasoning=True)
+    out = capsys.readouterr().out
+    assert "[reasoning]BECAUSE[/reasoning]ANSWER" in out
+    assert "BECAUSE" not in str(messages)
+
+
+@pytest.mark.asyncio
+async def test_core_loop_surfaces_events_and_unknown(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+
+    def fake_stream(*, model, messages, tools, reasoning=False):
+        known = SimpleNamespace(label=lambda: "step.delta:text", known=True)
+        unknown = SimpleNamespace(label=lambda: "future:thing", known=False)
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content="OK", tool_calls=None, event=known
+                        )
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content=None, tool_calls=None, event=unknown
+                        )
+                    )
+                ]
+            ),
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    await ctx.core_loop(
+        model="m",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+    )
+    out = capsys.readouterr().out
+    assert "[event: step.delta:text]" in out
+    assert "[event: UNKNOWN:future:thing]" in out
+
+
+@pytest.mark.asyncio
+async def test_core_loop_closes_reasoning_at_end(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+
+    def fake_stream(*, model, messages, tools, reasoning=False):
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content=None,
+                            reasoning_content="ONLY-THOUGHT",
+                            tool_calls=None,
+                            event=None,
+                        )
+                    )
+                ]
+            )
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    await ctx.core_loop(
+        model="m",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+        show_reasoning=True,
+    )
+    assert "[/reasoning]" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_core_loop_hides_reasoning_by_default(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+
+    def fake_stream(*, model, messages, tools, reasoning=False):
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content=None,
+                            reasoning_content="HIDDEN",
+                            tool_calls=None,
+                            event=None,
+                        )
+                    )
+                ]
+            )
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    await ctx.core_loop(
+        model="m",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+        show_reasoning=True,
+    )
+    out = capsys.readouterr().out
+    assert "HIDDEN" in out and "[reasoning]" in out
+
+
+@pytest.mark.asyncio
+async def test_core_loop_reasoning_hidden_when_not_requested(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+
+    def fake_stream(*, model, messages, tools, reasoning=False):
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content=None,
+                            reasoning_content="HIDDEN",
+                            tool_calls=None,
+                            event=None,
+                        )
+                    )
+                ]
+            )
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    await ctx.core_loop(
+        model="m", messages=[{"role": "user", "content": "hi"}], stream=True
+    )
+    out = capsys.readouterr().out
+    assert "HIDDEN" not in out and "[reasoning]" not in out
+
+
+@pytest.mark.asyncio
+async def test_core_loop_multiple_reasoning_deltas(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    ctx = await _build_context()
+
+    def fake_stream(*, model, messages, tools, reasoning=False):
+        return [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(
+                            content=None,
+                            reasoning_content=part,
+                            tool_calls=None,
+                            event=None,
+                        )
+                    )
+                ]
+            )
+            for part in ("ONE", "TWO")
+        ]
+
+    monkeypatch.setattr(ctx.client, "chat_stream", fake_stream)
+    await ctx.core_loop(
+        model="m",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+        show_reasoning=True,
+    )
+    assert "[reasoning]ONETWO[/reasoning]" in capsys.readouterr().out

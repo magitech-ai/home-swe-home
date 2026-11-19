@@ -2,6 +2,7 @@ openai<4,>=3
 python-dotenv>=1.0
 tiktoken>=0.8
 anima @ git+https://github.com/magitech-ai/anima.git
+google-genai>=3.6.1
 
 [dev]
 pytest>=8.0
