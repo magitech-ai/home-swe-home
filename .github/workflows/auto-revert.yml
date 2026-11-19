@@ -16,7 +16,7 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 jobs:
@@ -24,6 +24,7 @@ jobs:
     name: Open revert PR
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
+    environment: auto-revert
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -59,18 +60,24 @@ jobs:
 
       - name: Create revert branch and PR
         if: steps.guard.outputs.skip != 'true'
+        env:
+          REVERT_TOKEN: ${{ secrets.REVERT_TOKEN }}
         run: |
           set -euo pipefail
-          SHA="${{ steps.target.outputs.sha }}"
-          if git diff-tree --no-commit-id --name-only -r "$SHA" | grep -q '^.github/workflows/'; then
-            echo "Target touches .github/workflows; GITHUB_TOKEN cannot push workflow files. Manual revert required." >&2
-            exit 0
+          if [ -z "${REVERT_TOKEN}" ]; then
+            echo "REVERT_TOKEN is not set." >&2
+            exit 2
           fi
+          SHA="${{ steps.target.outputs.sha }}"
           BRANCH="auto-revert/${SHA:0:8}"
           git config user.name "home-swe-home auto-revert"
           git config user.email "auto-revert@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git revert --no-edit "$SHA"
+          # GITHUB_TOKEN cannot push workflow-file changes. This step-scoped
+          # fine-grained PAT has Workflows: write on this repo only.
+          git remote set-url origin \
+            "https://x-access-token:${REVERT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push -u origin "$BRANCH"
           BODY=$(printf 'Automatically opened because CI failed on main.\n\n- Target: `%s`\n- Trigger: `%s`\n- This PR is **not** auto-merged. A human must review the revert and decide.\n\nThe auto-revert label prevents a second revert PR while one is open.\n' "$SHA" "${{ github.event_name }}")
           gh pr create -R "$GITHUB_REPOSITORY" \
