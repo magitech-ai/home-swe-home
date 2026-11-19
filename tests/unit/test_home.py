@@ -160,3 +160,8 @@ def test_find_home_default_location(isolated_config, tmp_path, monkeypatch):
 def test_find_home_returns_none_when_unset(isolated_config, tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     assert h.find_home(start=tmp_path) is None
+
+
+def test_config_path_env_override(monkeypatch, tmp_path):
+    monkeypatch.setenv("MAGECODE_CONFIG_PATH", str(tmp_path / "config.toml"))
+    assert h.config_path() == tmp_path / "config.toml"

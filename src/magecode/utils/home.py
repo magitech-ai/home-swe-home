@@ -18,8 +18,9 @@ HOME_NAME = "agents-home"
 
 
 def config_path() -> Path:
-    """Return the magecode config path (overridable in tests)."""
-    return CONFIG_PATH
+    """Return the active config path; env override enables isolated sessions."""
+    override = os.environ.get("MAGECODE_CONFIG_PATH")
+    return Path(override) if override else CONFIG_PATH
 
 
 def load_config() -> dict:

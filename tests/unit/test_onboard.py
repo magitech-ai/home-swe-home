@@ -81,3 +81,18 @@ def test_default_runner_invokes_subprocess(monkeypatch):
     onboard.default_runner(("gh", "auth", "status"))
     assert seen[0][0] == ("gh", "auth", "status")
     assert seen[0][1]["check"] is True
+
+
+def test_run_wizard_dry_run_skips_commands(tmp_path, monkeypatch):
+    monkeypatch.setattr("magecode.utils.home.CONFIG_PATH", tmp_path / "config.toml")
+    seen: list[object] = []
+    accepted = onboard.run_wizard(
+        tmp_path / "home",
+        "org/home",
+        confirm=lambda _: True,
+        runner=seen.append,
+        dry_run=True,
+    )
+    assert accepted is True
+    assert seen == []
+    assert (tmp_path / "home" / "AGENTS.md").is_file()
