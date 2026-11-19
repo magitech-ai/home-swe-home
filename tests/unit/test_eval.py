@@ -122,3 +122,41 @@ def test_hard_tasks_are_well_formed():
 
     assert len(HARD_TASKS) == 6
     assert all(task.prompt and task.checker is not None for task in HARD_TASKS)
+
+
+def test_evaluate_separates_infrastructure_errors():
+    def runner(prompt, harness_dir):
+        return "NVIDIA API error: 429" if prompt == "say a" else "B"
+
+    result = evaluate(_TASKS, runner)
+    assert result.total == 1
+    assert result.passes == 1
+    assert result.errors == ("a/t1",)
+    assert result.failures == ()
+
+
+def test_compare_includes_errors():
+    base = EvalResult("base", 1, 0, 1, (), errors=("a/t1",))
+    cand = EvalResult("cand", 1, 1, 1, ())
+    assert compare(base, cand)["base_errors"] == ["a/t1"]
+
+
+def test_compare_arms_interleaves_and_classifies():
+    from magecode.eval import compare_arms
+
+    order: list[str] = []
+
+    def base(prompt, directory):
+        order.append("b")
+        if prompt == "say a":
+            return "NVIDIA API error: 429"
+        return "B"
+
+    def candidate(prompt, directory):
+        order.append("c")
+        return "A" if prompt == "say a" else "B"
+
+    b, c = compare_arms(_TASKS, base, candidate, trials=2)
+    assert order == ["b", "c"] * 4
+    assert b.errors == ("a/t1", "a/t2") and b.passes == 2
+    assert c.passes == 4 and c.errors == ()

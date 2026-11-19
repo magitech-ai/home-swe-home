@@ -156,7 +156,14 @@ API keys by asking a tool to read `.env`.
 cannot discriminate. `HARD_TASKS` uses outcome checkers instead (including
 `contains_all` and `count_at_least`) and is the suite used for adoption
 decisions. A single hung rollout is recorded as a failure by `cli_runner`
-rather than aborting the run.
+rather than aborting the run. `evaluate` separates infrastructure errors
+(`NVIDIA API error`, `[timed out]`) from task failures and excludes them from
+the pass-rate denominator; `compare_arms` interleaves the two arms so time
+drift and provider rate limits affect both equally.
+
+An interleaved 3-trial run on 2026-11-18 was inconclusive: 34/36 trials were
+NVIDIA 429 responses, leaving one valid trial per arm. No adoption decision was
+made from it.
 
 Measured 2026-11-18, four trials per arm: base 20/24 (0.833), a prompt targeted
 at the observed failures 22/24 (0.917), delta +0.083. The gain came entirely

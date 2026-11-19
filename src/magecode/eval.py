@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .utils.text import decode_text
@@ -114,10 +114,30 @@ class EvalResult:
     passes: int
     total: int
     failures: tuple[str, ...]
+    errors: tuple[str, ...] = ()
 
     @property
     def pass_rate(self) -> float:
         return self.passes / self.total if self.total else 0.0
+
+
+@dataclass
+class _Tally:
+    passes: int = 0
+    failures: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+def _record(tally: _Tally, task: Task, transcript: str, label: str) -> None:
+    """Classify one transcript as a pass, a failure, or an infrastructure error."""
+    if "NVIDIA API error" in transcript or "[timed out]" in transcript:
+        tally.errors.append(label)
+        return
+    matched = task.checker(transcript) if task.checker else task.expected in transcript
+    if matched:
+        tally.passes += 1
+    else:
+        tally.failures.append(label)
 
 
 def evaluate(
@@ -129,28 +149,55 @@ def evaluate(
     trials: int = 1,
 ) -> EvalResult:
     """Run every task *trials* times and count successful transcripts."""
-    passes = 0
-    failures: list[str] = []
+    tally = _Tally()
     for task in tasks:
         for trial in range(1, trials + 1):
-            transcript = runner(task.prompt, harness_dir)
             label = f"{task.id}/t{trial}"
-            matched = (
-                task.checker(transcript)
-                if task.checker
-                else task.expected in transcript
-            )
-            if matched:
-                passes += 1
-            else:
-                failures.append(label)
+            _record(tally, task, runner(task.prompt, harness_dir), label)
     return EvalResult(
         harness=harness,
         trials=trials,
-        passes=passes,
-        total=len(tasks) * trials,
-        failures=tuple(failures),
+        passes=tally.passes,
+        total=len(tasks) * trials - len(tally.errors),
+        failures=tuple(tally.failures),
+        errors=tuple(tally.errors),
     )
+
+
+def compare_arms(
+    tasks: tuple[Task, ...],
+    base_runner: HarnessRunner,
+    candidate_runner: HarnessRunner,
+    *,
+    candidate_dir: Path | None = None,
+    trials: int = 1,
+) -> tuple[EvalResult, EvalResult]:
+    """Interleave arms so time drift and rate limits affect both equally."""
+    base_tally = _Tally()
+    candidate_tally = _Tally()
+    for trial in range(1, trials + 1):
+        for task in tasks:
+            label = f"{task.id}/t{trial}"
+            _record(base_tally, task, base_runner(task.prompt, None), label)
+            _record(
+                candidate_tally,
+                task,
+                candidate_runner(task.prompt, candidate_dir),
+                label,
+            )
+    total = len(tasks) * trials
+
+    def result(name: str, tally: _Tally) -> EvalResult:
+        return EvalResult(
+            name,
+            trials,
+            tally.passes,
+            total - len(tally.errors),
+            tuple(tally.failures),
+            tuple(tally.errors),
+        )
+
+    return result("base", base_tally), result("candidate", candidate_tally)
 
 
 def compare(base: EvalResult, candidate: EvalResult) -> dict[str, object]:
@@ -161,6 +208,8 @@ def compare(base: EvalResult, candidate: EvalResult) -> dict[str, object]:
         "delta": candidate.pass_rate - base.pass_rate,
         "base_failures": list(base.failures),
         "candidate_failures": list(candidate.failures),
+        "base_errors": list(base.errors),
+        "candidate_errors": list(candidate.errors),
     }
 
 
@@ -174,6 +223,7 @@ def write_report(results: tuple[EvalResult, ...], path: Path) -> Path:
             "total": result.total,
             "pass_rate": result.pass_rate,
             "failures": list(result.failures),
+            "errors": list(result.errors),
         }
         for result in results
     ]
