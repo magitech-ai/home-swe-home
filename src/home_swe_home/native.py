@@ -23,6 +23,19 @@ def native_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     return result
 
 
+def native_system_instruction(messages: list[dict[str, Any]]) -> str:
+    """Return the first system message content, for the API's system field.
+
+    The Interactions API has a dedicated top-level ``system_instruction``
+    parameter. Sending this text inside ``input`` would make it user content,
+    losing its instruction priority. Keep it out of ``input`` entirely.
+    """
+    for message in messages:
+        if message.get("role") == "system":
+            return str(message.get("content", ""))
+    return ""
+
+
 def native_input(
     messages: list[dict[str, Any]], *, has_interaction: bool
 ) -> tuple[Any, list[dict[str, Any]]]:
@@ -45,20 +58,14 @@ def native_input(
                     "type": "function_result",
                     "name": names.get(message.get("tool_call_id", ""), ""),
                     "call_id": message.get("tool_call_id", ""),
-                    "result": {
-                        "content": [
-                            {"type": "text", "text": str(message.get("content", ""))}
-                        ]
-                    },
+                    "result": [
+                        {"type": "text", "text": str(message.get("content", ""))}
+                    ],
                 }
             )
         return results, results
 
     parts: list[dict[str, str]] = []
-    if not has_interaction:
-        for message in messages:
-            if message.get("role") == "system":
-                parts.append({"type": "text", "text": str(message.get("content", ""))})
     for message in reversed(messages):
         if message.get("role") == "user":
             parts.append({"type": "text", "text": str(message.get("content", ""))})
@@ -88,6 +95,9 @@ def native_stream(
     }
     if interaction_id:
         params["previous_interaction_id"] = interaction_id
+    system_instruction = native_system_instruction(messages)
+    if system_instruction:
+        params["system_instruction"] = system_instruction
     generation: dict[str, Any] = {"thinking_level": effort}
     if reasoning:
         generation["thinking_summaries"] = "auto"
