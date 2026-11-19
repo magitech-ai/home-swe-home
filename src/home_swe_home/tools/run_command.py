@@ -4,7 +4,7 @@ By default the command runs directly on the host (unsandboxed). This is the
 same model most coding agents use: the user is present, sees every command,
 and can abort any turn with Ctrl-C.
 
-Set ``MAGECODE_SANDBOX=1`` or pass ``--sandbox`` to execute inside a throwaway
+Set ``HOME_SWE_HOME_SANDBOX=1`` or pass ``--sandbox`` to execute inside a throwaway
 Docker container with --network none, --read-only root filesystem, dropped
 capabilities, and resource limits.
 
@@ -23,7 +23,7 @@ from anima import Context, Service
 
 from ..utils.text import decode_text
 
-_SANDBOX_ENV = "MAGECODE_SANDBOX"
+_SANDBOX_ENV = "HOME_SWE_HOME_SANDBOX"
 
 
 def _use_sandbox() -> bool:
@@ -36,7 +36,7 @@ class RunCommandService(Service):
     Default mode runs the command directly on the host with a timeout. The
     user is present, sees every command, and can abort any turn with Ctrl-C.
 
-    Set ``MAGECODE_SANDBOX=1`` to run inside a throwaway Docker container
+    Set ``HOME_SWE_HOME_SANDBOX=1`` to run inside a throwaway Docker container
     with --network none, --read-only root filesystem, dropped capabilities,
     and resource limits instead.
 

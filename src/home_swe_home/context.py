@@ -1,4 +1,4 @@
-"""Context assembly for magecode.
+"""Context assembly for home-swe-home.
 
 Builds an anima Context with all agent services mounted. Shared by the CLI and
 REPL so there is a single source of truth for which components make up an

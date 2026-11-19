@@ -1,4 +1,4 @@
-"""Tests for magecode.tools (anima Service components)."""
+"""Tests for home_swe_home.tools (anima Service components)."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from unittest.mock import patch
 import pytest
 from anima import Context, Service
 
-from magecode.sandbox import SandboxService
-from magecode.tools import (
+from home_swe_home.sandbox import SandboxService
+from home_swe_home.tools import (
     TOOL_SERVICES,
     ReadFileService,
     ToolService,
@@ -123,14 +123,14 @@ def test_grep_files_caps_at_fifty_matches(tmp_path):
 
 
 def test_run_command_success(monkeypatch):
-    from magecode.sandbox import SandboxResult
+    from home_swe_home.sandbox import SandboxResult
 
     def fake_sandbox(command, *, timeout=30, **kwargs):
         return SandboxResult(
             stdout="out\n", stderr="err\n", exit_code=3, timed_out=False
         )
 
-    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
     monkeypatch.setattr(
         SandboxService, "run", lambda self, command, **kw: fake_sandbox(command, **kw)
     )
@@ -143,12 +143,12 @@ def test_run_command_success(monkeypatch):
 
 
 def test_run_command_no_output(monkeypatch):
-    from magecode.sandbox import SandboxResult
+    from home_swe_home.sandbox import SandboxResult
 
     def fake_sandbox(command, *, timeout=30, **kwargs):
         return SandboxResult(stdout="", stderr="", exit_code=0, timed_out=False)
 
-    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
     monkeypatch.setattr(
         SandboxService, "run", lambda self, command, **kw: fake_sandbox(command, **kw)
     )
@@ -160,7 +160,7 @@ def test_run_command_no_output(monkeypatch):
 
 def test_run_command_host_default(monkeypatch):
     """run_command runs on the host by default (no sandbox)."""
-    monkeypatch.delenv("MAGECODE_SANDBOX", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     def fake_run(cmd, *, capture_output, text, timeout):
         return SimpleNamespace(returncode=0, stdout="out\n", stderr="err\n")
@@ -272,7 +272,7 @@ def test_web_search_no_network(monkeypatch):
         def read(self):
             return b"<html></html>"
 
-    mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
+    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
         result = _tool(_build_context(), "web_search")(query="anything")
     assert result == "No web results found. Try rephrasing the query."
@@ -298,7 +298,7 @@ def test_web_search_returns_results(monkeypatch):
         def read(self):
             return html.encode("utf-8")
 
-    mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
+    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
         result = _tool(_build_context(), "web_search")(query="test")
     assert "Result One: https://example.com/one" in result
@@ -307,7 +307,7 @@ def test_web_search_returns_results(monkeypatch):
 
 def test_web_search_network_error(monkeypatch):
     with patch(
-        "magecode.tools.web_search.urllib.request.urlopen",
+        "home_swe_home.tools.web_search.urllib.request.urlopen",
         side_effect=OSError("network down"),
     ):
         result = _tool(_build_context(), "web_search")(query="test")
@@ -361,7 +361,7 @@ def test_web_search_many_results_triggers_break(monkeypatch):
         def read(self):
             return html.encode("utf-8")
 
-    mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
+    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
         result = _tool(_build_context(), "web_search")(query="test")
     lines = result.splitlines()
@@ -388,7 +388,7 @@ def test_web_search_skips_empty_title(monkeypatch):
         def read(self):
             return html.encode("utf-8")
 
-    mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
+    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
         result = _tool(_build_context(), "web_search")(query="test")
     assert "Real Result: https://example.com/two" in result
@@ -538,12 +538,12 @@ def test_reload_module_self(tmp_path):
     import shutil
 
     target = tmp_path / "read_file_copy.py"
-    shutil.copy("src/magecode/tools/read_file.py", target)
+    shutil.copy("src/home_swe_home/tools/read_file.py", target)
     result = execute_tool(
         _build_context(),
         "reload_module",
         json.dumps(
-            {"module_name": "magecode.tools.read_file", "file_path": str(target)}
+            {"module_name": "home_swe_home.tools.read_file", "file_path": str(target)}
         ),
         read_files={str(target)},
     )
@@ -613,7 +613,7 @@ def test_reload_module_stat_oserror(tmp_path):
     target = tmp_path / "mymodule.py"
     target.write_text("VALUE = 1\n")
 
-    import magecode.tools.reload_module as reload_mod
+    import home_swe_home.tools.reload_module as reload_mod
 
     orig = reload_mod.os.stat
 
@@ -690,7 +690,7 @@ def test_web_search_bot_detection(monkeypatch):
         def read(self):
             return html.encode("utf-8")
 
-    mock_urlopen = "magecode.tools.web_search.urllib.request.urlopen"
+    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
     with patch(mock_urlopen, return_value=FakeResponse()):
         result = _tool(_build_context(), "web_search")(query="anything")
     assert "bot detection" in result.lower()
@@ -698,7 +698,7 @@ def test_web_search_bot_detection(monkeypatch):
 
 def test_web_search_decodes_uddg_wrapper(monkeypatch):
     """DDG's uddg= redirect wrapper is decoded to the real target URL."""
-    from magecode.tools.web_search import _decode_href
+    from home_swe_home.tools.web_search import _decode_href
 
     wrapped = "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpage%3Fa%3D1"
     assert _decode_href(wrapped) == "https://example.com/page?a=1"
@@ -717,7 +717,7 @@ def test_web_search_decodes_uddg_wrapper(monkeypatch):
 
 def test_web_search_protocol_relative_href(monkeypatch):
     """Protocol-relative result links are normalized to https."""
-    from magecode.tools.web_search import _decode_href
+    from home_swe_home.tools.web_search import _decode_href
 
     assert _decode_href("//example.com/path") == "https://example.com/path"
 
@@ -758,7 +758,9 @@ def test_web_search_lite_fallback(monkeypatch):
             return ChallengeResponse()
         return LiteResponse()
 
-    with patch("magecode.tools.web_search.urllib.request.urlopen", new=fake_urlopen):
+    with patch(
+        "home_swe_home.tools.web_search.urllib.request.urlopen", new=fake_urlopen
+    ):
         result = _tool(_build_context(), "web_search")(query="test")
     assert "Lite One: https://lite.example.com/one" in result
     assert len(calls) == 2  # both endpoints tried
@@ -766,7 +768,7 @@ def test_web_search_lite_fallback(monkeypatch):
 
 def test_web_search_bot_signal_anomaly(monkeypatch):
     """The 'anomaly' bot signal is detected."""
-    from magecode.tools.web_search import _is_bot_challenge
+    from home_swe_home.tools.web_search import _is_bot_challenge
 
     assert _is_bot_challenge("<html><p>Anomaly detected</p></html>") is True
     assert _is_bot_challenge("<html><body>nothing special</body></html>") is False
@@ -776,7 +778,7 @@ def test_web_search_searxng_first(monkeypatch):
     """SEARXNG_URL routes to the instance's JSON API and returns real URLs."""
     import json
 
-    from magecode.tools.web_search import _search_searxng
+    from home_swe_home.tools.web_search import _search_searxng
 
     calls = []
 
@@ -809,7 +811,7 @@ def test_web_search_searxng_first(monkeypatch):
         return Response()
 
     monkeypatch.setattr(
-        "magecode.tools.web_search.urllib.request.urlopen", fake_urlopen
+        "home_swe_home.tools.web_search.urllib.request.urlopen", fake_urlopen
     )
     results = _search_searxng("https://mysearch.local", "test query")
     assert results == ["SearXNG Result: https://example.com/searx"]
@@ -840,7 +842,7 @@ def test_web_search_searxng_service_uses_json(monkeypatch):
         return Response()
 
     monkeypatch.setattr(
-        "magecode.tools.web_search.urllib.request.urlopen", fake_urlopen
+        "home_swe_home.tools.web_search.urllib.request.urlopen", fake_urlopen
     )
     result = _tool(_build_context(), "web_search")(query="test")
     assert result == "Found: https://found.example/a"
@@ -875,7 +877,7 @@ def test_web_search_searxng_falls_back_on_403(monkeypatch):
         return Response()
 
     monkeypatch.setattr(
-        "magecode.tools.web_search.urllib.request.urlopen", fake_urlopen
+        "home_swe_home.tools.web_search.urllib.request.urlopen", fake_urlopen
     )
     result = _tool(_build_context(), "web_search")(query="test")
     assert "DDG Result: https://ddg.example/x" in result
@@ -884,7 +886,7 @@ def test_web_search_searxng_falls_back_on_403(monkeypatch):
 
 def test_web_search_searxng_bad_json_falls_back(monkeypatch):
     """Malformed SearXNG JSON returns None so the caller falls back."""
-    from magecode.tools.web_search import _search_searxng
+    from home_swe_home.tools.web_search import _search_searxng
 
     def fake_urlopen(req, timeout):
         class Response:
@@ -900,14 +902,14 @@ def test_web_search_searxng_bad_json_falls_back(monkeypatch):
         return Response()
 
     monkeypatch.setattr(
-        "magecode.tools.web_search.urllib.request.urlopen", fake_urlopen
+        "home_swe_home.tools.web_search.urllib.request.urlopen", fake_urlopen
     )
     assert _search_searxng("https://mysearch.local", "q") is None
 
 
 def test_web_search_searxng_env_strip(monkeypatch):
     """SEARXNG_URL is stripped of surrounding whitespace and trailing slash."""
-    from magecode.tools.web_search import _searxng_url
+    from home_swe_home.tools.web_search import _searxng_url
 
     monkeypatch.setenv("SEARXNG_URL", "  https://mysearch.local/  ")
     assert _searxng_url() == "https://mysearch.local"
@@ -919,7 +921,7 @@ def test_web_search_searxng_skips_empty_and_caps():
     """SearXNG items missing title/url are skipped; results capped at 8."""
     import json
 
-    from magecode.tools.web_search import _search_searxng
+    from home_swe_home.tools.web_search import _search_searxng
 
     items = [{"title": "", "url": "https://skip.example"}, {"title": "No URL"}] + [
         {"title": f"R{i}", "url": f"https://example.com/{i}"} for i in range(12)
@@ -938,7 +940,9 @@ def test_web_search_searxng_skips_empty_and_caps():
 
         return Response()
 
-    with patch("magecode.tools.web_search.urllib.request.urlopen", new=fake_urlopen):
+    with patch(
+        "home_swe_home.tools.web_search.urllib.request.urlopen", new=fake_urlopen
+    ):
         results = _search_searxng("https://mysearch.local", "q")
     assert results is not None
     assert len(results) == 8  # capped
@@ -949,8 +953,8 @@ def test_web_search_searxng_skips_empty_and_caps():
 @pytest.mark.asyncio
 async def test_turn_limit_reached():
     """CoreLoopService should raise TurnLimitReached when max_turns exceeded."""
-    from magecode.context import AGENT_SERVICES
-    from magecode.core_loop import TurnLimitReached
+    from home_swe_home.context import AGENT_SERVICES
+    from home_swe_home.core_loop import TurnLimitReached
 
     def create(**kwargs):
         return SimpleNamespace(
@@ -996,9 +1000,9 @@ async def test_turn_limit_reached():
 @pytest.mark.asyncio
 async def test_execute_tool_injects_read_files(monkeypatch):
     """execute_tool injects read_files into tools that accept it."""
-    from magecode.tools.run_command import RunCommandService
+    from home_swe_home.tools.run_command import RunCommandService
 
-    monkeypatch.setenv("MAGECODE_SANDBOX", "1")
+    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
 
     ctx = Context()
     ctx.use(RunCommandService)
@@ -1011,7 +1015,7 @@ async def test_execute_tool_injects_read_files(monkeypatch):
     def fake_sandbox(command, *, timeout=30, **kwargs):
         seen["timeout"] = timeout
         seen["command"] = command
-        from magecode.sandbox import SandboxResult
+        from home_swe_home.sandbox import SandboxResult
 
         return SandboxResult(stdout="ok\n", stderr="", exit_code=0, timed_out=False)
 

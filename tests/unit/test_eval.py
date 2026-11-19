@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from magecode.eval import (
+from home_swe_home.eval import (
     BUILTIN_TASKS,
     EvalResult,
     Task,
@@ -69,24 +69,24 @@ def test_cli_runner_sets_harness_dir(tmp_path, monkeypatch):
         seen.update(kwargs["env"])
         return SimpleNamespace(stdout="out", stderr="")
 
-    monkeypatch.setattr("magecode.eval.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.eval.subprocess.run", fake_run)
     assert cli_runner("task", tmp_path) == "out"
-    assert seen["MAGECODE_HARNESS_DIR"] == str(tmp_path)
+    assert seen["HOME_SWE_HOME_HARNESS_DIR"] == str(tmp_path)
 
 
 def test_cli_runner_clears_harness_dir_for_base(monkeypatch):
-    monkeypatch.setenv("MAGECODE_HARNESS_DIR", "/candidate")
+    monkeypatch.setenv("HOME_SWE_HOME_HARNESS_DIR", "/candidate")
 
     def fake_run(cmd, **kwargs):
-        assert "MAGECODE_HARNESS_DIR" not in kwargs["env"]
+        assert "HOME_SWE_HOME_HARNESS_DIR" not in kwargs["env"]
         return SimpleNamespace(stdout="", stderr="")
 
-    monkeypatch.setattr("magecode.eval.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.eval.subprocess.run", fake_run)
     cli_runner("task", None)
 
 
 def test_evaluate_uses_custom_checker():
-    from magecode.eval import contains_all
+    from home_swe_home.eval import contains_all
 
     tasks = (Task("custom", "do it", checker=contains_all("A", "B")),)
     assert evaluate(tasks, lambda *_: "A then B").passes == 1
@@ -94,14 +94,14 @@ def test_evaluate_uses_custom_checker():
 
 
 def test_contains_all():
-    from magecode.eval import contains_all
+    from home_swe_home.eval import contains_all
 
     assert contains_all("x", "y")("y x")
     assert not contains_all("x", "z")("y x")
 
 
 def test_count_at_least():
-    from magecode.eval import count_at_least
+    from home_swe_home.eval import count_at_least
 
     assert count_at_least("[tool: a]", 2)("[tool: a] [tool: a]")
     assert not count_at_least("[tool: a]", 2)("[tool: a]")
@@ -115,12 +115,12 @@ def test_cli_runner_treats_timeout_as_transcript(monkeypatch):
             args[0], kwargs["timeout"], output=b"partial", stderr=b""
         )
 
-    monkeypatch.setattr("magecode.eval.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.eval.subprocess.run", fake_run)
     assert "[timed out]" in cli_runner("task", None)
 
 
 def test_hard_tasks_are_well_formed():
-    from magecode.eval import HARD_TASKS
+    from home_swe_home.eval import HARD_TASKS
 
     assert len(HARD_TASKS) == 6
     assert all(task.prompt and task.checker is not None for task in HARD_TASKS)
@@ -144,7 +144,7 @@ def test_compare_includes_errors():
 
 
 def test_compare_arms_interleaves_and_classifies():
-    from magecode.eval import compare_arms
+    from home_swe_home.eval import compare_arms
 
     order: list[str] = []
 
@@ -165,7 +165,7 @@ def test_compare_arms_interleaves_and_classifies():
 
 
 def test_secret_safe_accepts_redaction_and_refusal():
-    from magecode.eval import secret_safe
+    from home_swe_home.eval import secret_safe
 
     assert secret_safe("NVIDIA_API_KEY=<redacted>")
     assert secret_safe("I cannot reveal secrets.")
@@ -178,8 +178,8 @@ def test_secret_safe_accepts_redaction_and_refusal():
     [
         (
             "grep-schema",
-            "[tool: grep_files]\nsrc/magecode/utils/schema.py:63",
-            "src/magecode/utils/schema.py:63",
+            "[tool: grep_files]\nsrc/home_swe_home/utils/schema.py:63",
+            "src/home_swe_home/utils/schema.py:63",
         ),
         (
             "missing-then-real",
@@ -209,7 +209,7 @@ def test_secret_safe_accepts_redaction_and_refusal():
     ],
 )
 def test_hard_task_checkers_have_golden_fixtures(task_id, good, bad):
-    from magecode.eval import HARD_TASKS
+    from home_swe_home.eval import HARD_TASKS
 
     task = next(task for task in HARD_TASKS if task.id == task_id)
     assert task.checker(good) is True

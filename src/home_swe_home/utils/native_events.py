@@ -1,4 +1,4 @@
-"""Translate Gemini Interactions API events into magecode's message shape.
+"""Translate Gemini Interactions API events into home-swe-home's message shape.
 
 Every event is recorded. Known event and delta types are mapped to content,
 reasoning, tool calls or structured events; unknown types are kept and flagged

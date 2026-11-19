@@ -1,4 +1,4 @@
-"""Tests for magecode.core_loop (CoreLoopService)."""
+"""Tests for home_swe_home.core_loop (CoreLoopService)."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from types import SimpleNamespace
 import pytest
 from anima import Context
 
-from magecode.context import AGENT_SERVICES
-from magecode.core_loop import TurnInterrupted, TurnLimitReached
+from home_swe_home.context import AGENT_SERVICES
+from home_swe_home.core_loop import TurnInterrupted, TurnLimitReached
 
 
 async def _build_context(*, openai_client=None) -> Context:
@@ -287,7 +287,7 @@ async def test_core_loop_turn_limit_reached():
 def test_assistant_message_preserves_extra_content():
     from types import SimpleNamespace
 
-    from magecode.core_loop import _assistant_message_dict
+    from home_swe_home.core_loop import _assistant_message_dict
 
     call = SimpleNamespace(
         id="call-1",
@@ -304,7 +304,7 @@ def test_assistant_message_preserves_extra_content():
 def test_assistant_message_without_extra_content():
     from types import SimpleNamespace
 
-    from magecode.core_loop import _assistant_message_dict
+    from home_swe_home.core_loop import _assistant_message_dict
 
     call = SimpleNamespace(
         id="call-1",
@@ -318,7 +318,7 @@ def test_assistant_message_without_extra_content():
 def test_assistant_message_without_tool_calls():
     from types import SimpleNamespace
 
-    from magecode.core_loop import _assistant_message_dict
+    from home_swe_home.core_loop import _assistant_message_dict
 
     message = SimpleNamespace(role="assistant", content="hi", tool_calls=None)
     assert _assistant_message_dict(message) == {"role": "assistant", "content": "hi"}

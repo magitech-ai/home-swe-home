@@ -1,11 +1,11 @@
-# 0001. Build magecode on the anima micro-kernel
+# 0001. Build home-swe-home on the anima micro-kernel
 
 Date: 2026-11-17
 Status: accepted
 
 ## Context
 
-magecode is a small coding agent: a turn loop that calls the NVIDIA API, runs
+home-swe-home is a small coding agent: a turn loop that calls the NVIDIA API, runs
 the tools the model requests, and feeds results back. It began with a plain
 function-based core loop and `@tool`-decorated functions with a hand-rolled
 registry (`_TOOLS`, `_TOOL_SCHEMAS`). The Magitech ecosystem already has a
@@ -20,7 +20,7 @@ A spike (`run_command` and `greeter` as anima Services) confirmed:
 
 ## Decision
 
-Build magecode on anima. Every capability is an anima `Service` mounted on a
+Build home-swe-home on anima. Every capability is an anima `Service` mounted on a
 `Context`:
 
 - `CoreLoopService`, all 12 tool services, and the REPL/CLI entry points
@@ -34,7 +34,7 @@ Build magecode on anima. Every capability is an anima `Service` mounted on a
 
 ## Consequences
 
-- Magecode is composable with the rest of the Magitech ecosystem and follows
+- Home-SWE-Home is composable with the rest of the Magitech ecosystem and follows
   the same invariants as magitech-harness/mth-plugins.
 - Tool wiring has two touch points (re-export in `tools/__init__.py`, entry in
   `context.py::TOOL_SERVICES`) instead of decorator side effects.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from magecode.utils.native_events import (
+from home_swe_home.utils.native_events import (
     DELTA_TYPES,
     EVENT_TYPES,
     NativeEvent,
@@ -199,7 +199,7 @@ def test_unknown_delta_type_flagged():
 
 
 def test_text_from_content_variants():
-    from magecode.utils.native_events import _text_from_content
+    from home_swe_home.utils.native_events import _text_from_content
 
     assert _text_from_content("a") == "a"
     assert _text_from_content({"type": "text", "text": "b"}) == "b"
@@ -263,7 +263,7 @@ def test_as_dict_with_model_dump_object():
 
 
 def test_summary_of_non_dict_payload():
-    from magecode.utils.native_events import _summary
+    from home_swe_home.utils.native_events import _summary
 
     assert _summary("plain") == {"value": "plain"}
 

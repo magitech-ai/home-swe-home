@@ -30,11 +30,11 @@ class StepResult:
 
 
 def default_runner(candidate: Path, task: str) -> str:
-    """Probe a candidate harness by running the magecode CLI once."""
+    """Probe a candidate harness by running the home-swe-home CLI once."""
     env = os.environ.copy()
-    env["MAGECODE_HARNESS_DIR"] = str(candidate)
+    env["HOME_SWE_HOME_HARNESS_DIR"] = str(candidate)
     completed = subprocess.run(  # noqa: S603 - fixed command, no shell
-        [sys.executable, "-m", "magecode.cli", "-p", task],
+        [sys.executable, "-m", "home_swe_home.cli", "-p", task],
         capture_output=True,
         text=True,
         env=env,

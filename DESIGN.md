@@ -1,4 +1,4 @@
-# Design doc — magecode
+# Design doc — home-swe-home
 
 A small coding agent in Python: a mini Claude Code. Core loop — send the task to
 the model, run the tools the model asks for, send the results back, and repeat
@@ -13,13 +13,13 @@ uv sync                      # install deps + this package
 export NVIDIA_API_KEY=nvapi-...   # see "API key setup" below; never echo this
 
 # Headless: one task, nobody watching (requires your key)
-uv run magecode -p "say hi in three words"
+uv run home-swe-home -p "say hi in three words"
 
 # Interactive chat (default)
-uv run magecode
+uv run home-swe-home
 
 # Pick a model
-uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
+uv run home-swe-home --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
 ```
 
 Inside chat, `/model meta/llama-3.1-8b-instruct` switches models for the rest of
@@ -65,10 +65,10 @@ the session. Ctrl-C aborts the current turn only.
 | Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes. Each model call prints `[context: N tokens]` before sending. | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
 | Core loop | `CoreLoopService`: non-streaming: call `ctx.client` → append assistant message verbatim → if tool calls, `ctx.tools.execute` looks up the tool service on the Context, runs it, and appends tool results → repeat; stop when the model returns a final text message. Default max 20 tool-calling turns per turn (``TurnLimitReached`` if exceeded). Streaming deferred | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
-| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs`, `load_skill`, `add_repo`, `verify_repo` — each an anima `Service` | `context.py::build_context()` mounts every capability as a Service on the Context: `ctx.client` (model adapter), `ctx.instructions` (prompt + tokens), `ctx.tools` (execution), `ctx.sandbox`, `ctx.core_loop`, and the 15 tools. `service_schema()` derives model-facing tool schemas from each `__call__`. `edit_file`/`reload_module` only work on paths read via `read_file` (per-turn `read_files` set injected by `ctx.tools.execute`); `run_command` runs unsandboxed by default (`MAGECODE_SANDBOX=1`/`--sandbox` for Docker); `web_search` uses DuckDuckGo HTML |
+| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs`, `load_skill`, `add_repo`, `verify_repo` — each an anima `Service` | `context.py::build_context()` mounts every capability as a Service on the Context: `ctx.client` (model adapter), `ctx.instructions` (prompt + tokens), `ctx.tools` (execution), `ctx.sandbox`, `ctx.core_loop`, and the 15 tools. `service_schema()` derives model-facing tool schemas from each `__call__`. `edit_file`/`reload_module` only work on paths read via `read_file` (per-turn `read_files` set injected by `ctx.tools.execute`); `run_command` runs unsandboxed by default (`HOME_SWE_HOME_SANDBOX=1`/`--sandbox` for Docker); `web_search` uses DuckDuckGo HTML |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
-| Sandbox | Docker container: `--network none`, `--read-only`, `--user <host UID:GID>`, `--cap-drop ALL`, `no-new-privileges`, CPU/memory/pids limits, `ulimit nofile/fsize`, `--rm`, hard timeout, workdir confined to CWD tree | `run_command` runs unsandboxed by default; sandbox mode is opt-in via `MAGECODE_SANDBOX=1` or `--sandbox`. Fail-closed if Docker CLI/daemon is unavailable in sandbox mode. |
+| Sandbox | Docker container: `--network none`, `--read-only`, `--user <host UID:GID>`, `--cap-drop ALL`, `no-new-privileges`, CPU/memory/pids limits, `ulimit nofile/fsize`, `--rm`, hard timeout, workdir confined to CWD tree | `run_command` runs unsandboxed by default; sandbox mode is opt-in via `HOME_SWE_HOME_SANDBOX=1` or `--sandbox`. Fail-closed if Docker CLI/daemon is unavailable in sandbox mode. |
 | Testing | Flat unit tests under `tests/unit/` (no `__init__.py`), `AsyncMock` at the OpenAI client seam; `uv run pytest --cov-fail-under=100` | Shared Magitech testing discipline; no real API calls in tests; sandbox tested by mocking the Docker CLI |
 | Session instructions | System message written once per session (first message), never rewritten; new info appended at end. Includes rules, system line (OS/folder/date/model), and AGENTS.md if present. `/context` shows context window + token counts. | Keeps the prompt cache valid and the model's reasoning stable across the session |
 | Web search | If `SEARXNG_URL` is set, query that self-hosted instance's JSON API first (must have `search.formats: [json]` enabled); a 403/network error/malformed JSON falls back to DuckDuckGo. Otherwise DuckDuckGo HTML + Lite endpoints, `uddg=` URL decoding, multi-signal bot detection. Keyless by design. | Research confirmed DDG HTML scraping is fragile (CAPTCHA, 403s, parser drift); live tests from this IP hit bot detection on both endpoints. SearXNG is the reliable keyless upgrade, optional so the default stays zero-config. |
@@ -87,16 +87,16 @@ what to try next.
 | `delete_file` | Delete a file. Provide the exact path. Returns confirmation naming the deleted file. On error: check the path, retry. |
 | `list_directory` | List directory entries (defaults to `.`). Directories end with `/`. On error: check the path, retry. |
 | `grep_files` | Search files for a regex. Provide pattern; optional directory (defaults to `.`). Skips binary/unreadable files. Capped at 50 matches. Returns "No matches." if none. On error: check the directory path, retry. |
-| `run_command` | Run a shell command with timeout (default 30s). Runs unsandboxed on the host by default; the user is present and sees every command. Set `MAGECODE_SANDBOX=1` or `--sandbox` for Docker isolation. Returns stdout, stderr, exit code. On timeout/failure: check the command, retry. |
+| `run_command` | Run a shell command with timeout (default 30s). Runs unsandboxed on the host by default; the user is present and sees every command. Set `HOME_SWE_HOME_SANDBOX=1` or `--sandbox` for Docker isolation. Returns stdout, stderr, exit code. On timeout/failure: check the command, retry. |
 | `web_search` | Search the web with no API key. If `SEARXNG_URL` is set, uses that instance's JSON API first (403/error falls back). Otherwise tries DuckDuckGo HTML, then Lite; decodes `uddg=` wrappers to real URLs. Returns up to 8 "title: url" results, or a clear bot-detection / no-results / network error. |
-| `reload_module` | Hot-reload a Python module from disk. **Strict:** the path must have been read via `read_file` first. Re-executes the module's source file via `importlib`; if reloading `magecode.tools`, updates `_TOOLS` in place so the running harness picks up new tool registrations. On error: check the module name and file path, retry. |
+| `reload_module` | Hot-reload a Python module from disk. **Strict:** the path must have been read via `read_file` first. Re-executes the module's source file via `importlib`; if reloading `home-swe-home.tools`, updates `_TOOLS` in place so the running harness picks up new tool registrations. On error: check the module name and file path, retry. |
 | `code_metrics` | Calculate code quality metrics for Python files in a directory. Provide a directory path (defaults to `.`). Returns lines of code, blank/comment lines, function/class counts, estimated cyclomatic complexity. On error: check the directory path, retry. |
 | `find_duplicates` | Find duplicate code blocks across Python files. Provide a directory path (defaults to `.`) and optional `min_lines` (defaults to 3). Returns matching blocks with file paths and line numbers. On error: check the directory path, retry. |
 | `generate_docs` | Generate markdown documentation from Python docstrings and comments. Provide a directory path (defaults to `.`). Lists classes and public functions with their docstrings. On error: check the directory path, retry. |
 
 ## Tools as anima components
 
-Each tool is an anima `Service` in its own file under `src/magecode/tools/`,
+Each tool is an anima `Service` in its own file under `src/home_swe_home/tools/`,
 with the filename matching the tool name (e.g. `read_file.py` defines
 `ReadFileService`). A tool registers itself by name in `__init__`:
 
@@ -137,7 +137,7 @@ registry edits — schema and execution both come from the Service.
 
 Harness candidates are only adopted when an A/B evaluation shows a pass-rate
 gain on a fixed task suite. `eval.py` runs each task against a base or candidate
-harness via `MAGECODE_HARNESS_DIR` and records per-task outcomes; `improve.py`
+harness via `HOME_SWE_HOME_HARNESS_DIR` and records per-task outcomes; `improve.py`
 supplies the candidate. No source-code self-improvement is attempted until a
 harness change is measured to help.
 
@@ -145,7 +145,7 @@ harness change is measured to help.
 
 Harness candidates are adopted only when an A/B evaluation shows a pass-rate
 gain on a fixed task suite. `eval.py` runs each task against a base or candidate
-harness via `MAGECODE_HARNESS_DIR` and records per-task outcomes; `improve.py`
+harness via `HOME_SWE_HOME_HARNESS_DIR` and records per-task outcomes; `improve.py`
 supplies the candidate. Source-code self-improvement is not attempted until a
 harness change is measured to help.
 
@@ -165,8 +165,8 @@ An interleaved 3-trial run on 2026-11-18 was inconclusive: 34/36 trials were
 NVIDIA 429 responses, leaving one valid trial per arm. No adoption decision was
 made from it.
 
-Gemini is available as a second provider (`MAGECODE_PROVIDER=gemini`, key in
-`GEMINI_API_KEY`, model via `MAGECODE_MODEL`). Gemini thinking models return an
+Gemini is available as a second provider (`HOME_SWE_HOME_PROVIDER=gemini`, key in
+`GEMINI_API_KEY`, model via `HOME_SWE_HOME_MODEL`). Gemini thinking models return an
 encrypted `extra_content.google.thought_signature` on tool calls; the assistant
 message converter preserves it verbatim or the next turn fails with HTTP 400.
 
@@ -203,44 +203,44 @@ uses the original whole-response path.
 ## Defaults
 
 The default provider is Gemini, model `gemini-4-hydrogen`, effort `medium`.
-`MAGECODE_MODEL`, `--model`, `MAGECODE_EFFORT` and `--effort` override them.
+`HOME_SWE_HOME_MODEL`, `--model`, `HOME_SWE_HOME_EFFORT` and `--effort` override them.
 OpenAI-compatible Gemini calls send `reasoning_effort`; native Interactions
 calls send `generation_config.thinking_level`. Set
-`MAGECODE_PROVIDER=nvidia` to use the NVIDIA endpoint.
+`HOME_SWE_HOME_PROVIDER=nvidia` to use the NVIDIA endpoint.
 
 ## Gemini API modes
 
-`MAGECODE_PROVIDER=gemini` defaults to the native Interactions API
-(`MAGECODE_GEMINI_API=interactions`) using the official `google-genai` SDK.
-`MAGECODE_GEMINI_API=openai` keeps the OpenAI-compatible endpoint as a fallback.
+`HOME_SWE_HOME_PROVIDER=gemini` defaults to the native Interactions API
+(`HOME_SWE_HOME_GEMINI_API=interactions`) using the official `google-genai` SDK.
+`HOME_SWE_HOME_GEMINI_API=openai` keeps the OpenAI-compatible endpoint as a fallback.
 Native stateful calls carry `previous_interaction_id` and `store=True`, so
 thought signatures are managed server-side; function results are sent as
 `function_result` blocks. `utils/native_events.py` translates **every** event
 and delta type in the v1beta reference (8 event types, 24 delta types): text,
-reasoning and tool calls map to magecode's message shape; other events are
+reasoning and tool calls map to home-swe-home's message shape; other events are
 recorded and printed as `[event: ...]`, and unrecognised ones are labelled
 `UNKNOWN:` instead of being silently dropped.
 
-`--show-reasoning` / `MAGECODE_SHOW_REASONING=1` prints `thought_summary` deltas
+`--show-reasoning` / `HOME_SWE_HOME_SHOW_REASONING=1` prints `thought_summary` deltas
 between `[reasoning]` markers. Reasoning is display-only and never added to
 message history.
 
 ## Editable harness
 
 The system prompt and per-tool guidance are data files under
-`src/magecode/harness/`, not Python constants. `InstructionsService.build()`
+`src/home_swe_home/harness/`, not Python constants. `InstructionsService.build()`
 reads `systemprompt.md`; `CoreLoopService._tool_schemas()` passes the matching
 `tool_guidance(name)` into `service_schema()`. With the shipped files, both
 outputs are byte-identical to the previous hardcoded behavior (verified by
 comparison against the pre-change implementation).
 
 An outer improvement loop can roll out a candidate harness without editing the
-installed package by setting `MAGECODE_HARNESS_DIR` to a copy of the tree. The
+installed package by setting `HOME_SWE_HOME_HARNESS_DIR` to a copy of the tree. The
 loader (`utils/harness.py`) allowlists the two filenames, so a candidate cannot
 redirect reads elsewhere. `improve.py` implements the external
 Propose–Probe–Compose step: it reads a base tree, applies an injected proposer,
 validates against the editable surface, materialises the candidate, and probes
-it via the CLI with `MAGECODE_HARNESS_DIR` set. The loop is a library for an
+it via the CLI with `HOME_SWE_HOME_HARNESS_DIR` set. The loop is a library for an
 external orchestrator, not an anima Service.
 
 In home-first mode the **home repo's** `harness/` tree is authoritative; the
@@ -248,18 +248,18 @@ packaged copy is only a template for `--init-home` scaffolding. See ADR 0004.
 
 ## Home-first agent architecture
 
-magecode is the agent run *from* `agents-home`, taking over the role that
+home-swe-home is the agent run *from* `agents-home`, taking over the role that
 `agents-home/README.md` currently describes as a convention ("Start agent
 sessions here when a task may span multiple repositories"). It is not a
 standalone any-cwd agent: the home repo is always its starting point.
 
 **Home resolution, in order:**
 
-1. `~/.agents/magecode/config.toml` — absolute `home_path` plus repo identity. Authoritative; this is what makes "config on `/home`, checkout on a different SSD" work.
+1. `~/.agents/home-swe-home/config.toml` — absolute `home_path` plus repo identity. Authoritative; this is what makes "config on `/home`, checkout on a different SSD" work.
 2. `AGENTS_HOME_PATH` environment override.
 3. Name-based walk-up from cwd looking for a directory named `agents-home` with `AGENTS.md`, `skills/` and the `## Other Repos` map.
 
-`MAGECODE_HARNESS_DIR` is unrelated: it swaps a candidate harness tree for a
+`HOME_SWE_HOME_HARNESS_DIR` is unrelated: it swaps a candidate harness tree for a
 rollout, not the home location.
 
 **Onboarding.** If no home is found, a wizard (human-only steps) runs: `gh auth
@@ -283,7 +283,7 @@ isolation.
 **Skills** follow agentskills.io (ADR 0005). Discovery roots: `agents-home/skills/`
 (native/client scope, authoritative), `~/.agents/skills/` (cross-client user
 scope), `<project>/.agents/skills/` (project-local, default-deny until trusted).
-No `~/.magecode/skills`. The catalog is `name` + `description` only, with no
+No `~/.home-swe-home/skills`. The catalog is `name` + `description` only, with no
 cap and no truncation; the planned seeker-rune component will address catalog
 budget later.
 
@@ -327,28 +327,28 @@ count (cl100k_base encoding) before each model call.
 
 ## File layout
 
-- `pyproject.toml` — metadata, dependencies (`anima`, `openai`), entry point `magecode`
-- `src/magecode/__init__.py`
-- `src/magecode/context.py` — builds the anima Context; mounts all services (`AGENT_SERVICES`)
-- `src/magecode/client.py` — `ClientService` (model adapter) + config helpers
-- `src/magecode/instructions.py` — `InstructionsService` (system prompt + token counting)
-- `src/magecode/harness/` — editable harness data (not code): `systemprompt.md`
+- `pyproject.toml` — metadata, dependencies (`anima`, `openai`), entry point `home-swe-home`
+- `src/home_swe_home/__init__.py`
+- `src/home_swe_home/context.py` — builds the anima Context; mounts all services (`AGENT_SERVICES`)
+- `src/home_swe_home/client.py` — `ClientService` (model adapter) + config helpers
+- `src/home_swe_home/instructions.py` — `InstructionsService` (system prompt + token counting)
+- `src/home_swe_home/harness/` — editable harness data (not code): `systemprompt.md`
   (base prompt), `tool_guidance.md` (`## <tool_name>` sections appended to tool
-  descriptions). `MAGECODE_HARNESS_DIR` swaps in a candidate tree for rollouts.
-- `src/magecode/sandbox.py` — `SandboxService` (process confinement)
-- `src/magecode/core_loop.py` — `CoreLoopService`: core model ↔ tool loop
-- `src/magecode/tools/` — anima Service components, one file per tool
+  descriptions). `HOME_SWE_HOME_HARNESS_DIR` swaps in a candidate tree for rollouts.
+- `src/home_swe_home/sandbox.py` — `SandboxService` (process confinement)
+- `src/home_swe_home/core_loop.py` — `CoreLoopService`: core model ↔ tool loop
+- `src/home_swe_home/tools/` — anima Service components, one file per tool
   - `__init__.py` — re-exports tool Service classes
   - `executor.py` — `ToolService` mounted as `ctx.tools` (looks up tool services on the Context)
   - `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`,
     `list_directory.py`, `grep_files.py`, `run_command.py`,
     `web_search.py`, `code_metrics.py`, `find_duplicates.py`,
     `generate_docs.py`, `reload_module.py`, `load_skill.py`, `add_repo.py`, `verify_repo.py` — one `Service` per tool
-- `src/magecode/utils/` — pure helpers (the documented exception to "everything
+- `src/home_swe_home/utils/` — pure helpers (the documented exception to "everything
   is a component"): `schema.py` (JSON-schema inference), `text.py` (shared
   decoder), `harness.py` (readers for the editable harness tree). Stateless,
   no lifecycle.
-- `src/magecode/repl.py` — interactive chat + `/model` + `/context`
-- `src/magecode/cli.py` — argparse: `-p`, `--model`, `--sandbox`
+- `src/home_swe_home/repl.py` — interactive chat + `/model` + `/context`
+- `src/home_swe_home/cli.py` — argparse: `-p`, `--model`, `--sandbox`
 - `DESIGN.md` — this file
 - `tests/unit/*.py` — unit tests; `tests/integration/` — live Docker tests

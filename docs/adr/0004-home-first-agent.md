@@ -1,4 +1,4 @@
-# 0004. Make magecode the home-first agent
+# 0004. Make home-swe-home the home-first agent
 
 Date: 2026-11-18
 Status: accepted
@@ -11,7 +11,7 @@ the root `AGENTS.md` and personal skill links; the pattern repo explicitly
 labels itself exploratory and non-normative
 (`agents-home-pattern/README.md:3`).
 
-magecode was previously documented as a standalone agent runnable from any cwd.
+home-swe-home was previously documented as a standalone agent runnable from any cwd.
 Its `InstructionsService.agents_md()` reads only the current directory's
 `AGENTS.md`, so "which instructions apply?" was answered by wherever the user
 happened to launch it. The editable harness added in PR #8 lives inside the
@@ -27,25 +27,25 @@ template repository.
 
 ## Decision
 
-magecode is the agent run *from* `agents-home`. The home repo is always its
+home-swe-home is the agent run *from* `agents-home`. The home repo is always its
 starting point; standalone any-cwd use is no longer the target.
 
 Home resolution order:
 
-1. `~/.agents/magecode/config.toml` with an absolute `home_path` and repo
+1. `~/.agents/home-swe-home/config.toml` with an absolute `home_path` and repo
    identity — authoritative.
 2. `AGENTS_HOME_PATH` environment override.
 3. Name-based walk-up from cwd for a directory named `agents-home` containing
    `AGENTS.md`, `skills/` and the `## Other Repos` map.
 
-`MAGECODE_HARNESS_DIR` keeps its separate meaning: a candidate harness tree for
+`HOME_SWE_HOME_HARNESS_DIR` keeps its separate meaning: a candidate harness tree for
 an improvement rollout.
 
 When no home is found, a wizard performs the human-only steps: `gh auth login`
 if needed, choose a local path (offer `~/.agents/agents-home`, always confirm),
-scaffold from templates packaged in magecode, offer `gh repo create --private`
+scaffold from templates packaged in home-swe-home, offer `gh repo create --private`
 and an initial push with explicit consent, then write the config. An existing
-checkout skips onboarding entirely. Tokens are never written to magecode's
+checkout skips onboarding entirely. Tokens are never written to home-swe-home's
 config.
 
 The home repo supplies the authoritative harness tree, canonical skills, the
@@ -58,7 +58,7 @@ context is used initially; no sub-agents until evidence demands isolation.
 
 ## Consequences
 
-- The packaged `src/magecode/harness/` files remain, but as **bootstrap
+- The packaged `src/home_swe_home/harness/` files remain, but as **bootstrap
   templates** only — at runtime the home tree wins. This reverses part of PR
   #8's framing, not its files.
 - The config file is small and lives in the `.agents` global config layer;

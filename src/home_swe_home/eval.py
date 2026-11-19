@@ -63,9 +63,9 @@ BUILTIN_TASKS = (
     Task("plain-reply", "Reply with exactly: PONG", "PONG"),
     Task(
         "add-repo",
-        "Call the add_repo tool with ref='magecode' and confirm=false. "
+        "Call the add_repo tool with ref='home-swe-home' and confirm=false. "
         "Report exactly what the tool returns.",
-        "Resolved 'magecode'",
+        "Resolved 'home-swe-home'",
     ),
     Task(
         "run-command",
@@ -112,8 +112,8 @@ HARD_TASKS = (
     ),
     Task(
         "two-tools",
-        "Use list_directory on src/magecode and grep_files for 'class ' in "
-        "src/magecode/tools. Report both results.",
+        "Use list_directory on src/home_swe_home and grep_files for 'class ' in "
+        "src/home_swe_home/tools. Report both results.",
         checker=contains_all("[tool: list_directory]", "[tool: grep_files]"),
     ),
 )
@@ -252,12 +252,12 @@ def write_report(results: tuple[EvalResult, ...], path: Path) -> Path:
 def cli_runner(task: str, harness_dir: Path | None) -> str:
     """Run one task against an optional candidate harness via the CLI."""
     env = os.environ.copy()
-    env.pop("MAGECODE_HARNESS_DIR", None)
+    env.pop("HOME_SWE_HOME_HARNESS_DIR", None)
     if harness_dir is not None:
-        env["MAGECODE_HARNESS_DIR"] = str(harness_dir)
+        env["HOME_SWE_HOME_HARNESS_DIR"] = str(harness_dir)
     try:
         completed = subprocess.run(  # noqa: S603 - fixed command, no shell
-            [sys.executable, "-m", "magecode.cli", "-p", task],
+            [sys.executable, "-m", "home_swe_home.cli", "-p", task],
             capture_output=True,
             text=True,
             env=env,

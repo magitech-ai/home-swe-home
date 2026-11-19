@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from anima import Context
 
-from magecode.tools.executor import ToolService
-from magecode.utils.secrets import redact, secret_values
+from home_swe_home.tools.executor import ToolService
+from home_swe_home.utils.secrets import redact, secret_values
 
 
 def test_secret_values_reads_env(monkeypatch):

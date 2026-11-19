@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from magecode.core_loop import _assistant_message_dict
-from magecode.utils.stream import consume_stream
+from home_swe_home.core_loop import _assistant_message_dict
+from home_swe_home.utils.stream import consume_stream
 
 
 def _chunk(delta=None, *, choices=True):

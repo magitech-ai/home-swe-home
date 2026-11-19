@@ -1,4 +1,4 @@
-"""Tests for magecode.repl."""
+"""Tests for home_swe_home.repl."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from unittest.mock import patch
 import pytest
 from anima import Context
 
-from magecode.client import MiniClaudeError
-from magecode.context import AGENT_SERVICES
-from magecode.core_loop import TurnInterrupted, TurnLimitReached
-from magecode.repl import _show_context, run_repl
+from home_swe_home.client import MiniClaudeError
+from home_swe_home.context import AGENT_SERVICES
+from home_swe_home.core_loop import TurnInterrupted, TurnLimitReached
+from home_swe_home.repl import _show_context, run_repl
 
 
 class FakeCoreLoop:
@@ -31,7 +31,7 @@ class FakeCoreLoop:
 
 async def _build_context(with_core_loop: bool = True) -> Context:
     ctx = Context()
-    from magecode.core_loop import CoreLoopService
+    from home_swe_home.core_loop import CoreLoopService
 
     for service_cls in AGENT_SERVICES:
         if service_cls is not CoreLoopService or with_core_loop:
@@ -42,7 +42,7 @@ async def _build_context(with_core_loop: bool = True) -> Context:
 
 async def _build_context_with_fake(side_effect) -> Context:
     ctx = Context()
-    from magecode.core_loop import CoreLoopService
+    from home_swe_home.core_loop import CoreLoopService
 
     for service_cls in AGENT_SERVICES:
         if service_cls is not CoreLoopService:
@@ -59,17 +59,17 @@ class FakeClient:
 @pytest.mark.asyncio
 async def test_repl_exits_on_eof(capsys):
     ctx = await _build_context()
-    with patch("magecode.repl.input", side_effect=EOFError):
+    with patch("home_swe_home.repl.input", side_effect=EOFError):
         await run_repl(model="m", ctx=ctx)
     out = capsys.readouterr().out
-    assert "magecode interactive chat" in out
+    assert "home-swe-home interactive chat" in out
 
 
 @pytest.mark.asyncio
 async def test_repl_keyboard_interrupt_continues(capsys):
     ctx = await _build_context()
     with patch(
-        "magecode.repl.input",
+        "home_swe_home.repl.input",
         side_effect=[KeyboardInterrupt, EOFError],
     ):
         await run_repl(model="m", ctx=ctx)
@@ -79,7 +79,9 @@ async def test_repl_keyboard_interrupt_continues(capsys):
 @pytest.mark.asyncio
 async def test_repl_model_switch(capsys):
     ctx = await _build_context()
-    with patch("magecode.repl.input", side_effect=["/model other/model", EOFError]):
+    with patch(
+        "home_swe_home.repl.input", side_effect=["/model other/model", EOFError]
+    ):
         await run_repl(model="m", ctx=ctx)
     out = capsys.readouterr().out
     assert "model: m" in out
@@ -89,7 +91,7 @@ async def test_repl_model_switch(capsys):
 @pytest.mark.asyncio
 async def test_repl_model_command_without_id_shows_current(capsys):
     ctx = await _build_context()
-    with patch("magecode.repl.input", side_effect=["/model", EOFError]):
+    with patch("home_swe_home.repl.input", side_effect=["/model", EOFError]):
         await run_repl(model="m", ctx=ctx)
     assert capsys.readouterr().out.count("model: m") == 2
 
@@ -97,7 +99,7 @@ async def test_repl_model_command_without_id_shows_current(capsys):
 @pytest.mark.asyncio
 async def test_repl_blank_lines_are_ignored():
     ctx = await _build_context()
-    with patch("magecode.repl.input") as mock_input:
+    with patch("home_swe_home.repl.input") as mock_input:
         mock_input.side_effect = ["   ", "", EOFError]
         await run_repl(model="m", ctx=ctx)
     assert mock_input.call_count == 3
@@ -106,7 +108,7 @@ async def test_repl_blank_lines_are_ignored():
 @pytest.mark.asyncio
 async def test_repl_turn_interrupted_is_swallowed(capsys):
     ctx = await _build_context_with_fake(TurnInterrupted())
-    with patch("magecode.repl.input", side_effect=["say hi", EOFError]):
+    with patch("home_swe_home.repl.input", side_effect=["say hi", EOFError]):
         await run_repl(model="m", ctx=ctx)
     assert "Turn interrupted." in capsys.readouterr().out
 
@@ -114,17 +116,17 @@ async def test_repl_turn_interrupted_is_swallowed(capsys):
 @pytest.mark.asyncio
 async def test_repl_api_error_prints_and_continues(capsys):
     ctx = await _build_context_with_fake(MiniClaudeError("The model does not exist"))
-    with patch("magecode.repl.input", side_effect=["say hi", EOFError]):
+    with patch("home_swe_home.repl.input", side_effect=["say hi", EOFError]):
         await run_repl(model="m", ctx=ctx)
     out = capsys.readouterr().out
-    assert "magecode: The model does not exist" in out
+    assert "home-swe-home: The model does not exist" in out
 
 
 @pytest.mark.asyncio
 async def test_repl_skill_command_prints_skill(monkeypatch, capsys):
     ctx = await _build_context()
     monkeypatch.setattr(ctx.skills, "load", lambda name: f"SKILL BODY: {name}")
-    with patch("magecode.repl.input", side_effect=["/skill tdd", EOFError]):
+    with patch("home_swe_home.repl.input", side_effect=["/skill tdd", EOFError]):
         await run_repl(model="m", ctx=ctx)
     assert "SKILL BODY: tdd" in capsys.readouterr().out
 
@@ -132,7 +134,7 @@ async def test_repl_skill_command_prints_skill(monkeypatch, capsys):
 async def test_repl_context_command(capsys):
     ctx = await _build_context()
     with patch(
-        "magecode.repl.input",
+        "home_swe_home.repl.input",
         side_effect=["/context", EOFError],
     ):
         await run_repl(model="m", ctx=ctx)
@@ -170,7 +172,7 @@ async def test_repl_user_message_reaches_turn():
     ctx.reflect.provide("core_loop", fake)
     await ctx.flush()
 
-    with patch("magecode.repl.input", side_effect=["hello world", EOFError]):
+    with patch("home_swe_home.repl.input", side_effect=["hello world", EOFError]):
         await run_repl(model="m", ctx=ctx)
     assert seen["model"] == "m"
     assert seen["messages"][0]["role"] == "system"
@@ -186,7 +188,7 @@ async def test_repl_user_message_reaches_turn():
 async def test_repl_turn_limit_reached(capsys):
     """REPL should report TurnLimitReached error when run_core_loop raises it."""
     ctx = await _build_context_with_fake(TurnLimitReached("Turn limit reached"))
-    with patch("magecode.repl.input", side_effect=["hello world", EOFError]):
+    with patch("home_swe_home.repl.input", side_effect=["hello world", EOFError]):
         await run_repl(model="m", ctx=ctx)
     out = capsys.readouterr().out
     assert "Turn limit reached" in out
@@ -196,7 +198,7 @@ async def test_repl_turn_limit_reached(capsys):
 async def test_repl_context_shows_tool_calls(capsys):
     ctx = await _build_context()
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": "You are magecode."},
+        {"role": "system", "content": "You are home-swe-home."},
         {
             "role": "assistant",
             "content": None,

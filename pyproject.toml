@@ -1,5 +1,5 @@
 [project]
-name = "magecode"
+name = "home-swe-home"
 version = "0.2.0"
 description = "A small coding agent built on the anima micro-kernel, over the NVIDIA API."
 readme = "README.md"
@@ -16,7 +16,7 @@ dependencies = [
 dev = ["pytest>=8.0", "pytest-cov>=6.0", "pytest-asyncio>=1.4", "mypy>=1.11", "ruff>=0.17"]
 
 [project.scripts]
-magecode = "magecode.cli:main"
+home-swe-home = "home_swe_home.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -26,7 +26,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-magecode = ["py.typed", "harness/*.md"]
+home_swe_home = ["py.typed", "harness/*.md"]
 
 [tool.ruff]
 line-length = 88
@@ -46,7 +46,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
-source = ["src/magecode"]
+source = ["src/home_swe_home"]
 branch = true
 omit = [
     "*/temp/*",

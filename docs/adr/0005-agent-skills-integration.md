@@ -40,7 +40,7 @@ when a skill is shadowed. Slash-namespaced skills are an unadopted RFC.
   `pr` metadata type drift.
 - Discovery roots: `agents-home/skills/` (native/client scope, authoritative),
   `~/.agents/skills/` (cross-client user scope), `<project>/.agents/skills/`
-  (project-local). No `~/.magecode/skills`.
+  (project-local). No `~/.home-swe-home/skills`.
 - Deduplicate in two passes: canonicalize by `Path.resolve()` to collapse
   aliases, then key by `name` with project > user and last-found within a
   scope. Emit a warning naming both the kept and shadowed absolute paths.

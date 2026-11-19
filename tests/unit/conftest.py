@@ -10,7 +10,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _no_dotenv(monkeypatch):
     """Never load the real .env during tests — it would mutate os.environ."""
-    monkeypatch.setenv("MAGECODE_PROVIDER", "nvidia")
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "nvidia")
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    with patch("magecode.cli.load_dotenv"):
+    with patch("home_swe_home.cli.load_dotenv"):
         yield

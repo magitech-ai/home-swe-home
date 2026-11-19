@@ -1,4 +1,4 @@
-"""Tests for magecode.sandbox."""
+"""Tests for home_swe_home.sandbox."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 from anima import Context
 
-from magecode.sandbox import SandboxResult, SandboxService, run_in_sandbox
+from home_swe_home.sandbox import SandboxResult, SandboxService, run_in_sandbox
 
 
 def _completed(returncode=0, stdout="", stderr=""):
@@ -23,7 +23,7 @@ def test_sandbox_service_run(monkeypatch):
         calls.append((command, kwargs))
         return SandboxResult(stdout="ok\n", stderr="", exit_code=0, timed_out=False)
 
-    monkeypatch.setattr("magecode.sandbox.run_in_sandbox", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.run_in_sandbox", fake_run)
     ctx = Context()
     ctx.use(SandboxService)
     result = ctx.sandbox.run("echo hi", timeout=5, workdir=".")
@@ -34,7 +34,7 @@ def test_sandbox_service_run(monkeypatch):
 
 def test_current_uid_gid_posix(monkeypatch):
     """With os.getuid/getgid available, _current_uid_gid returns UID:GID."""
-    import magecode.sandbox as sandbox_mod
+    import home_swe_home.sandbox as sandbox_mod
 
     monkeypatch.setattr(sandbox_mod.os, "getuid", lambda: 1000, raising=False)
     monkeypatch.setattr(sandbox_mod.os, "getgid", lambda: 1000, raising=False)
@@ -43,7 +43,7 @@ def test_current_uid_gid_posix(monkeypatch):
 
 def test_current_uid_gid_windows_fallback(monkeypatch):
     """Without os.getuid/getgid (Windows), _current_uid_gid returns ''."""
-    import magecode.sandbox as sandbox_mod
+    import home_swe_home.sandbox as sandbox_mod
 
     monkeypatch.delattr(sandbox_mod.os, "getuid", raising=False)
     monkeypatch.delattr(sandbox_mod.os, "getgid", raising=False)
@@ -57,7 +57,7 @@ def test_run_in_sandbox_returns_result(monkeypatch):
         calls.append(cmd)
         return _completed(returncode=0, stdout="hello\n", stderr="")
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     result = run_in_sandbox("echo hello", timeout=10)
     assert result.stdout == "hello\n"
     assert result.stderr == ""
@@ -75,13 +75,13 @@ def test_run_in_sandbox_security_flags(monkeypatch):
         seen["cmd"] = cmd
         return _completed(returncode=0)
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     run_in_sandbox("echo hi")
     cmd = seen["cmd"]
     cmd_str = " ".join(cmd)
     assert "--network" in cmd and "none" in cmd
     assert "--read-only" in cmd
-    from magecode.sandbox import _current_uid_gid
+    from home_swe_home.sandbox import _current_uid_gid
 
     uid_gid = _current_uid_gid()
     if uid_gid:  # POSIX
@@ -108,7 +108,7 @@ def test_run_in_sandbox_workdir_confined_to_cwd(monkeypatch):
         seen["cmd"] = cmd
         return _completed(returncode=0)
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     result = run_in_sandbox("echo x", workdir="/etc")
     assert result.exit_code == 1
     assert "outside the current working directory" in result.stderr
@@ -123,7 +123,7 @@ def test_run_in_sandbox_workdir_relative_ok(monkeypatch):
         calls.append(cmd)
         return _completed(returncode=0)
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     run_in_sandbox("echo x", workdir=".")
     v_idx = calls[0].index("-v")
     mount_spec = calls[0][v_idx + 1]
@@ -138,7 +138,7 @@ def test_run_in_sandbox_docker_not_found(monkeypatch):
     def fake_run(cmd, *, capture_output, text, timeout):
         raise FileNotFoundError("docker")
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     result = run_in_sandbox("echo hi")
     assert result.exit_code == 127
     assert "docker CLI not found" in result.stderr
@@ -164,7 +164,7 @@ def test_run_in_sandbox_timeout_kills_container(monkeypatch):
             return SimpleNamespace(returncode=0)
         raise AssertionError(f"unexpected call: {cmd}")
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     result = run_in_sandbox("sleep 100", timeout=1)
     assert result.timed_out is True
     assert result.exit_code == 124
@@ -185,7 +185,7 @@ def test_run_in_sandbox_timeout_kill_respects_timeout(monkeypatch):
             return SimpleNamespace(returncode=0)
         raise subprocess.TimeoutExpired(cmd, 1)
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     run_in_sandbox("sleep 100", timeout=1)
     assert seen_kwargs.get("timeout") == 5  # KILL_TIMEOUT
 
@@ -202,7 +202,7 @@ def test_run_in_sandbox_timeout_none_output(monkeypatch):
             return SimpleNamespace(returncode=0)
         raise AssertionError(f"unexpected call: {cmd}")
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     result = run_in_sandbox("x", timeout=1)
     assert result.timed_out is True
     assert result.stdout == ""
@@ -215,7 +215,7 @@ def test_output_capped(monkeypatch):
     def fake_run(cmd, *, capture_output, text, timeout):
         return _completed(returncode=0, stdout=long_output, stderr="")
 
-    monkeypatch.setattr("magecode.sandbox.subprocess.run", fake_run)
+    monkeypatch.setattr("home_swe_home.sandbox.subprocess.run", fake_run)
     result = run_in_sandbox("echo long", timeout=10)
     assert len(result.stdout) <= 8192 + 60
     assert "capped" in result.stdout

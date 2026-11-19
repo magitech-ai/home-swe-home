@@ -1,4 +1,4 @@
-"""Gemini Interactions API adapter for the magecode turn loop."""
+"""Gemini Interactions API adapter for the home-swe-home turn loop."""
 
 from __future__ import annotations
 

@@ -1,8 +1,8 @@
-"""Pure helpers for magecode's editable harness tree.
+"""Pure helpers for home-swe-home's editable harness tree.
 
-The harness is the part of magecode that is data rather than code: the base
+The harness is the part of home-swe-home that is data rather than code: the base
 system prompt and per-tool guidance. An improvement loop can roll out a
-candidate tree by pointing ``MAGECODE_HARNESS_DIR`` at a copy; Services read
+candidate tree by pointing ``HOME_SWE_HOME_HARNESS_DIR`` at a copy; Services read
 the active tree when a session starts.
 """
 
@@ -49,7 +49,7 @@ def validate_tree(tree: dict[str, str]) -> str:
 
 def harness_dir() -> Path:
     """Return the active harness directory (env override for candidate trees)."""
-    override = os.environ.get("MAGECODE_HARNESS_DIR")
+    override = os.environ.get("HOME_SWE_HOME_HARNESS_DIR")
     return Path(override) if override else DEFAULT_HARNESS_DIR
 
 

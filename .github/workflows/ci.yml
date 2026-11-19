@@ -17,7 +17,7 @@ jobs:
       python-version: "3.12"
       # dev tools (pytest, mypy, ruff, pytest-asyncio) are optional extras
       install-command: "uv sync --extra dev"
-      # magecode's pytest config has no coverage addopts; pass them here so
+      # home-swe-home's pytest config has no coverage addopts; pass them here so
       # the reusable workflow's coverage-report step has data to check
-      test-commands: "uv run pytest --cov=src/magecode --cov-branch --cov-fail-under=100"
+      test-commands: "uv run pytest --cov=src/home_swe_home --cov-branch --cov-fail-under=100"
       coverage-floor: 100

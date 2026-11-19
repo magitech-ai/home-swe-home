@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from magecode.library import Experience, Library, write_run_report
-from magecode.utils.selection import Selection
+from home_swe_home.library import Experience, Library, write_run_report
+from home_swe_home.utils.selection import Selection
 
 
 def _experience() -> Experience:

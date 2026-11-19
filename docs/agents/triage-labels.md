@@ -1,6 +1,6 @@
 # Triage labels
 
-Magecode uses the canonical five-role vocabulary shared by all `@magitech-ai`
+Home-SWE-Home uses the canonical five-role vocabulary shared by all `@magitech-ai`
 repositories (defined in `.github/CONTRIBUTING.md` in the organization's
 `.github` repo). Use GitHub Issues via the `gh` CLI.
 

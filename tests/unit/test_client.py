@@ -1,4 +1,4 @@
-"""Tests for magecode.client (ClientService + config helpers)."""
+"""Tests for home_swe_home.client (ClientService + config helpers)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 from anima import Context
 from openai import APIConnectionError, APIStatusError
 
-from magecode.client import (
+from home_swe_home.client import (
     NVIDIA_BASE_URL,
     ClientService,
     ConfigurationError,
@@ -104,7 +104,7 @@ def test_chat_complete_wraps_connection_error():
 def patch_openai():
     from unittest.mock import patch
 
-    return patch("magecode.client.OpenAI")
+    return patch("home_swe_home.client.OpenAI")
 
 
 def failing_client(error):
@@ -117,14 +117,14 @@ def failing_client(error):
 
 
 def test_provider_config_nvidia(monkeypatch):
-    monkeypatch.setenv("MAGECODE_PROVIDER", "nvidia")
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "nvidia")
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test")
     assert provider_config()[2] == "NVIDIA"
     assert provider_config()[0] == NVIDIA_BASE_URL
 
 
 def test_provider_config_gemini(monkeypatch):
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
     base, key, label = provider_config()
     assert label == "Gemini" and key == "gemini-test"
@@ -132,14 +132,14 @@ def test_provider_config_gemini(monkeypatch):
 
 
 def test_provider_config_gemini_google_key(monkeypatch):
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setenv("GOOGLE_API_KEY", "google-test")
     assert provider_config()[1] == "google-test"
 
 
 def test_provider_config_gemini_missing_key(monkeypatch):
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     with pytest.raises(ConfigurationError, match="GEMINI_API_KEY"):
@@ -147,8 +147,8 @@ def test_provider_config_gemini_missing_key(monkeypatch):
 
 
 def test_provider_config_unknown(monkeypatch):
-    monkeypatch.setenv("MAGECODE_PROVIDER", "bogus")
-    with pytest.raises(ConfigurationError, match="unknown MAGECODE_PROVIDER"):
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "bogus")
+    with pytest.raises(ConfigurationError, match="unknown HOME_SWE_HOME_PROVIDER"):
         provider_config()
 
 
@@ -176,41 +176,41 @@ def test_chat_complete_passes_stream_false():
 
 
 def test_gemini_api_mode(monkeypatch):
-    from magecode.client import gemini_api_mode
+    from home_swe_home.client import gemini_api_mode
 
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
-    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
+    monkeypatch.delenv("HOME_SWE_HOME_GEMINI_API", raising=False)
     assert gemini_api_mode() == "interactions"
-    monkeypatch.setenv("MAGECODE_GEMINI_API", "openai")
+    monkeypatch.setenv("HOME_SWE_HOME_GEMINI_API", "openai")
     assert gemini_api_mode() == "openai"
-    monkeypatch.setenv("MAGECODE_GEMINI_API", "bad")
-    with pytest.raises(ConfigurationError, match="unknown MAGECODE_GEMINI_API"):
+    monkeypatch.setenv("HOME_SWE_HOME_GEMINI_API", "bad")
+    with pytest.raises(ConfigurationError, match="unknown HOME_SWE_HOME_GEMINI_API"):
         gemini_api_mode()
 
 
 def test_use_native_selection(monkeypatch):
-    from magecode.client import ClientService
+    from home_swe_home.client import ClientService
 
     ctx = Context()
     ctx.use(ClientService)
     service = ctx.client
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
-    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
+    monkeypatch.delenv("HOME_SWE_HOME_GEMINI_API", raising=False)
     assert service.use_native is True
-    monkeypatch.setenv("MAGECODE_GEMINI_API", "openai")
+    monkeypatch.setenv("HOME_SWE_HOME_GEMINI_API", "openai")
     assert service.use_native is False
-    monkeypatch.setenv("MAGECODE_PROVIDER", "nvidia")
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "nvidia")
     assert service.use_native is False
 
 
 def test_chat_stream_native_mode(monkeypatch):
-    from magecode.client import ClientService
+    from home_swe_home.client import ClientService
 
     ctx = Context()
     ctx.use(ClientService)
     service = ctx.client
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
-    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
+    monkeypatch.delenv("HOME_SWE_HOME_GEMINI_API", raising=False)
     service._native = object()
     seen = {}
 
@@ -218,7 +218,7 @@ def test_chat_stream_native_mode(monkeypatch):
         seen.update(kwargs)
         return ["chunk"]
 
-    monkeypatch.setattr("magecode.native.native_stream", fake_native_stream)
+    monkeypatch.setattr("home_swe_home.native.native_stream", fake_native_stream)
     assert service.chat_stream(model="m", messages=[], tools=None, reasoning=True) == [
         "chunk"
     ]
@@ -230,13 +230,13 @@ def test_chat_stream_native_mode(monkeypatch):
 
 
 def test_chat_complete_native_mode(monkeypatch):
-    from magecode.client import ClientService
+    from home_swe_home.client import ClientService
 
     ctx = Context()
     ctx.use(ClientService)
     service = ctx.client
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
-    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
+    monkeypatch.delenv("HOME_SWE_HOME_GEMINI_API", raising=False)
     service._native = object()
     monkeypatch.setattr(service, "chat_stream", lambda **kwargs: [])
     result = service.chat_complete(model="m", messages=[], tools=None)
@@ -244,22 +244,22 @@ def test_chat_complete_native_mode(monkeypatch):
 
 
 def test_native_client_is_lazy(monkeypatch):
-    from magecode.client import ClientService
+    from home_swe_home.client import ClientService
 
     ctx = Context()
     ctx.use(ClientService)
     service = ctx.client
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
-    monkeypatch.delenv("MAGECODE_GEMINI_API", raising=False)
+    monkeypatch.delenv("HOME_SWE_HOME_GEMINI_API", raising=False)
     monkeypatch.setattr("google.genai.Client", lambda **kwargs: "fake-client")
     assert service.native == "fake-client"
     assert service.native == "fake-client"
 
 
 def test_chat_stream_compat_passes_reasoning_effort(monkeypatch):
-    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
-    monkeypatch.setenv("MAGECODE_GEMINI_API", "openai")
+    monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "gemini")
+    monkeypatch.setenv("HOME_SWE_HOME_GEMINI_API", "openai")
     seen = {}
     service = _service_with(
         SimpleNamespace(

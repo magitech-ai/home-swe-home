@@ -1,8 +1,8 @@
-"""magecode's tool services, built as anima components.
+"""home-swe-home's tool services, built as anima components.
 
 Public API: ``ToolService`` plus all individual tool Service classes.
-Schema inference lives in ``magecode.utils.schema``. Each tool lives in its
-own file under ``src/magecode/tools/`` with the filename matching the tool
+Schema inference lives in ``home_swe_home.utils.schema``. Each tool lives in its
+own file under ``src/home_swe_home/tools/`` with the filename matching the tool
 name (e.g. ``read_file.py`` defines ``ReadFileService``).
 """
 

@@ -1,0 +1,2 @@
+[console_scripts]
+home-swe-home = home_swe_home.cli:main

@@ -1,7 +1,7 @@
 """Live integration tests for the Docker sandbox.
 
 These tests require a running Docker daemon and are skipped otherwise.
-They exercise every security property of magecode's sandbox against a real
+They exercise every security property of home-swe-home's sandbox against a real
 container runtime, not mocks.
 """
 
@@ -11,7 +11,7 @@ import subprocess
 
 import pytest
 
-from magecode.sandbox import run_in_sandbox
+from home_swe_home.sandbox import run_in_sandbox
 
 _docker_available = (
     subprocess.run(["docker", "info"], capture_output=True).returncode == 0

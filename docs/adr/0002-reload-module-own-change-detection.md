@@ -16,13 +16,13 @@ anima ships `HmrService`, a hot-reload service. We investigated delegating
 
 ## Decision
 
-Do **not** delegate to `HmrService`. Keep magecode's own mtime tracking in
+Do **not** delegate to `HmrService`. Keep home-swe-home's own mtime tracking in
 `reload_module.py`. The two have different semantics:
 
 - `HmrService.reload_module()` is async, watches directories, operates on
   modules already in `sys.modules`, and reloads via `importlib.reload`. It is
   designed for automatic, event-driven reload of mounted components.
-- magecode's tool is a synchronous, model-invoked call that loads arbitrary
+- home-swe-home's tool is a synchronous, model-invoked call that loads arbitrary
   files by path (including copies not in `sys.modules`) and enforces the
   read-before-edit contract.
 

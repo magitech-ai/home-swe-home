@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from magecode.utils import home as h
+from home_swe_home.utils import home as h
 
 
 def _make_home(root: Path, name: str = "agents-home") -> Path:
@@ -138,7 +138,7 @@ def test_find_home_walk_up(isolated_config, tmp_path):
 
 def test_find_home_finds_sibling_checkout(isolated_config, tmp_path):
     target = _make_home(tmp_path)
-    repo = tmp_path / "magecode"
+    repo = tmp_path / "home-swe-home"
     repo.mkdir()
     assert h.find_home(start=repo) == target.resolve()
 
@@ -163,5 +163,5 @@ def test_find_home_returns_none_when_unset(isolated_config, tmp_path, monkeypatc
 
 
 def test_config_path_env_override(monkeypatch, tmp_path):
-    monkeypatch.setenv("MAGECODE_CONFIG_PATH", str(tmp_path / "config.toml"))
+    monkeypatch.setenv("HOME_SWE_HOME_CONFIG_PATH", str(tmp_path / "config.toml"))
     assert h.config_path() == tmp_path / "config.toml"

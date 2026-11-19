@@ -32,7 +32,7 @@ async def run_repl(
     ctx = ctx or await build_context()
     system_content = system_content or ctx.instructions.build(model=model)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
-    print("magecode interactive chat")
+    print("home-swe-home interactive chat")
     print("  /model <id>   switch model")
     print("  /context      show context window and token counts")
     print("  Ctrl-D        exit")
@@ -79,9 +79,9 @@ async def run_repl(
         except TurnInterrupted:
             print("\nTurn interrupted.")
         except TurnLimitReached as error:
-            print(f"\nmagecode: {error}")
+            print(f"\nhome-swe-home: {error}")
         except MiniClaudeError as error:
-            print(f"\nmagecode: {error}")
+            print(f"\nhome-swe-home: {error}")
 
 
 def _show_context(messages: list[dict[str, Any]], ctx: Context) -> None:

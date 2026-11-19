@@ -1,4 +1,4 @@
-"""JSON-schema inference for magecode's anima Service tools.
+"""JSON-schema inference for home-swe-home's anima Service tools.
 
 ``service_schema()`` inspects a Service class's ``__call__`` method and builds
 an OpenAI-compatible tool schema (description from the class docstring,
