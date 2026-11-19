@@ -200,6 +200,14 @@ chunks, which is preserved through `_assistant_message_dict` so the follow-up
 turn does not fail with HTTP 400. The CLI streams by default; `--no-stream`
 uses the original whole-response path.
 
+## Defaults
+
+The default provider is Gemini, model `gemini-4-hydrogen`, effort `medium`.
+`MAGECODE_MODEL`, `--model`, `MAGECODE_EFFORT` and `--effort` override them.
+OpenAI-compatible Gemini calls send `reasoning_effort`; native Interactions
+calls send `generation_config.thinking_level`. Set
+`MAGECODE_PROVIDER=nvidia` to use the NVIDIA endpoint.
+
 ## Gemini API modes
 
 `MAGECODE_PROVIDER=gemini` defaults to the native Interactions API

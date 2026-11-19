@@ -157,6 +157,7 @@ async def test_repl_user_message_reaches_turn():
         stream: bool = False,
         show_reasoning: bool = False,
         show_events: bool = False,
+        effort: str = "medium",
     ):
         seen["messages"] = messages
         seen["model"] = model

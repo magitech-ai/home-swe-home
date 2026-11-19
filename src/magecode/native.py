@@ -75,6 +75,7 @@ def native_stream(
     reasoning: bool,
     interaction_id: str | None,
     on_interaction: Any,
+    effort: str = "medium",
 ) -> Any:
     """Yield OpenAI-shaped chunks from a native Interactions stream."""
     current, results = native_input(messages, has_interaction=bool(interaction_id))
@@ -87,8 +88,10 @@ def native_stream(
     }
     if interaction_id:
         params["previous_interaction_id"] = interaction_id
+    generation: dict[str, Any] = {"thinking_level": effort}
     if reasoning:
-        params["generation_config"] = {"thinking_summaries": "auto"}
+        generation["thinking_summaries"] = "auto"
+    params["generation_config"] = generation
 
     translator = NativeTranslator(
         on_interaction=on_interaction,

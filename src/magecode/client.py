@@ -22,7 +22,7 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 def provider_config() -> tuple[str, str, str]:
     """Return (base_url, api_key, label) for the active provider."""
-    provider = os.environ.get("MAGECODE_PROVIDER", "nvidia")
+    provider = os.environ.get("MAGECODE_PROVIDER", "gemini")
     if provider == "gemini":
         key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not key:
@@ -101,7 +101,7 @@ class ClientService(Service):
     @property
     def use_native(self) -> bool:
         return (
-            os.environ.get("MAGECODE_PROVIDER", "nvidia") == "gemini"
+            os.environ.get("MAGECODE_PROVIDER", "gemini") == "gemini"
             and gemini_api_mode() == "interactions"
         )
 
@@ -112,16 +112,22 @@ class ClientService(Service):
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
         stream: bool,
+        effort: str = "medium",
     ) -> Any:
         """Call the model, wrapping provider API errors consistently."""
         try:
             # Raw dicts (including tool-result messages) are looser than
             # openai's strict param types.
+            kwargs: dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "tools": tools,
+                "stream": stream,
+            }
+            if os.environ.get("MAGECODE_PROVIDER", "gemini") == "gemini":
+                kwargs["reasoning_effort"] = effort
             return self.openai.chat.completions.create(  # type: ignore[arg-type]
-                model=model,
-                messages=messages,  # type: ignore[arg-type]
-                tools=tools,  # type: ignore[arg-type]
-                stream=stream,
+                **kwargs
             )
         except APIError as error:
             label = (
@@ -137,6 +143,7 @@ class ClientService(Service):
         model: str,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
+        effort: str = "medium",
     ) -> Any:
         """Ask the model for one complete assistant reply."""
         if self.use_native:
@@ -148,7 +155,9 @@ class ClientService(Service):
                 self.chat_stream(model=model, messages=messages, tools=tools)
             )
             return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-        return self._create(model=model, messages=messages, tools=tools, stream=False)
+        return self._create(
+            model=model, messages=messages, tools=tools, stream=False, effort=effort
+        )
 
     def chat_stream(
         self,
@@ -157,6 +166,7 @@ class ClientService(Service):
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
         reasoning: bool = False,
+        effort: str = "medium",
     ) -> Any:
         """Open a streamed assistant reply (one delta at a time)."""
         if self.use_native:
@@ -170,8 +180,11 @@ class ClientService(Service):
                 reasoning=reasoning,
                 interaction_id=self._interaction_id,
                 on_interaction=self._set_interaction,
+                effort=effort,
             )
-        return self._create(model=model, messages=messages, tools=tools, stream=True)
+        return self._create(
+            model=model, messages=messages, tools=tools, stream=True, effort=effort
+        )
 
     def _set_interaction(self, interaction_id: str) -> None:
         """Remember the interaction id for stateful follow-up turns."""
