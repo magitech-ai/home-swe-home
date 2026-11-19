@@ -11,7 +11,7 @@ are printed exactly as they came back.
 
 ```sh
 uv sync                      # installs anima + dependencies and this package
-export NVIDIA_API_KEY=nvapi-...   # https://build.nvidia.com; never echo it
+export GEMINI_API_KEY=...        # default provider is Gemini; or export NVIDIA_API_KEY and set MAGECODE_PROVIDER=nvidia
 ```
 
 Set `MAGECODE_PROVIDER=gemini` and export `GEMINI_API_KEY` (or
@@ -28,7 +28,7 @@ uv run magecode -p "say hi in three words"
 uv run magecode
 
 # Pick a model
-uv run magecode --model nvidia/nemotron-3.5-lightning-30b-a3b -p "..."
+uv run magecode --model gemini-4-hydrogen --effort medium -p "..."
 ```
 
 Gemini has two API modes under `MAGECODE_PROVIDER=gemini`: native

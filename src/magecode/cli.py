@@ -22,7 +22,9 @@ from .core_loop import TurnInterrupted, TurnLimitReached
 from .onboard import run_wizard
 from .repl import run_repl
 
-DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+DEFAULT_MODEL = "gemini-4-hydrogen"
+DEFAULT_PROVIDER = "gemini"
+DEFAULT_EFFORT = "medium"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--model",
         default=os.environ.get("MAGECODE_MODEL", DEFAULT_MODEL),
         help=f"model id (default: {DEFAULT_MODEL})",
+    )
+    parser.add_argument(
+        "--effort",
+        choices=("minimal", "low", "medium", "high"),
+        default=os.environ.get("MAGECODE_EFFORT", DEFAULT_EFFORT),
+        help=f"reasoning effort (default: {DEFAULT_EFFORT})",
     )
     parser.add_argument(
         "--sandbox",
@@ -87,6 +95,7 @@ async def _run_headless(
     stream: bool = True,
     show_reasoning: bool = False,
     show_events: bool = False,
+    effort: str = DEFAULT_EFFORT,
 ) -> int:
     ctx = await build_context()
     try:
@@ -96,6 +105,7 @@ async def _run_headless(
             stream=stream,
             show_reasoning=show_reasoning,
             show_events=show_events,
+            effort=effort,
         )
     except TurnInterrupted:
         print("\nTurn interrupted.", file=sys.stderr)
@@ -153,6 +163,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
             stream=args.stream,
             show_reasoning=args.show_reasoning,
             show_events=args.show_events,
+            effort=args.effort,
         )
 
     await run_repl(
@@ -162,6 +173,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
         stream=args.stream,
         show_reasoning=args.show_reasoning,
         show_events=args.show_events,
+        effort=args.effort,
     )
     return 0
 

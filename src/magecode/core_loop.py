@@ -42,6 +42,7 @@ class CoreLoopService(Service):
         stream: bool = False,
         show_reasoning: bool = False,
         show_events: bool = False,
+        effort: str = "medium",
     ) -> list[dict[str, Any]]:
         """Run one turn until the model stops asking for tools.
 
@@ -79,6 +80,7 @@ class CoreLoopService(Service):
                         messages=messages,
                         tools=tools,
                         reasoning=show_reasoning,
+                        effort=effort,
                     )
                     reasoning_open = False
 

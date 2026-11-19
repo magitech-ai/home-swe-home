@@ -117,7 +117,7 @@ def failing_client(error):
 
 
 def test_provider_config_nvidia(monkeypatch):
-    monkeypatch.delenv("MAGECODE_PROVIDER", raising=False)
+    monkeypatch.setenv("MAGECODE_PROVIDER", "nvidia")
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test")
     assert provider_config()[2] == "NVIDIA"
     assert provider_config()[0] == NVIDIA_BASE_URL
@@ -255,3 +255,22 @@ def test_native_client_is_lazy(monkeypatch):
     monkeypatch.setattr("google.genai.Client", lambda **kwargs: "fake-client")
     assert service.native == "fake-client"
     assert service.native == "fake-client"
+
+
+def test_chat_stream_compat_passes_reasoning_effort(monkeypatch):
+    monkeypatch.setenv("MAGECODE_PROVIDER", "gemini")
+    monkeypatch.setenv("MAGECODE_GEMINI_API", "openai")
+    seen = {}
+    service = _service_with(
+        SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(
+                    create=lambda **kwargs: seen.update(kwargs) or "ok"
+                )
+            )
+        )
+    )
+    assert (
+        service.chat_stream(model="m", messages=[], tools=None, effort="high") == "ok"
+    )
+    assert seen["reasoning_effort"] == "high"

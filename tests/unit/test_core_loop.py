@@ -330,7 +330,7 @@ async def test_core_loop_streams_deltas(monkeypatch, capsys):
 
     ctx = await _build_context()
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         return [
             SimpleNamespace(
                 choices=[
@@ -364,7 +364,7 @@ async def test_core_loop_streams_tool_call(monkeypatch, capsys):
 
     turns = iter([True, False])
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         if next(turns):
             return [
                 SimpleNamespace(
@@ -413,7 +413,7 @@ async def test_core_loop_show_reasoning_is_delimited_and_not_stored(
 
     ctx = await _build_context()
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         return [
             SimpleNamespace(
                 choices=[
@@ -452,7 +452,7 @@ async def test_core_loop_surfaces_events_and_unknown(monkeypatch, capsys):
 
     ctx = await _build_context()
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         known = SimpleNamespace(label=lambda: "step.delta:text", known=True)
         unknown = SimpleNamespace(label=lambda: "future:thing", known=False)
         return [
@@ -494,7 +494,7 @@ async def test_core_loop_closes_reasoning_at_end(monkeypatch, capsys):
 
     ctx = await _build_context()
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         return [
             SimpleNamespace(
                 choices=[
@@ -526,7 +526,7 @@ async def test_core_loop_hides_reasoning_by_default(monkeypatch, capsys):
 
     ctx = await _build_context()
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         return [
             SimpleNamespace(
                 choices=[
@@ -559,7 +559,7 @@ async def test_core_loop_reasoning_hidden_when_not_requested(monkeypatch, capsys
 
     ctx = await _build_context()
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         return [
             SimpleNamespace(
                 choices=[
@@ -589,7 +589,7 @@ async def test_core_loop_multiple_reasoning_deltas(monkeypatch, capsys):
 
     ctx = await _build_context()
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         return [
             SimpleNamespace(
                 choices=[
@@ -624,7 +624,7 @@ async def test_core_loop_hides_known_events_by_default(monkeypatch, capsys):
     known = SimpleNamespace(label=lambda: "step.delta:text", known=True)
     unknown = SimpleNamespace(label=lambda: "future:thing", known=False)
 
-    def fake_stream(*, model, messages, tools, reasoning=False):
+    def fake_stream(*, model, messages, tools, reasoning=False, **kwargs):
         return [
             SimpleNamespace(
                 choices=[

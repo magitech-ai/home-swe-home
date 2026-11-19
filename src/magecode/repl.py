@@ -26,6 +26,7 @@ async def run_repl(
     stream: bool = True,
     show_reasoning: bool = False,
     show_events: bool = False,
+    effort: str = "medium",
 ) -> None:
     """Run the interactive chat loop until the user exits with Ctrl-D."""
     ctx = ctx or await build_context()
@@ -73,6 +74,7 @@ async def run_repl(
                 stream=stream,
                 show_reasoning=show_reasoning,
                 show_events=show_events,
+                effort=effort,
             )
         except TurnInterrupted:
             print("\nTurn interrupted.")

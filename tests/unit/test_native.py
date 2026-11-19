@@ -142,7 +142,8 @@ def test_native_stream_translates_all_event_kinds():
     )
     assert any(d.event is not None and not d.event.known for d in deltas)
     assert fake.interactions.params["generation_config"] == {
-        "thinking_summaries": "auto"
+        "thinking_level": "medium",
+        "thinking_summaries": "auto",
     }
     assert fake.interactions.params["store"] is True
     assert "previous_interaction_id" not in fake.interactions.params
@@ -169,7 +170,7 @@ def test_native_stream_stateful_and_no_reasoning():
         )
     )
     assert fake.interactions.params["previous_interaction_id"] == "prev"
-    assert "generation_config" not in fake.interactions.params
+    assert fake.interactions.params["generation_config"] == {"thinking_level": "medium"}
 
 
 def test_native_input_stateful_without_user_message():
