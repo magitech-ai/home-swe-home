@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 78,
+  "commit": "a8695175276023f540b4f45f5f7da71ffdbb7ded",
+  "trigger_issue": 77,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44642142713,
+  "recorded_at": "2026-11-19T23:59:52Z",
+  "verdict": "APPROVE",
+  "summary": "The temporary diagnostic step correctly queries the GitHub API repository endpoint using REVERT_TOKEN to output repository permissions.",
+  "findings": [],
+  "elapsed_seconds": 6.133,
+  "prompt_tokens": 1819,
+  "completion_tokens": 40,
+  "evidence_check": []
+}
