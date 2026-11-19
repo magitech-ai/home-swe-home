@@ -1,0 +1,12 @@
+{
+  "status": "error",
+  "pr": 54,
+  "commit": "0c980111c385c0e2c06052c38de878f1de1ad195",
+  "trigger_issue": 53,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "google/gemma-4-31b-it",
+  "reviewer_provider": "nvidia",
+  "workflow_run_id": 44608714004,
+  "recorded_at": "2026-11-19T20:29:45Z",
+  "error": "hsh-review: Request timed out.\n"
+}
