@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 71,
+  "commit": "93a97bfb89b9116c1ad9f9e1696c7e92deae9901",
+  "trigger_issue": 72,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44633957341,
+  "recorded_at": "2026-11-19T23:13:04Z",
+  "verdict": "APPROVE",
+  "summary": "The change correctly adds `workflows: write` permissions exclusively to `.github/workflows/auto-revert.yml`, fulfilling the acceptance criteria within scope.",
+  "findings": [],
+  "elapsed_seconds": 2.237,
+  "prompt_tokens": 1710,
+  "completion_tokens": 50,
+  "evidence_check": []
+}
