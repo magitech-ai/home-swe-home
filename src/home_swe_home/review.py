@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -225,17 +226,29 @@ def main(argv: list[str] | None = None) -> int:
             timeout=REVIEW_TIMEOUT_SECONDS,
             max_retries=0,
         )
-        verdict = run_review(client, model=args.reviewer_model, user_prompt=user_prompt)
+        start = time.monotonic()
+        outcome = run_review_with_usage(
+            client, model=args.reviewer_model, user_prompt=user_prompt
+        )
+        elapsed = time.monotonic() - start
     except Exception as error:
         print(f"hsh-review: {error}", file=sys.stderr)
         return 2
 
-    payload = verdict.model_dump(mode="json")
+    payload = {
+        **outcome.verdict.model_dump(mode="json"),
+        "author_model": args.author_model,
+        "reviewer_model": args.reviewer_model,
+        "reviewer_provider": args.reviewer_provider,
+        "elapsed_seconds": round(elapsed, 3),
+        "prompt_tokens": outcome.prompt_tokens,
+        "completion_tokens": outcome.completion_tokens,
+    }
     rendered = json.dumps(payload, indent=2)
     if args.out:
         Path(args.out).write_text(rendered + "\n", encoding="utf-8")
     print(rendered)
-    return 0 if verdict.approved else 1
+    return 0 if outcome.verdict.approved else 1
 
 
 if __name__ == "__main__":  # pragma: no cover - entry point

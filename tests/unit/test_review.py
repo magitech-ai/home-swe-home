@@ -182,7 +182,14 @@ def test_main_approve_writes_verdict(monkeypatch, tmp_path, capsys) -> None:
         ]
     )
     assert code == 0
-    assert json.loads(out.read_text())["verdict"] == "APPROVE"
+    payload = json.loads(out.read_text())
+    assert payload["verdict"] == "APPROVE"
+    assert payload["author_model"] == "gemini-4-hydrogen"
+    assert payload["reviewer_model"] == "mistral-large"
+    assert payload["reviewer_provider"] == "nvidia"
+    assert payload["prompt_tokens"] == 0
+    assert payload["completion_tokens"] == 0
+    assert payload["elapsed_seconds"] >= 0
     assert "APPROVE" in capsys.readouterr().out
 
 
