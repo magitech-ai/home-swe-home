@@ -55,7 +55,6 @@ source = ["src/home_swe_home"]
 branch = true
 omit = [
     "*/temp/*",
-    "*/tmp*/**",
     "*/AppData/Local/Temp/**",
 ]
 
