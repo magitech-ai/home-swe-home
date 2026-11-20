@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 98,
+  "commit": "2377a70ee40dc8c9b964f29b7b50d1158be91401",
+  "trigger_issue": 97,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44667896482,
+  "recorded_at": "2026-11-20T03:28:11Z",
+  "verdict": "APPROVE",
+  "summary": "Multi-trial review opt-in flags and aggregation logic have been cleanly removed from the review CLI, eval suite, audit records, and documentation.",
+  "findings": [],
+  "elapsed_seconds": 1.742,
+  "prompt_tokens": 7031,
+  "completion_tokens": 48,
+  "evidence_check": []
+}
