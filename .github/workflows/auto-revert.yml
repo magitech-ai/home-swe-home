@@ -61,6 +61,7 @@ jobs:
       - name: Create revert branch and PR
         if: steps.guard.outputs.skip != 'true'
         env:
+          GH_TOKEN: ${{ secrets.REVERT_TOKEN }}
           REVERT_TOKEN: ${{ secrets.REVERT_TOKEN }}
         run: |
           set -euo pipefail
