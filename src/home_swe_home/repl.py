@@ -157,15 +157,7 @@ async def run_repl(
                 continue
 
             if not sig_installed:
-                try:
-                    loop.add_signal_handler(py_signal.SIGINT, _on_sigint)
-                    sig_installed = True
-                except (
-                    NotImplementedError,
-                    RuntimeError,
-                    AttributeError,
-                ):  # pragma: no cover
-                    pass
+                sig_installed = _install_sigint(loop, _on_sigint)
 
             agent.followup(
                 create_user_message(
@@ -183,10 +175,29 @@ async def run_repl(
         stop_events()
         stop_errors()
         if sig_installed:
-            try:
-                loop.remove_signal_handler(py_signal.SIGINT)
-            except (RuntimeError, ValueError, OSError):  # pragma: no cover
-                pass
+            _remove_sigint(loop)
+
+
+def _install_sigint(loop: Any, handler: Any) -> bool:
+    """Install a SIGINT handler, reporting whether it took effect.
+
+    ``loop.add_signal_handler`` is unavailable on some platforms (notably
+    Windows, which raises ``NotImplementedError``), so this returns False
+    rather than raising and the REPL keeps running without Ctrl-C handling.
+    """
+    try:
+        loop.add_signal_handler(py_signal.SIGINT, handler)
+    except (NotImplementedError, RuntimeError, AttributeError, ValueError, OSError):
+        return False
+    return True
+
+
+def _remove_sigint(loop: Any) -> None:
+    """Remove a previously installed SIGINT handler, ignoring failures."""
+    try:
+        loop.remove_signal_handler(py_signal.SIGINT)
+    except (RuntimeError, ValueError, OSError, KeyError):
+        pass
 
 
 def _show_context(agent: Any) -> None:

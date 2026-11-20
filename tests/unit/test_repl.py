@@ -6,7 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from home_swe_home.repl import _show_context, _text_preview, run_repl
+from home_swe_home.repl import (
+    _install_sigint,
+    _remove_sigint,
+    _show_context,
+    _text_preview,
+    run_repl,
+)
 
 
 @pytest.mark.asyncio
@@ -470,3 +476,41 @@ def test_text_preview_truncates() -> None:
 def test_text_preview_non_text_content() -> None:
     assert _text_preview(12345) == ""
     assert _text_preview([{"type": "image"}]) == ""
+
+
+# ---------------------------------------------------------------------------
+# Platform-independent SIGINT handling
+# ---------------------------------------------------------------------------
+
+
+def test_install_sigint_succeeds() -> None:
+    loop = MagicMock()
+    assert _install_sigint(loop, lambda: None) is True
+    loop.add_signal_handler.assert_called_once()
+
+
+def test_install_sigint_unsupported_platform() -> None:
+    """Windows-style loop raises NotImplementedError; report False, do not raise."""
+    loop = MagicMock()
+    loop.add_signal_handler.side_effect = NotImplementedError
+    assert _install_sigint(loop, lambda: None) is False
+
+
+def test_install_sigint_other_failures_are_contained() -> None:
+    for error in (RuntimeError, AttributeError, ValueError, OSError):
+        loop = MagicMock()
+        loop.add_signal_handler.side_effect = error
+        assert _install_sigint(loop, lambda: None) is False
+
+
+def test_remove_sigint_is_safe() -> None:
+    loop = MagicMock()
+    _remove_sigint(loop)
+    loop.remove_signal_handler.assert_called_once()
+
+
+def test_remove_sigint_swallows_failures() -> None:
+    for error in (RuntimeError, ValueError, OSError, KeyError):
+        loop = MagicMock()
+        loop.remove_signal_handler.side_effect = error
+        _remove_sigint(loop)  # must not raise
