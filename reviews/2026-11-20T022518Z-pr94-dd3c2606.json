@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 94,
+  "commit": "dd3c260654b233b94ec83f173402865b15b87a42",
+  "trigger_issue": 93,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44660634680,
+  "recorded_at": "2026-11-20T02:25:18Z",
+  "verdict": "APPROVE",
+  "summary": "The changes tighten the review prompt and review standard documentation against inventing requirements, and update clean-control test cases to have explicit, unambiguous scopes and types.",
+  "findings": [],
+  "elapsed_seconds": 2.083,
+  "prompt_tokens": 11455,
+  "completion_tokens": 49,
+  "evidence_check": []
+}
