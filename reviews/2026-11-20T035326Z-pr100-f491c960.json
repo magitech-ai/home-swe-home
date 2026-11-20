@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 100,
+  "commit": "f491c9605f749a2b71115d4642520f611fe5cdf3",
+  "trigger_issue": 99,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44670692209,
+  "recorded_at": "2026-11-20T03:53:26Z",
+  "verdict": "APPROVE",
+  "summary": "The workflow replaces date-only filenames with UTC timestamp filenames (using ISO-8601 UTC format %Y-%m-%dT%H%M%SZ), satisfying the acceptance criteria without out-of-scope changes.",
+  "findings": [],
+  "elapsed_seconds": 2.239,
+  "prompt_tokens": 2059,
+  "completion_tokens": 65,
+  "evidence_check": []
+}
