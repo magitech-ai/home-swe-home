@@ -32,6 +32,7 @@ from ..utils.text import decode_text
 # Helper: build a standard text-output tool definition
 # ---------------------------------------------------------------------------
 
+
 def _text_output_tool(
     *,
     name: str,
@@ -41,23 +42,26 @@ def _text_output_tool(
     concurrency_safe: bool = False,
 ) -> dict[str, Any]:
     """Build a ToolDefinition that returns plain text output."""
-    result: dict[str, Any] = define_tool({
-        "name": name,
-        "description": description,
-        "parameters": parameters,
-        "isConcurrencySafe": lambda _args: concurrency_safe,
-        "output": {
-            "schema": {"type": "string"},
-            "render": lambda _args, val: [{"type": "text", "text": val}],
-        },
-        "execute": execute,
-    })
+    result: dict[str, Any] = define_tool(
+        {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+            "isConcurrencySafe": lambda _args: concurrency_safe,
+            "output": {
+                "schema": {"type": "string"},
+                "render": lambda _args, val: [{"type": "text", "text": val}],
+            },
+            "execute": execute,
+        }
+    )
     return result
 
 
 # ---------------------------------------------------------------------------
 # File tools
 # ---------------------------------------------------------------------------
+
 
 def _read_file_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     path = args["path"]
@@ -114,9 +118,9 @@ def _edit_file_execute(args: dict[str, Any], run_ctx: Any) -> str:
                 call_args = event.payload.get("arguments")
                 if isinstance(call_args, dict):
                     read_paths.add(str(call_args.get("path", "")))
-            elif event.type == "tool/call" and event.payload.get(
-                "name"
-            ) == "write_file":
+            elif (
+                event.type == "tool/call" and event.payload.get("name") == "write_file"
+            ):
                 call_args = event.payload.get("arguments")
                 if isinstance(call_args, dict):
                     read_paths.add(str(call_args.get("path", "")))
@@ -247,7 +251,11 @@ _SANDBOX_ENV = "HOME_SWE_HOME_SANDBOX"
 
 
 def _use_sandbox() -> bool:
-    return os.environ.get(_SANDBOX_ENV, "").lower() in ("1", "true", "yes", "on")
+    """Return True unless explicitly disabled (sandboxed by default)."""
+    value = os.environ.get(_SANDBOX_ENV, "").lower()
+    if value in ("0", "false", "no", "off"):
+        return False
+    return True
 
 
 def _run_command_execute(args: dict[str, Any], run_ctx: Any) -> str:
@@ -256,6 +264,7 @@ def _run_command_execute(args: dict[str, Any], run_ctx: Any) -> str:
 
     if _use_sandbox():
         from ..sandbox import run_in_sandbox
+
         result = run_in_sandbox(command, timeout=timeout)
         sandbox_parts: list[str] = []
         if result.stdout:
@@ -277,8 +286,7 @@ def _run_command_execute(args: dict[str, Any], run_ctx: Any) -> str:
         )
     except FileNotFoundError as error:
         return (
-            f"Error: command not found: {error.filename}. "
-            "Check the command and retry."
+            f"Error: command not found: {error.filename}. Check the command and retry."
         )
     except subprocess.TimeoutExpired as error:
         stdout = decode_text(getattr(error, "stdout", None))
@@ -303,11 +311,13 @@ def _run_command_execute(args: dict[str, Any], run_ctx: Any) -> str:
 RUN_COMMAND = _text_output_tool(
     name="run_command",
     description=(
-        "Run a shell command on the host (default) or in a Docker sandbox.\n\n"
-        "By default the command runs directly on the host with a timeout. Set\n"
-        "``HOME_SWE_HOME_SANDBOX=1`` to run inside a throwaway Docker container.\n\n"
+        "Run a shell command in a Docker sandbox (default) or on the host.\n\n"
+        "By default the command runs inside a throwaway Docker container with\n"
+        "--network none, --read-only root filesystem, dropped capabilities,\n"
+        "and resource limits. Pass --no-sandbox or set HOME_SWE_HOME_SANDBOX=0\n"
+        "to run on the host instead.\n\n"
         "Security note: unsandboxed commands run with the user's privileges,\n"
-        "including access to environment variables such as NVIDIA_API_KEY."
+        "including access to environment variables such as GEMINI_API_KEY."
     ),
     parameters={
         "command": {"type": "string", "required": True},
@@ -321,16 +331,14 @@ RUN_COMMAND = _text_output_tool(
 # Skill tool
 # ---------------------------------------------------------------------------
 
+
 def _load_skill_execute(args: dict[str, Any], run_ctx: Any) -> str:
     name = args["name"]
-    skills = run_ctx.get("agent")
-    if skills is not None:
-        # Access the skills service through the agent's context.
-        ctx = run_ctx.get("agent")
-        if ctx is not None and hasattr(ctx, "ctx"):
-            skills_svc = ctx.ctx.get("skills", None, strict=False)
-            if skills_svc is not None:
-                return str(skills_svc.load(name))
+    agent = run_ctx.get("agent")
+    if agent is not None and hasattr(agent, "ctx"):
+        skills_svc = agent.ctx.get("skills", None, strict=False)
+        if skills_svc is not None:
+            return str(skills_svc.load(name))
     return f"Error: skill '{name}' is not available."
 
 
@@ -348,6 +356,7 @@ LOAD_SKILL = _text_output_tool(
 # Repo verification tool
 # ---------------------------------------------------------------------------
 
+
 def _verify_repo_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     from ..utils.verify import (
         default_runner,
@@ -355,6 +364,7 @@ def _verify_repo_execute(args: dict[str, Any], _run_ctx: Any) -> str:
         run_checks,
         verification_commands,
     )
+
     path = args.get("path", ".")
     root = Path(path).resolve()
     return format_results(
@@ -379,6 +389,7 @@ VERIFY_REPO = _text_output_tool(
 # ---------------------------------------------------------------------------
 # Web search tool
 # ---------------------------------------------------------------------------
+
 
 def _web_search_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     import html as html_mod
@@ -423,7 +434,7 @@ def _web_search_execute(args: dict[str, Any], _run_ctx: Any) -> str:
             query = href.split("?", 1)[1] if "?" in href else ""
             for pair in query.split("&"):
                 if pair.startswith("uddg="):
-                    return urllib.parse.unquote(pair[len("uddg="):])
+                    return urllib.parse.unquote(pair[len("uddg=") :])
         if href.startswith("//"):
             return "https:" + href
         return href
@@ -432,9 +443,7 @@ def _web_search_execute(args: dict[str, Any], _run_ctx: Any) -> str:
         results: list[str] = []
         for match in pattern.finditer(page):
             href = _decode_href(match.group(1))
-            title = html_mod.unescape(
-                re.sub(r"<.*?>", "", match.group(2))
-            ).strip()
+            title = html_mod.unescape(re.sub(r"<.*?>", "", match.group(2))).strip()
             if title and href:
                 results.append(f"{title}: {href}")
             if len(results) >= _MAX_RESULTS:
@@ -540,9 +549,10 @@ def _reload_module_execute(args: dict[str, Any], run_ctx: Any) -> str:
     read_paths: set[str] = set()
     if agent is not None:
         for event in agent.session.events:
-            if event.type == "tool/call" and event.payload.get(
-                "name"
-            ) in ("read_file", "write_file"):
+            if event.type == "tool/call" and event.payload.get("name") in (
+                "read_file",
+                "write_file",
+            ):
                 call_args = event.payload.get("arguments")
                 if isinstance(call_args, dict):
                     read_paths.add(str(call_args.get("path", "")))
@@ -597,6 +607,7 @@ RELOAD_MODULE = _text_output_tool(
 # ---------------------------------------------------------------------------
 # Code metrics tool
 # ---------------------------------------------------------------------------
+
 
 def _code_metrics_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     path = args.get("path", ".")
@@ -670,6 +681,7 @@ CODE_METRICS = _text_output_tool(
 # Find duplicates tool
 # ---------------------------------------------------------------------------
 
+
 def _find_duplicates_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     path = args.get("path", "")
     if not path:
@@ -727,6 +739,7 @@ FIND_DUPLICATES = _text_output_tool(
 # ---------------------------------------------------------------------------
 # Generate docs tool
 # ---------------------------------------------------------------------------
+
 
 def _generate_docs_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     path = args.get("path", ".")
@@ -800,6 +813,7 @@ GENERATE_DOCS = _text_output_tool(
 # ---------------------------------------------------------------------------
 # Add repo tool
 # ---------------------------------------------------------------------------
+
 
 def _add_repo_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     from ..utils.home import find_home

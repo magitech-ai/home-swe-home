@@ -24,12 +24,8 @@ def test_catalog_lists_visible_skills(tmp_path: Path, monkeypatch) -> None:
     user_skills = tmp_path / ".agents" / "skills"
     _skill(user_skills, "alpha", "Alpha skill")
     _skill(user_skills, "beta", "Beta skill", disabled=True)
-    monkeypatch.setattr(
-        "home_swe_home.skills.find_home", lambda: None
-    )
-    monkeypatch.setattr(
-        "home_swe_home.utils.home.Path.home", lambda: tmp_path
-    )
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
 
     ctx = Context()
     ctx.use(SkillsService)
@@ -43,12 +39,8 @@ def test_catalog_lists_visible_skills(tmp_path: Path, monkeypatch) -> None:
 def test_load_returns_body_once(tmp_path: Path, monkeypatch) -> None:
     user_skills = tmp_path / ".agents" / "skills"
     _skill(user_skills, "alpha", "Alpha skill")
-    monkeypatch.setattr(
-        "home_swe_home.skills.find_home", lambda: None
-    )
-    monkeypatch.setattr(
-        "home_swe_home.utils.home.Path.home", lambda: tmp_path
-    )
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
 
     ctx = Context()
     ctx.use(SkillsService)
@@ -61,12 +53,8 @@ def test_load_returns_body_once(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_load_unknown_skill(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(
-        "home_swe_home.skills.find_home", lambda: None
-    )
-    monkeypatch.setattr(
-        "home_swe_home.utils.home.Path.home", lambda: tmp_path
-    )
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
 
     ctx = Context()
     ctx.use(SkillsService)

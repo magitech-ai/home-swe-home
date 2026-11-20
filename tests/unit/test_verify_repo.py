@@ -15,9 +15,7 @@ def test_verify_repo_runs_default_checks(tmp_path: Path) -> None:
         calls.append((command, cwd))
         return (0, "")
 
-    with patch(
-        "home_swe_home.utils.verify.default_runner", side_effect=fake_runner
-    ):
+    with patch("home_swe_home.utils.verify.default_runner", side_effect=fake_runner):
         result = VERIFY_REPO["execute"](
             {"path": str(tmp_path)}, {"signal": None, "agent": None}
         )
@@ -32,9 +30,7 @@ def test_verify_repo_reports_failures(tmp_path: Path) -> None:
             return (1, "E501 line too long")
         return (0, "")
 
-    with patch(
-        "home_swe_home.utils.verify.default_runner", side_effect=fake_runner
-    ):
+    with patch("home_swe_home.utils.verify.default_runner", side_effect=fake_runner):
         result = VERIFY_REPO["execute"](
             {"path": str(tmp_path)}, {"signal": None, "agent": None}
         )

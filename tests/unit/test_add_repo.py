@@ -75,12 +75,8 @@ def test_clones_with_confirm(tmp_path: Path, monkeypatch) -> None:
 
 def test_no_home_configured(monkeypatch) -> None:
     monkeypatch.delenv("AGENTS_HOME_PATH", raising=False)
-    monkeypatch.setattr(
-        "home_swe_home.utils.home.find_home", lambda: None
-    )
+    monkeypatch.setattr("home_swe_home.utils.home.find_home", lambda: None)
 
-    result = ADD_REPO["execute"](
-        {"ref": "anything"}, {"signal": None, "agent": None}
-    )
+    result = ADD_REPO["execute"]({"ref": "anything"}, {"signal": None, "agent": None})
     assert "Error" in result
     assert "no agents-home checkout" in result

@@ -45,9 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"reasoning effort (default: {DEFAULT_EFFORT})",
     )
     parser.add_argument(
-        "--sandbox",
-        action="store_true",
-        help="run shell commands in a Docker sandbox (default: host execution)",
+        "--no-sandbox",
+        dest="sandbox",
+        action="store_false",
+        default=True,
+        help="run shell commands on the host instead of in a Docker sandbox",
     )
     parser.add_argument(
         "--show-reasoning",
@@ -127,14 +129,16 @@ async def _run_headless(
 
     ctx = await build_context()
 
-    handle = await ctx.agents.create({
-        "sessionId": session_id or f"hsh-{uuid.uuid4()}",
-        "agentOptions": {
-            "provider": DEFAULT_PROVIDER,
-            "model": model,
-            "reasoningEffort": effort,
-        },
-    })
+    handle = await ctx.agents.create(
+        {
+            "sessionId": session_id or f"hsh-{uuid.uuid4()}",
+            "agentOptions": {
+                "provider": DEFAULT_PROVIDER,
+                "model": model,
+                "reasoningEffort": effort,
+            },
+        }
+    )
     agent = handle["agent"]
     first_seq = len(agent.session.events)
 
@@ -207,8 +211,8 @@ async def _run_async(argv: list[str] | None = None) -> int:
             print(f"Home scaffolded at {args.init_home}; next: review AGENTS.md.")
         return 0 if accepted else 1
 
-    if args.sandbox:
-        os.environ["HOME_SWE_HOME_SANDBOX"] = "1"
+    if not args.sandbox:
+        os.environ["HOME_SWE_HOME_SANDBOX"] = "0"
 
     # Fail fast on missing API key before assembling the Context.
     if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
@@ -231,6 +235,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
 
     # Interactive REPL
     from .repl import run_repl
+
     await run_repl(
         model=args.model,
         stream=args.stream,

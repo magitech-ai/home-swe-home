@@ -253,6 +253,7 @@ def test_reminders_service_and_instructions_tail_injection(
 
     # Instructions are now pure functions, not a Service.
     from home_swe_home.instructions import agents_md, system_line
+
     with patch("home_swe_home.utils.home.find_home", return_value=None):
         assert isinstance(agents_md(), str)
     assert isinstance(system_line(model="m", cwd="/tmp"), str)

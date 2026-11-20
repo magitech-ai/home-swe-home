@@ -31,14 +31,16 @@ async def run_repl(
 
     ctx = await build_context()
 
-    handle = await ctx.agents.create({
-        "sessionId": f"hsh-{uuid.uuid4()}",
-        "agentOptions": {
-            "provider": DEFAULT_PROVIDER,
-            "model": model,
-            "reasoningEffort": effort,
-        },
-    })
+    handle = await ctx.agents.create(
+        {
+            "sessionId": f"hsh-{uuid.uuid4()}",
+            "agentOptions": {
+                "provider": DEFAULT_PROVIDER,
+                "model": model,
+                "reasoningEffort": effort,
+            },
+        }
+    )
     agent = handle["agent"]
     current_model = model
 
@@ -79,6 +81,7 @@ async def run_repl(
 
     def _on_session_event(subject: Any, event: Any) -> None:
         from magitech_harness import EventType
+
         if subject is not agent.session:
             return
         if event.type == EventType.TOOL_CALL:
@@ -111,11 +114,13 @@ async def run_repl(
                 print(f"model: {current_model}")
                 continue
             if text.startswith("/model "):
-                current_model = text[len("/model "):].strip()
-                agent.model.select({
-                    "provider": DEFAULT_PROVIDER,
-                    "model": current_model,
-                })
+                current_model = text[len("/model ") :].strip()
+                agent.model.select(
+                    {
+                        "provider": DEFAULT_PROVIDER,
+                        "model": current_model,
+                    }
+                )
                 print(f"model: {current_model}")
                 continue
             if text == "/context":
@@ -131,7 +136,7 @@ async def run_repl(
             if text.startswith("/skill "):
                 skills = ctx.get("skills", None, strict=False)
                 if skills is not None:
-                    print(skills.load(text[len("/skill "):].strip()))
+                    print(skills.load(text[len("/skill ") :].strip()))
                 else:
                     print("No skills service mounted.")
                 continue

@@ -73,27 +73,64 @@ def _register_prompt_sections(ctx: Context) -> None:
     from .instructions import agents_md, system_line
 
     # Identity section
-    ctx.system_prompt.section({
-        "name": "hsh:identity",
-        "order": -500,
-        "text": "You are home-swe-home, a coding agent. You help with software "
-                "engineering tasks: reading and editing code, running commands, "
-                "searching the web, and verifying that changes pass checks.",
-    })
+    ctx.system_prompt.section(
+        {
+            "name": "hsh:identity",
+            "order": -500,
+            "text": "You are home-swe-home, a coding agent. You help with software "
+            "engineering tasks: reading and editing code, running commands, "
+            "searching the web, and verifying that changes pass checks.",
+        }
+    )
 
     # System line (OS, cwd, date, model)
-    ctx.system_prompt.section({
-        "name": "hsh:system-line",
-        "order": 100,
-        "text": lambda _ctx: system_line(),
-    })
+    ctx.system_prompt.section(
+        {
+            "name": "hsh:system-line",
+            "order": 100,
+            "text": lambda _ctx: system_line(),
+        }
+    )
 
     # AGENTS.md from home and current repo
-    ctx.system_prompt.section({
-        "name": "hsh:agents-md",
-        "order": 200,
-        "text": lambda _ctx: agents_md(),
-    })
+    ctx.system_prompt.section(
+        {
+            "name": "hsh:agents-md",
+            "order": 200,
+            "text": lambda _ctx: agents_md(),
+        }
+    )
+
+    # Skills catalog — dynamic, reads from the mounted SkillsService.
+    def _skills_catalog(_ctx: Any) -> str:
+        skills = ctx.get("skills", None, strict=False)
+        if skills is not None:
+            return str(skills.catalog())
+        return ""
+
+    ctx.system_prompt.section(
+        {
+            "name": "hsh:skills-catalog",
+            "order": 300,
+            "text": _skills_catalog,
+        }
+    )
+
+    # Reminders — dynamic, reads from the mounted RemindersService.
+    def _reminders_block(_ctx: Any) -> str:
+        reminders = ctx.get("reminders", None, strict=False)
+        if reminders is not None:
+            return str(reminders.due_block())
+        return ""
+
+    ctx.system_prompt.context(
+        {
+            "name": "hsh:reminders",
+            "order": 110,
+            "required": True,
+            "text": _reminders_block,
+        }
+    )
 
 
 async def create_agent_async(
@@ -103,11 +140,13 @@ async def create_agent_async(
     session_id: str | None = None,
 ) -> Any:
     """Create an agent on the context and return the handle."""
-    handle = await ctx.agents.create({
-        "sessionId": session_id or f"hsh-{uuid.uuid4()}",
-        "agentOptions": {
-            "provider": DEFAULT_PROVIDER,
-            "model": model,
-        },
-    })
+    handle = await ctx.agents.create(
+        {
+            "sessionId": session_id or f"hsh-{uuid.uuid4()}",
+            "agentOptions": {
+                "provider": DEFAULT_PROVIDER,
+                "model": model,
+            },
+        }
+    )
     return handle

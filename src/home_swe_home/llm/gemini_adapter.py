@@ -7,13 +7,9 @@ lifecycle: it sends the request, consumes the event stream, and yields chunks
 that mth's ``AssistantStreamAttempt`` accumulates into a durable assistant
 message.
 
-Two API modes are supported:
-
-* ``interactions`` (default) — the native Gemini Interactions API via
-  ``google-genai``.
-* ``openai`` — the OpenAI-compatible endpoint via ``httpx`` (same wire
-  protocol as mth's ``openai_completions`` streamer, but pointed at Gemini's
-  base URL).
+Uses the native Gemini Interactions API for stateful conversations. When a
+previous interaction ID is available, it is sent as ``previous_interaction_id``
+so Gemini can continue the conversation without resending the full history.
 
 The adapter is registered on ``ctx.llm`` via
 ``ctx.llm.register_adapter(["gemini"], GeminiAdapter())``.
@@ -45,9 +41,7 @@ from magitech_harness.llm.types import (
 
 __all__ = ["GeminiAdapter"]
 
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 DEFAULT_MODEL = "gemini-4-hydrogen"
-DEFAULT_TIMEOUT_MS = 300_000
 
 # Known models for listing. The actual model set is fetched dynamically when
 # the API key is available; this list is the fallback for offline/test use.
@@ -71,6 +65,10 @@ def _api_key() -> str:
 
 class GeminiAdapter(LlmAdapter):
     """Adapter for Google Gemini via the native Interactions API."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._interaction_id: str | None = None
 
     def provider_info(self, provider: str) -> LlmProviderInfo:
         return {"id": provider, "name": "Google Gemini"}
@@ -99,6 +97,15 @@ class GeminiAdapter(LlmAdapter):
             "provider": provider,
             "id": model,
             "name": model,
+            "reasoning": {
+                "efforts": [
+                    {"id": "minimal", "name": "Minimal"},
+                    {"id": "low", "name": "Low"},
+                    {"id": "medium", "name": "Medium"},
+                    {"id": "high", "name": "High"},
+                ],
+                "defaultEffort": "medium",
+            },
         }
 
     async def prepare_call(
@@ -131,7 +138,13 @@ class GeminiAdapter(LlmAdapter):
         model: str,
         options: GenerateOptions,
     ) -> AsyncIterator[StreamChunk]:
-        """Stream mth chunks from the Gemini Interactions API."""
+        """Stream mth chunks from the Gemini Interactions API.
+
+        Uses the native Interactions API for stateful conversations. When a
+        previous interaction ID is available (from a prior tool-use turn),
+        it is sent as ``previous_interaction_id`` so Gemini can continue the
+        conversation without resending the full history.
+        """
         api_key = _api_key()
         signal = options.get("signal")
         messages = cast(Sequence[Mapping[str, Any]], options.get("messages") or [])
@@ -156,6 +169,7 @@ class GeminiAdapter(LlmAdapter):
             "model": model,
             "input": input_parts,
             "stream": True,
+            "store": True,
         }
         if system_instruction:
             params["system_instruction"] = system_instruction
@@ -163,10 +177,13 @@ class GeminiAdapter(LlmAdapter):
             params["tools"] = function_tools
         if generation_config:
             params["generation_config"] = generation_config
+        if self._interaction_id:
+            params["previous_interaction_id"] = self._interaction_id
 
         emitter = StreamEmitter()
         finish_reason: str | None = None
         usage_data: dict[str, Any] | None = None
+        new_interaction_id: str | None = None
 
         try:
             events = client.interactions.create(**params)
@@ -177,7 +194,12 @@ class GeminiAdapter(LlmAdapter):
                 event_dict = _event_to_dict(event)
                 event_type = str(event_dict.get("event_type", ""))
 
-                if event_type == "interaction.completed":
+                if event_type == "interaction.created":
+                    interaction = event_dict.get("interaction") or {}
+                    new_interaction_id = str(interaction.get("id", ""))
+                    if new_interaction_id:
+                        self._interaction_id = new_interaction_id
+                elif event_type == "interaction.completed":
                     interaction = event_dict.get("interaction") or {}
                     usage_data = dict(interaction.get("usage") or {})
                     finish_reason = "stop"
@@ -280,12 +302,14 @@ def _build_input(messages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 message.get("toolCallId") or message.get("tool_call_id") or ""
             )
             content = message.get("content", "")
-            parts.append({
-                "type": "function_result",
-                "name": names.get(call_id, ""),
-                "call_id": call_id,
-                "result": [{"type": "text", "text": str(content)}],
-            })
+            parts.append(
+                {
+                    "type": "function_result",
+                    "name": names.get(call_id, ""),
+                    "call_id": call_id,
+                    "result": [{"type": "text", "text": str(content)}],
+                }
+            )
         return parts
 
     # No tool results — extract the last user message as text input.
