@@ -68,7 +68,10 @@ class GeminiAdapter(LlmAdapter):
 
     def __init__(self) -> None:
         super().__init__()
-        self._interaction_id: str | None = None
+        # Interaction IDs are per-session: the adapter is shared across every
+        # agent on the context, so a single field would let two sessions
+        # clobber each other's conversation state.
+        self._interaction_ids: dict[str, str] = {}
 
     def provider_info(self, provider: str) -> LlmProviderInfo:
         return {"id": provider, "name": "Google Gemini"}
@@ -140,30 +143,38 @@ class GeminiAdapter(LlmAdapter):
     ) -> AsyncIterator[StreamChunk]:
         """Stream mth chunks from the Gemini Interactions API.
 
+        The mth agent loop delivers the system prompt as ``system``-role
+        entries in ``messages`` (there is no ``options["system"]``), so the
+        system instruction is derived from message history.
+
         Uses the native Interactions API for stateful conversations. When a
-        previous interaction ID is available (from a prior tool-use turn),
-        it is sent as ``previous_interaction_id`` so Gemini can continue the
-        conversation without resending the full history.
+        previous interaction ID is available for this session, it is sent as
+        ``previous_interaction_id`` so Gemini can continue the conversation
+        without resending the full history.
         """
         api_key = _api_key()
         signal = options.get("signal")
         messages = cast(Sequence[Mapping[str, Any]], options.get("messages") or [])
         tools = cast(Sequence[Mapping[str, Any]] | None, options.get("tools"))
-        system = cast(str | None, options.get("system"))
         reasoning_effort = cast(str | None, options.get("reasoningEffort"))
+        session_id = cast(str | None, options.get("sessionId"))
 
         from google import genai
 
         client = genai.Client(api_key=api_key)
 
         # Build the request in the Interactions API shape.
-        system_instruction = system or None
+        system_instruction = _system_text(messages)
         input_parts = _build_input(messages)
         function_tools = _build_function_tools(tools) or None
 
         generation_config: dict[str, Any] = {}
         if reasoning_effort:
             generation_config["thinking_level"] = reasoning_effort
+
+        previous_interaction_id = (
+            self._interaction_ids.get(session_id) if session_id else None
+        )
 
         params: dict[str, Any] = {
             "model": model,
@@ -177,19 +188,20 @@ class GeminiAdapter(LlmAdapter):
             params["tools"] = function_tools
         if generation_config:
             params["generation_config"] = generation_config
-        if self._interaction_id:
-            params["previous_interaction_id"] = self._interaction_id
+        if previous_interaction_id:
+            params["previous_interaction_id"] = previous_interaction_id
 
         emitter = StreamEmitter()
         finish_reason: str | None = None
         usage_data: dict[str, Any] | None = None
-        new_interaction_id: str | None = None
+        aborted = False
 
         try:
             events = client.interactions.create(**params)
             for event in events:
                 if signal is not None and signal.is_aborted:
-                    return
+                    aborted = True
+                    break
 
                 event_dict = _event_to_dict(event)
                 event_type = str(event_dict.get("event_type", ""))
@@ -197,8 +209,8 @@ class GeminiAdapter(LlmAdapter):
                 if event_type == "interaction.created":
                     interaction = event_dict.get("interaction") or {}
                     new_interaction_id = str(interaction.get("id", ""))
-                    if new_interaction_id:
-                        self._interaction_id = new_interaction_id
+                    if new_interaction_id and session_id:
+                        self._interaction_ids[session_id] = new_interaction_id
                 elif event_type == "interaction.completed":
                     interaction = event_dict.get("interaction") or {}
                     usage_data = dict(interaction.get("usage") or {})
@@ -242,7 +254,10 @@ class GeminiAdapter(LlmAdapter):
                         total_tokens=int(usage_data.get("total_tokens", 0)),
                     )
                 )
-            yield finish_chunk(map_finish_reason(finish_reason))
+            if aborted:
+                yield finish_chunk({"kind": "aborted"})
+            else:
+                yield finish_chunk(map_finish_reason(finish_reason))
 
 
 def _event_to_dict(event: Any) -> dict[str, Any]:
@@ -266,15 +281,56 @@ def _text_from_content(value: Any) -> str:
     return ""
 
 
+def _system_text(messages: Sequence[Mapping[str, Any]]) -> str | None:
+    """Join every ``system``-role message into one system instruction.
+
+    mth delivers the system prompt as ``system``-role entries in the message
+    history — there is no request-level ``system`` option — so this is the
+    only place the prompt can be recovered.
+    """
+    parts = [
+        text
+        for text in (
+            _text_from_content(message.get("content", []))
+            for message in messages
+            if message.get("role") == "system"
+        )
+        if text
+    ]
+    return "\n\n".join(parts) or None
+
+
+def _tool_name_map(messages: Sequence[Mapping[str, Any]]) -> dict[str, str]:
+    """Map tool-call id -> tool name from assistant message content blocks.
+
+    mth stores tool calls as ``{"type": "tool-call", "id", "name",
+    "arguments"}`` blocks inside ``assistant/message`` content. There is no
+    ``tool_calls`` array on the message, so the id -> name pairing needed for
+    ``function_result.name`` must be read from those blocks.
+    """
+    names: dict[str, str] = {}
+    for message in messages:
+        if message.get("role") != "assistant":
+            continue
+        for block in message.get("content") or []:
+            if not isinstance(block, Mapping) or block.get("type") != "tool-call":
+                continue
+            call_id = str(block.get("id", ""))
+            if call_id:
+                names[call_id] = str(block.get("name", ""))
+    return names
+
+
 def _build_input(messages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Build the Interactions API ``input`` from mth message history.
 
     The Interactions API accepts a flat list of content parts. System messages
-    are sent via ``system_instruction`` (not in ``input``). Tool results are
-    sent as ``function_result`` steps. User messages are sent as ``text`` parts.
-    Assistant messages with tool calls are already represented in the
-    interaction history (via ``previous_interaction_id``); this function only
-    extracts the new user input and any trailing tool results.
+    are sent via ``system_instruction`` (see :func:`_system_text`), not in
+    ``input``. Tool results are sent as ``function_result`` steps. User
+    messages are sent as ``text`` parts. Assistant messages with tool calls
+    are represented in the interaction history (via
+    ``previous_interaction_id``); this function only extracts the new user
+    input and any trailing tool results.
     """
     parts: list[dict[str, Any]] = []
 
@@ -286,18 +342,11 @@ def _build_input(messages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         else:
             break
 
-    # Build a name lookup from assistant tool calls.
-    names: dict[str, str] = {}
-    for message in messages:
-        for call in message.get("tool_calls") or []:
-            function = call.get("function", {})
-            names[str(call.get("id", ""))] = str(function.get("name", ""))
+    names = _tool_name_map(messages)
 
     # Trailing tool results become function_result parts.
     if tail_start < len(messages):
         for message in messages[tail_start:]:
-            if message.get("role") != "tool":  # pragma: no cover
-                continue
             call_id = str(
                 message.get("toolCallId") or message.get("tool_call_id") or ""
             )

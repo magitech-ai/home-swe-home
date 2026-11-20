@@ -7,7 +7,11 @@ from unittest.mock import patch
 
 import pytest
 
-from home_swe_home.instructions import agents_md, system_line
+from home_swe_home.instructions import (
+    agents_md,
+    base_instructions,
+    system_line,
+)
 
 
 def test_system_line_defaults() -> None:
@@ -77,3 +81,16 @@ def test_agents_md_empty_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
     # Whitespace-only file should not be included
     assert "AGENTS.md" not in result
+
+
+def test_base_instructions_reads_harness(monkeypatch, tmp_path):
+    """The live prompt comes from the editable harness tree."""
+    (tmp_path / "systemprompt.md").write_text("From harness.", encoding="utf-8")
+    monkeypatch.setenv("HOME_SWE_HOME_HARNESS_DIR", str(tmp_path))
+    assert base_instructions() == "From harness."
+
+
+def test_base_instructions_falls_back(monkeypatch, tmp_path):
+    """A missing harness file falls back to a built-in prompt."""
+    monkeypatch.setenv("HOME_SWE_HOME_HARNESS_DIR", str(tmp_path))
+    assert "coding agent" in base_instructions()

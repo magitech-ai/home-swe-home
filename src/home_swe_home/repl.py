@@ -21,9 +21,7 @@ PROMPT = "> "
 async def run_repl(
     *,
     model: str = DEFAULT_MODEL,
-    stream: bool = True,
     show_reasoning: bool = False,
-    show_events: bool = False,
     effort: str = "medium",
 ) -> None:
     """Run the interactive chat loop until the user exits with Ctrl-D."""
@@ -74,7 +72,14 @@ async def run_repl(
         if frame.get("type") != "chunk":
             return
         chunk = frame.get("chunk") or {}
-        if isinstance(chunk, dict):
+        if not isinstance(chunk, dict):
+            return
+        chunk_type = chunk.get("type")
+        if chunk_type == "text-delta":
+            text = chunk.get("text")
+            if isinstance(text, str) and text:
+                print(text, end="", flush=True)
+        elif chunk_type == "reasoning-delta" and show_reasoning:
             text = chunk.get("text")
             if isinstance(text, str) and text:
                 print(text, end="", flush=True)
@@ -92,8 +97,18 @@ async def run_repl(
             status = "ERROR" if payload.get("is_error") else "OK"
             print(f"\n[{status}] {payload.get('name')}")
 
+    def _on_agent_error(payload: dict[str, Any]) -> None:  # pragma: no cover
+        # mth's driver contains faults and emits agent/error instead of
+        # raising, so surface failures here rather than silently printing
+        # nothing.
+        if payload.get("agent") is not agent:
+            return
+        error = payload.get("error")
+        print(f"\n[Error: {error}]")
+
     stop_stream = ctx.on("agent/assistant-stream", _on_stream)
     stop_events = ctx.on("session/event", _on_session_event)
+    stop_errors = ctx.on("agent/error", _on_agent_error)
 
     try:
         while True:
@@ -166,6 +181,7 @@ async def run_repl(
     finally:
         stop_stream()
         stop_events()
+        stop_errors()
         if sig_installed:
             try:
                 loop.remove_signal_handler(py_signal.SIGINT)
@@ -174,9 +190,39 @@ async def run_repl(
 
 
 def _show_context(agent: Any) -> None:
-    """Print the context window contents and token counts."""
-    session = agent.session
-    print(f"--- context window: {len(session.events)} events ---")
-    for index, event in enumerate(session.events):
-        print(f"[{index}] {event.type}")
-    print("--- end context ---")
+    """Print the context window: each message with a preview, plus tokens."""
+    from magitech_harness import derive_messages
+
+    messages = derive_messages(list(agent.session.events))
+    total = _estimate_tokens(messages)
+    print(f"--- context window: {len(messages)} messages, ~{total} tokens ---")
+    for index, message in enumerate(messages):
+        role = message.get("role", "?")
+        content = message.get("content") or ""
+        text = _text_preview(content)
+        print(f"[{index}] {role}: {text}")
+
+
+def _text_preview(content: Any, limit: int = 200) -> str:
+    """Join text blocks and truncate for display."""
+    if isinstance(content, str):
+        parts = [content]
+    elif isinstance(content, list):
+        parts = [
+            str(block.get("text", ""))
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+    else:
+        parts = []
+    text = " ".join(part for part in parts if part).strip()
+    return text[:limit] + ("..." if len(text) > limit else "")
+
+
+def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
+    """Rough token estimate: ~4 characters per token."""
+    total = 0
+    for message in messages:
+        total += len(str(message.get("role", "")))
+        total += len(_text_preview(message.get("content") or "", limit=10**9))
+    return total // 4

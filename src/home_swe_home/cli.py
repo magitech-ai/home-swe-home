@@ -20,6 +20,7 @@ from magitech_harness.llm.message import create_user_message
 
 from .context import DEFAULT_MODEL, DEFAULT_PROVIDER, build_context
 from .onboard import run_wizard
+from .sandbox import set_sandbox_enabled
 from .utils.home import find_home
 
 DEFAULT_EFFORT = "medium"
@@ -57,20 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("HOME_SWE_HOME_SHOW_REASONING", "").lower()
         in {"1", "true", "yes"},
         help="display provider reasoning/thought summaries (never stored)",
-    )
-    parser.add_argument(
-        "--show-events",
-        action="store_true",
-        default=os.environ.get("HOME_SWE_HOME_SHOW_EVENTS", "").lower()
-        in {"1", "true", "yes"},
-        help="print all provider events (unknown events are always printed)",
-    )
-    parser.add_argument(
-        "--no-stream",
-        dest="stream",
-        action="store_false",
-        default=True,
-        help="wait for the full reply instead of streaming content deltas",
     )
     parser.add_argument(
         "--init-home",
@@ -118,9 +105,6 @@ async def _run_headless(
     *,
     model: str,
     prompt: str,
-    stream: bool = True,
-    show_reasoning: bool = False,
-    show_events: bool = False,
     effort: str = DEFAULT_EFFORT,
     session_id: str | None = None,
 ) -> int:
@@ -211,8 +195,9 @@ async def _run_async(argv: list[str] | None = None) -> int:
             print(f"Home scaffolded at {args.init_home}; next: review AGENTS.md.")
         return 0 if accepted else 1
 
-    if not args.sandbox:
-        os.environ["HOME_SWE_HOME_SANDBOX"] = "0"
+    # The sandbox choice is an explicit setting, not a process-wide env
+    # side effect: the run_command tool reads the same config key.
+    set_sandbox_enabled(args.sandbox)
 
     # Fail fast on missing API key before assembling the Context.
     if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
@@ -227,9 +212,6 @@ async def _run_async(argv: list[str] | None = None) -> int:
         return await _run_headless(
             model=args.model,
             prompt=args.prompt,
-            stream=args.stream,
-            show_reasoning=args.show_reasoning,
-            show_events=args.show_events,
             effort=args.effort,
         )
 
@@ -238,9 +220,7 @@ async def _run_async(argv: list[str] | None = None) -> int:
 
     await run_repl(
         model=args.model,
-        stream=args.stream,
         show_reasoning=args.show_reasoning,
-        show_events=args.show_events,
         effort=args.effort,
     )
     return 0

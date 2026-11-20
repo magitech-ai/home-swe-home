@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from home_swe_home.repl import _show_context, run_repl
+from home_swe_home.repl import _show_context, _text_preview, run_repl
 
 
 @pytest.mark.asyncio
@@ -434,16 +434,39 @@ async def test_repl_reminder_summary_exception(
 
 
 def test_show_context(capsys: pytest.CaptureFixture) -> None:
+    """Show a message-by-message preview with an estimated token count."""
     mock_agent = MagicMock()
-    event1 = MagicMock()
-    event1.type = "user/message"
-    event2 = MagicMock()
-    event2.type = "assistant/message"
-    mock_agent.session.events = [event1, event2]
+    mock_agent.session.events = []
+    mock_agent.session.derive_messages = None
 
-    _show_context(mock_agent)
+    messages = [
+        {"role": "system", "content": [{"type": "text", "text": "SYS"}]},
+        {"role": "user", "content": [{"type": "text", "text": "hello there"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
+    ]
+
+    with patch("magitech_harness.derive_messages", return_value=messages):
+        _show_context(mock_agent)
+
     captured = capsys.readouterr().out
-    assert "context window: 2 events" in captured
-    assert "user/message" in captured
-    assert "assistant/message" in captured
-    assert "end context" in captured
+    assert "context window: 3 messages" in captured
+    assert "tokens" in captured
+    assert "system" in captured
+    assert "hello there" in captured
+    assert "assistant" in captured
+
+
+def test_text_preview_string_content() -> None:
+    assert _text_preview("plain text") == "plain text"
+
+
+def test_text_preview_truncates() -> None:
+    long = "x" * 300
+    preview = _text_preview(long)
+    assert preview.endswith("...")
+    assert len(preview) == 203
+
+
+def test_text_preview_non_text_content() -> None:
+    assert _text_preview(12345) == ""
+    assert _text_preview([{"type": "image"}]) == ""

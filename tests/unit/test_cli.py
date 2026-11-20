@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -25,7 +24,6 @@ def test_build_parser_defaults() -> None:
     parser = build_parser()
     args = parser.parse_args([])
     assert args.sandbox is True
-    assert args.stream is True
     assert args.model is not None
 
 
@@ -33,12 +31,6 @@ def test_build_parser_no_sandbox() -> None:
     parser = build_parser()
     args = parser.parse_args(["--no-sandbox"])
     assert args.sandbox is False
-
-
-def test_build_parser_no_stream() -> None:
-    parser = build_parser()
-    args = parser.parse_args(["--no-stream"])
-    assert args.stream is False
 
 
 def test_build_parser_prompt() -> None:
@@ -214,14 +206,15 @@ async def test_run_async_init_home_declined(
 @pytest.mark.asyncio
 async def test_run_async_no_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "key")
-    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
 
     with patch("home_swe_home.cli._run_headless", new_callable=AsyncMock) as mock_h:
         mock_h.return_value = 0
         rc = await _run_async(["-p", "hello", "--no-sandbox"])
 
     assert rc == 0
-    assert os.environ.get("HOME_SWE_HOME_SANDBOX") == "0"
+    from home_swe_home.sandbox import sandbox_enabled
+
+    assert sandbox_enabled() is False
 
 
 @pytest.mark.asyncio

@@ -44,14 +44,18 @@ readable thought summaries; show them with `--show-reasoning` or
 events are translated and unknown ones are printed as `UNKNOWN:` so new upstream
 events are visible.
 
-Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply. Known provider events are quiet by default; `--show-events` (or `HOME_SWE_HOME_SHOW_EVENTS=1`) prints them, while unknown event types are always printed as `UNKNOWN:`.
+Replies stream token-by-token. Pass `--show-reasoning` (or
+`HOME_SWE_HOME_SHOW_REASONING=1`) to also print provider thought summaries;
+reasoning is displayed only and never stored in context.
 
 In chat, `/model <id>` switches models, `/skill <name>` loads a skill's full
-instructions, and `/context` shows the context window. Ctrl-C aborts the
+instructions, and `/context` shows the context window with a per-message preview and token estimate. Ctrl-C aborts the
 current turn only; Ctrl-D exits.
 
-Shell commands run unsandboxed on the host by default. Pass `--sandbox` or set
-`HOME_SWE_HOME_SANDBOX=1` to run them inside an isolated Docker container.
+Shell commands run inside an isolated Docker container by default (`--network
+none`, read-only root, dropped capabilities, resource limits). Pass
+`--no-sandbox` or set `HOME_SWE_HOME_SANDBOX=0` to run them on the host instead —
+host mode has your full privileges, including environment variables.
 
 The base prompt and per-tool guidance are editable data files under
 `src/home_swe_home/harness/`. To try a modified copy without editing the installed

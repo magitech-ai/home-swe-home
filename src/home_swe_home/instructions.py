@@ -11,6 +11,24 @@ import os
 import platform
 from pathlib import Path
 
+from .utils.harness import system_prompt
+
+
+def base_instructions() -> str:
+    """Return the editable base prompt from the harness tree.
+
+    Falls back to a built-in prompt only when the harness file is missing, so
+    a broken install still boots with usable instructions.
+    """
+    try:
+        return system_prompt()
+    except OSError:
+        return (
+            "You are home-swe-home, a coding agent. You help with software "
+            "engineering tasks: reading and editing code, running commands, "
+            "searching the web, and verifying that changes pass checks."
+        )
+
 
 def system_line(*, model: str = "", cwd: str = "") -> str:
     """Return a one-line description of where this agent runs."""

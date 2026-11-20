@@ -5,9 +5,14 @@ Each tool is a ``ToolDefinition`` registered on ``ctx.tools`` via
 ``(args, run_ctx)`` where ``run_ctx`` carries ``signal``, ``callId``, ``agent``,
 ``deferContext``, and ``concludeTurn`` from mth's tool pipeline.
 
-The ``read_files`` tracker from the original anima-based tools is replaced by
-mth's ``agent`` reference in ``run_ctx`` — tools that need to check whether a
-file has been read can access the agent's session and working directory.
+Two cross-cutting guarantees live here rather than in each tool body:
+
+* **Redaction** — every text result passes through :func:`redact`, so no tool
+  can leak an API key by reading ``.env``, printing the environment, or
+  grepping for a token prefix.
+* **Read-before-edit** — :func:`_current_turn_read_paths` reconstructs the set
+  of paths read or written *during the current turn* from the session event
+  log, so ``edit_file`` and ``reload_module`` can refuse unread paths.
 """
 
 from __future__ import annotations
@@ -19,14 +24,74 @@ import os
 import re
 import shlex
 import subprocess
+from collections.abc import Mapping
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
 from magitech_harness.tools import define_tool
 
+from .. import sandbox as sandbox_module
+from ..sandbox import sandbox_enabled
 from ..utils.secrets import redact
 from ..utils.text import decode_text
+
+# ---------------------------------------------------------------------------
+# Helpers: redaction, path normalization, per-turn read tracking
+# ---------------------------------------------------------------------------
+
+_READABLE_TOOLS = frozenset({"read_file", "write_file"})
+
+
+def _render_text(_args: Any, val: Any) -> list[dict[str, Any]]:
+    """Render a tool value as text content, redacting any known secret."""
+    text = val if isinstance(val, str) else str(val)
+    return [{"type": "text", "text": redact(text)}]
+
+
+def _normalize_path(path: str) -> str:
+    """Normalize a path so equivalent spellings compare equal."""
+    return os.path.normpath(os.path.abspath(path))
+
+
+def _current_turn_read_paths(session: Any) -> set[str]:
+    """Return normalized paths read or written during the current turn.
+
+    Reads are scoped to the current turn, not the whole session: a file read
+    in turn 1 must not silently authorize an edit in turn 50. The boundary is
+    the last ``turn/start`` event; only ``tool/call`` events after it count.
+    """
+    events = getattr(session, "events", None) or []
+    start_seq = 0
+    for event in events:
+        if event.type == "turn/start":
+            start_seq = event.seq
+
+    read_paths: set[str] = set()
+    for event in events:
+        if event.seq <= start_seq or event.type != "tool/call":
+            continue
+        if event.payload.get("name") not in _READABLE_TOOLS:
+            continue
+        arguments = event.payload.get("arguments")
+        if isinstance(arguments, Mapping):
+            path = arguments.get("path")
+            if isinstance(path, str):
+                read_paths.add(_normalize_path(path))
+    return read_paths
+
+
+def _agent_of(run_ctx: Any) -> Any:
+    """Return the agent from a run context, or None when absent.
+
+    ``run_ctx`` is a plain dict in mth's pipeline, but tests and embedders may
+    pass a mapping-like object, so use ``.get`` when available.
+    """
+    getter = getattr(run_ctx, "get", None)
+    if callable(getter):
+        return getter("agent")
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Helper: build a standard text-output tool definition
@@ -41,7 +106,7 @@ def _text_output_tool(
     execute: Any,
     concurrency_safe: bool = False,
 ) -> dict[str, Any]:
-    """Build a ToolDefinition that returns plain text output."""
+    """Build a ToolDefinition whose text output is always redacted."""
     result: dict[str, Any] = define_tool(
         {
             "name": name,
@@ -50,7 +115,7 @@ def _text_output_tool(
             "isConcurrencySafe": lambda _args: concurrency_safe,
             "output": {
                 "schema": {"type": "string"},
-                "render": lambda _args, val: [{"type": "text", "text": val}],
+                "render": _render_text,
             },
             "execute": execute,
         }
@@ -65,7 +130,7 @@ def _text_output_tool(
 
 def _read_file_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     path = args["path"]
-    return redact(Path(path).read_text(encoding="utf-8"))
+    return Path(path).read_text(encoding="utf-8")
 
 
 READ_FILE = _text_output_tool(
@@ -109,27 +174,16 @@ def _edit_file_execute(args: dict[str, Any], run_ctx: Any) -> str:
     old_string = args["old_string"]
     new_string = args["new_string"]
 
-    # Check if the file has been read in this session.
-    session = run_ctx.get("agent")
-    read_paths: set[str] = set()
-    if session is not None:
-        for event in session.session.events:
-            if event.type == "tool/call" and event.payload.get("name") == "read_file":
-                call_args = event.payload.get("arguments")
-                if isinstance(call_args, dict):
-                    read_paths.add(str(call_args.get("path", "")))
-            elif (
-                event.type == "tool/call" and event.payload.get("name") == "write_file"
-            ):
-                call_args = event.payload.get("arguments")
-                if isinstance(call_args, dict):
-                    read_paths.add(str(call_args.get("path", "")))
-
-    if read_paths and path not in read_paths:
-        return (
-            f"Refused: '{path}' has not been read yet. "
-            f"Call read_file on '{path}' first, then retry edit_file."
-        )
+    # Refuse to edit a path that was not read or written during this turn.
+    # An empty read set means nothing was read, which must refuse too — the
+    # check is "was this path read", not "was anything read".
+    agent = _agent_of(run_ctx)
+    if agent is not None:
+        if _normalize_path(path) not in _current_turn_read_paths(agent.session):
+            return (
+                f"Refused: '{path}' has not been read yet. "
+                f"Call read_file on '{path}' first, then retry edit_file."
+            )
 
     target = Path(path)
     text = target.read_text(encoding="utf-8")
@@ -251,11 +305,17 @@ _SANDBOX_ENV = "HOME_SWE_HOME_SANDBOX"
 
 
 def _use_sandbox() -> bool:
-    """Return True unless explicitly disabled (sandboxed by default)."""
-    value = os.environ.get(_SANDBOX_ENV, "").lower()
-    if value in ("0", "false", "no", "off"):
+    """Return True unless explicitly disabled (sandboxed by default).
+
+    ``HOME_SWE_HOME_SANDBOX=0`` is a convenience override for scripts; the
+    CLI sets the authoritative value via :func:`set_sandbox_enabled`.
+    """
+    override = os.environ.get(_SANDBOX_ENV, "").lower()
+    if override in ("0", "false", "no", "off"):
         return False
-    return True
+    if override in ("1", "true", "yes", "on"):
+        return True
+    return sandbox_enabled()
 
 
 def _run_command_execute(args: dict[str, Any], run_ctx: Any) -> str:
@@ -263,9 +323,7 @@ def _run_command_execute(args: dict[str, Any], run_ctx: Any) -> str:
     timeout = int(args.get("timeout", 30))
 
     if _use_sandbox():
-        from ..sandbox import run_in_sandbox
-
-        result = run_in_sandbox(command, timeout=timeout)
+        result = sandbox_module.run_in_sandbox(command, timeout=timeout)
         sandbox_parts: list[str] = []
         if result.stdout:
             sandbox_parts.append(f"stdout:\n{result.stdout}")
@@ -334,7 +392,7 @@ RUN_COMMAND = _text_output_tool(
 
 def _load_skill_execute(args: dict[str, Any], run_ctx: Any) -> str:
     name = args["name"]
-    agent = run_ctx.get("agent")
+    agent = _agent_of(run_ctx)
     if agent is not None and hasattr(agent, "ctx"):
         skills_svc = agent.ctx.get("skills", None, strict=False)
         if skills_svc is not None:
@@ -432,8 +490,8 @@ def _web_search_execute(args: dict[str, Any], _run_ctx: Any) -> str:
         href = html_mod.unescape(href)
         if "uddg=" in href:
             query = href.split("?", 1)[1] if "?" in href else ""
-            for pair in query.split("&"):  # pragma: no branch
-                if pair.startswith("uddg="):  # pragma: no branch
+            for pair in query.split("&"):
+                if pair.startswith("uddg="):
                     return urllib.parse.unquote(pair[len("uddg=") :])
         if href.startswith("//"):
             return "https:" + href
@@ -446,8 +504,8 @@ def _web_search_execute(args: dict[str, Any], _run_ctx: Any) -> str:
             title = html_mod.unescape(re.sub(r"<.*?>", "", match.group(2))).strip()
             if title and href:
                 results.append(f"{title}: {href}")
-            if len(results) >= _MAX_RESULTS:  # pragma: no branch
-                break  # pragma: no cover
+            if len(results) >= _MAX_RESULTS:
+                break
         return results
 
     def _searxng_url() -> str | None:
@@ -544,24 +602,14 @@ def _reload_module_execute(args: dict[str, Any], run_ctx: Any) -> str:
     module_name = args["module_name"]
     file_path = args["file_path"]
 
-    # Check read_files via session tool history.
-    agent = run_ctx.get("agent")
-    read_paths: set[str] = set()
+    # Refuse to reload a path that was not read or written during this turn.
+    agent = _agent_of(run_ctx)
     if agent is not None:
-        for event in agent.session.events:
-            if event.type == "tool/call" and event.payload.get("name") in (
-                "read_file",
-                "write_file",
-            ):
-                call_args = event.payload.get("arguments")
-                if isinstance(call_args, dict):
-                    read_paths.add(str(call_args.get("path", "")))
-
-    if read_paths and file_path not in read_paths:
-        return (
-            f"Refused: '{file_path}' has not been read yet. "
-            f"Call read_file on '{file_path}' first, then retry reload_module."
-        )
+        if _normalize_path(file_path) not in _current_turn_read_paths(agent.session):
+            return (
+                f"Refused: '{file_path}' has not been read yet. "
+                f"Call read_file on '{file_path}' first, then retry reload_module."
+            )
 
     path = os.path.abspath(file_path)
     if not path.endswith(".py"):
@@ -580,7 +628,7 @@ def _reload_module_execute(args: dict[str, Any], run_ctx: Any) -> str:
         )
 
     spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:  # pragma: no cover
+    if spec is None or spec.loader is None:
         return f"Error: could not create spec for {path}."
     with suppress(ValueError, OSError):
         Path(importlib.util.cache_from_source(path)).unlink(missing_ok=True)
@@ -831,6 +879,16 @@ def _add_repo_execute(args: dict[str, Any], _run_ctx: Any) -> str:
         return f"Error: '{ref}' is not in the home repo map."
 
     target = (home / entry.path).resolve()
+    # The repo map is model-editable, so a crafted entry like ``../../../etc``
+    # could redirect the clone anywhere on disk. Sibling checkouts (``../foo``)
+    # are the normal case and must stay allowed; only escapes above the
+    # workspace root (the home's parent) are refused.
+    workspace_root = home.resolve().parent
+    if not target.is_relative_to(workspace_root):
+        return (
+            f"Error: '{entry.name}' resolves to {target}, which is outside "
+            f"the workspace root {workspace_root}."
+        )
     if target.is_dir():
         return f"Resolved '{entry.name}' to {target}."
 

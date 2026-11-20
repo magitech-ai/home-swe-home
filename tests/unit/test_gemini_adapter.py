@@ -14,7 +14,9 @@ from home_swe_home.llm.gemini_adapter import (
     _build_function_tools,
     _build_input,
     _event_to_dict,
+    _system_text,
     _text_from_content,
+    _tool_name_map,
 )
 
 # ---------------------------------------------------------------------------
@@ -101,478 +103,89 @@ async def test_resolve_model() -> None:
 
 
 @pytest.mark.asyncio
-async def test_prepare_call(monkeypatch) -> None:
+async def test_prepare_call_streams(monkeypatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "key")
 
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
     mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event_done])
+    mock_client.interactions.create.return_value = iter(
+        [{"event_type": "interaction.completed", "interaction": {}}]
+    )
 
     with patch("google.genai.Client", return_value=mock_client):
         adapter = GeminiAdapter()
         prepared = await adapter.prepare_call("gemini", "gemini-4-hydrogen")
         assert prepared.model["id"] == "gemini-4-hydrogen"
 
-        # Consume the stream to cover the closure.
         chunks: list[dict[str, Any]] = []
-        async for chunk in prepared.stream({"messages": [], "tools": None}):
+        async for chunk in prepared.stream(
+            {"messages": [], "tools": None, "sessionId": "s1"}
+        ):
             chunks.append(chunk)
         assert any(c.get("type") == "finish" for c in chunks)
 
 
 # ---------------------------------------------------------------------------
-# stream (via _stream_call)
+# _system_text — the system prompt lives in system-role messages
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_stream_text_response(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
+def test_system_text_from_messages() -> None:
+    messages = [
+        {"role": "system", "content": [{"type": "text", "text": "SYS"}]},
+        {"role": "user", "content": [{"type": "text", "text": "USER"}]},
+    ]
+    assert _system_text(messages) == "SYS"
 
-    mock_event_text = {
-        "event_type": "step.delta",
-        "delta": {"type": "text", "text": "Hello"},
-    }
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {"usage": {"input_tokens": 10, "output_tokens": 5}},
-    }
 
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter(
-        [mock_event_text, mock_event_done]
-    )
+def test_system_text_joins_multiple() -> None:
+    messages = [
+        {"role": "system", "content": [{"type": "text", "text": "A"}]},
+        {"role": "system", "content": [{"type": "text", "text": "B"}]},
+    ]
+    assert _system_text(messages) == "A\n\nB"
 
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        chunks: list[dict[str, Any]] = []
-        async for chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            chunks.append(chunk)
 
-    # Should have text-delta, block-end, usage, finish
-    types = [c.get("type") for c in chunks]
-    assert "text-delta" in types
-    assert "finish" in types
+def test_system_text_absent() -> None:
+    assert _system_text([{"role": "user", "content": "hi"}]) is None
 
 
-@pytest.mark.asyncio
-async def test_stream_reasoning_response(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
+def test_system_text_empty_content() -> None:
+    assert _system_text([{"role": "system", "content": []}]) is None
 
-    mock_event_reasoning = {
-        "event_type": "step.delta",
-        "delta": {"type": "thought_summary", "content": "Thinking..."},
-    }
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
 
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter(
-        [mock_event_reasoning, mock_event_done]
-    )
+# ---------------------------------------------------------------------------
+# _tool_name_map — tool calls live in assistant content blocks
+# ---------------------------------------------------------------------------
 
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        chunks: list[dict[str, Any]] = []
-        async for chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            chunks.append(chunk)
 
-    types = [c.get("type") for c in chunks]
-    assert "reasoning-delta" in types
-
-
-@pytest.mark.asyncio
-async def test_stream_tool_call(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_tool = {
-        "event_type": "step.delta",
-        "step": {"id": "call_1", "name": "read_file"},
-        "delta": {"type": "arguments_delta", "arguments": '{"path":"/tmp"}'},
-    }
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter(
-        [mock_event_tool, mock_event_done]
-    )
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        chunks: list[dict[str, Any]] = []
-        async for chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            chunks.append(chunk)
-
-    types = [c.get("type") for c in chunks]
-    assert "tool-call-delta" in types
-
-
-@pytest.mark.asyncio
-async def test_stream_error_event(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_error = {
-        "event_type": "error",
-        "error": {"message": "Rate limited"},
-    }
-
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event_error])
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        with pytest.raises(Exception, match="Rate limited"):
-            async for _chunk in adapter._stream_call(
-                "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-            ):
-                pass
-
-
-@pytest.mark.asyncio
-async def test_stream_with_interaction_id(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_created = {
-        "event_type": "interaction.created",
-        "interaction": {"id": "int_123"},
-    }
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter(
-        [mock_event_created, mock_event_done]
-    )
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        async for _chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            pass
-
-    assert adapter._interaction_id == "int_123"
-
-
-@pytest.mark.asyncio
-async def test_stream_uses_previous_interaction(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event_done])
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        adapter._interaction_id = "prev_123"
-        async for _chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            pass
-
-    # Verify previous_interaction_id was passed
-    call_kwargs = mock_client.interactions.create.call_args[1]
-    assert call_kwargs.get("previous_interaction_id") == "prev_123"
-
-
-@pytest.mark.asyncio
-async def test_stream_with_abort_signal(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event = {
-        "event_type": "step.delta",
-        "delta": {"type": "text", "text": "Hello"},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event])
-
-    mock_signal = MagicMock()
-    mock_signal.is_aborted = True
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        chunks: list[dict[str, Any]] = []
-        async for chunk in adapter._stream_call(
-            "gemini",
-            "gemini-4-hydrogen",
-            {"messages": [], "tools": None, "signal": mock_signal},
-        ):
-            chunks.append(chunk)
-
-    # The finally block always emits a finish chunk, even on abort.
-    # But no content chunks should be emitted.
-    types = [c.get("type") for c in chunks]
-    assert "text-delta" not in types
-    assert "finish" in types
-
-
-@pytest.mark.asyncio
-async def test_stream_with_reasoning_effort(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event_done])
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        async for _chunk in adapter._stream_call(
-            "gemini",
-            "gemini-4-hydrogen",
-            {"messages": [], "tools": None, "reasoningEffort": "high"},
-        ):
-            pass
-
-    call_kwargs = mock_client.interactions.create.call_args[1]
-    assert call_kwargs["generation_config"]["thinking_level"] == "high"
-
-
-@pytest.mark.asyncio
-async def test_stream_with_unknown_event_type(monkeypatch) -> None:
-    """Unknown event types are silently ignored."""
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_unknown = {"event_type": "some.unknown.event", "data": "ignored"}
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter(
-        [mock_event_unknown, mock_event_done]
-    )
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        chunks: list[dict[str, Any]] = []
-        async for chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            chunks.append(chunk)
-
-    types = [c.get("type") for c in chunks]
-    assert "finish" in types
-
-
-@pytest.mark.asyncio
-async def test_stream_with_empty_interaction_id(monkeypatch) -> None:
-    """An interaction.created event with no ID doesn't set _interaction_id."""
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_created = {
-        "event_type": "interaction.created",
-        "interaction": {},
-    }
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter(
-        [mock_event_created, mock_event_done]
-    )
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        async for _chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            pass
-
-    # _interaction_id should not be set to an empty string
-    assert adapter._interaction_id is None
-
-
-@pytest.mark.asyncio
-async def test_stream_with_empty_delta_type(monkeypatch) -> None:
-    """A step.delta with an empty delta type is ignored."""
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_empty = {
-        "event_type": "step.delta",
-        "delta": {},
-    }
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter(
-        [mock_event_empty, mock_event_done]
-    )
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        chunks: list[dict[str, Any]] = []
-        async for chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            chunks.append(chunk)
-
-    types = [c.get("type") for c in chunks]
-    # No text/reasoning/tool chunks, just finish
-    assert "finish" in types
-    assert "text-delta" not in types
-
-
-@pytest.mark.asyncio
-async def test_stream_loop_exhausts_without_complete(monkeypatch) -> None:
-    """Loop exhausts without interaction.completed — still emits finish."""
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    # Only a text event, no interaction.completed
-    mock_event_text = {
-        "event_type": "step.delta",
-        "delta": {"type": "text", "text": "Hello"},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event_text])
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        chunks: list[dict[str, Any]] = []
-        async for chunk in adapter._stream_call(
-            "gemini", "gemini-4-hydrogen", {"messages": [], "tools": None}
-        ):
-            chunks.append(chunk)
-
-    types = [c.get("type") for c in chunks]
-    assert "text-delta" in types
-    assert "finish" in types
-
-
-@pytest.mark.asyncio
-async def test_stream_with_tools(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event_done])
-
-    tools = [
+def test_tool_name_map_from_content_blocks() -> None:
+    messages = [
         {
-            "name": "read_file",
-            "description": "Read a file",
-            "parameters": {"type": "object", "properties": {}},
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "calling"},
+                {
+                    "type": "tool-call",
+                    "id": "call_1",
+                    "name": "read_file",
+                    "arguments": "{}",
+                },
+            ],
         }
     ]
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        async for _chunk in adapter._stream_call(
-            "gemini",
-            "gemini-4-hydrogen",
-            {"messages": [], "tools": tools},
-        ):
-            pass
-
-    call_kwargs = mock_client.interactions.create.call_args[1]
-    assert call_kwargs["tools"] is not None
-    assert call_kwargs["tools"][0]["name"] == "read_file"
+    assert _tool_name_map(messages) == {"call_1": "read_file"}
 
 
-@pytest.mark.asyncio
-async def test_stream_with_system(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "key")
-
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event_done])
-
-    with patch("google.genai.Client", return_value=mock_client):
-        adapter = GeminiAdapter()
-        async for _chunk in adapter._stream_call(
-            "gemini",
-            "gemini-4-hydrogen",
-            {"messages": [], "tools": None, "system": "You are helpful"},
-        ):
-            pass
-
-    call_kwargs = mock_client.interactions.create.call_args[1]
-    assert call_kwargs["system_instruction"] == "You are helpful"
+def test_tool_name_map_ignores_other_roles() -> None:
+    messages = [
+        {"role": "user", "content": [{"type": "tool-call", "id": "x", "name": "y"}]}
+    ]
+    assert _tool_name_map(messages) == {}
 
 
-# ---------------------------------------------------------------------------
-# _event_to_dict
-# ---------------------------------------------------------------------------
-
-
-def test_event_to_dict_dict() -> None:
-    assert _event_to_dict({"a": 1}) == {"a": 1}
-
-
-def test_event_to_dict_model_dump() -> None:
-    event = MagicMock()
-    event.model_dump.return_value = {"b": 2}
-    assert _event_to_dict(event) == {"b": 2}
-
-
-def test_event_to_dict_vars() -> None:
-    class Ev:
-        def __init__(self):
-            self.c = 3
-
-    assert _event_to_dict(Ev()) == {"c": 3}
-
-
-def test_event_to_dict_empty() -> None:
-    assert _event_to_dict("string") == {}
-
-
-# ---------------------------------------------------------------------------
-# _text_from_content
-# ---------------------------------------------------------------------------
-
-
-def test_text_from_content_string() -> None:
-    assert _text_from_content("hello") == "hello"
-
-
-def test_text_from_content_dict() -> None:
-    assert _text_from_content({"type": "text", "text": "hi"}) == "hi"
-    assert _text_from_content({"type": "image", "text": "skip"}) == ""
-
-
-def test_text_from_content_list() -> None:
-    assert (
-        _text_from_content(
-            [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
-        )
-        == "ab"
-    )
-
-
-def test_text_from_content_other() -> None:
-    assert _text_from_content(42) == ""
+def test_tool_name_map_ignores_non_tool_blocks() -> None:
+    messages = [{"role": "assistant", "content": [{"type": "text", "text": "hi"}]}]
+    assert _tool_name_map(messages) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -588,73 +201,63 @@ def test_build_input_user_message() -> None:
     assert parts[0]["text"] == "Hello"
 
 
-def test_build_input_tool_results() -> None:
+def test_build_input_tool_results_resolve_names() -> None:
+    """function_result.name comes from the assistant tool-call block."""
     messages = [
         {"role": "user", "content": "Do something"},
         {
             "role": "assistant",
-            "content": [],
-            "tool_calls": [
+            "content": [
                 {
+                    "type": "tool-call",
                     "id": "call_1",
-                    "function": {"name": "read_file", "arguments": "{}"},
+                    "name": "read_file",
+                    "arguments": '{"path": "/tmp"}',
                 }
             ],
         },
-        {
-            "role": "tool",
-            "toolCallId": "call_1",
-            "content": "file contents here",
-        },
+        {"role": "tool", "toolCallId": "call_1", "content": "file contents"},
     ]
     parts = _build_input(messages)
     assert len(parts) == 1
     assert parts[0]["type"] == "function_result"
     assert parts[0]["name"] == "read_file"
     assert parts[0]["call_id"] == "call_1"
+    assert parts[0]["result"] == [{"type": "text", "text": "file contents"}]
 
 
-def test_build_input_no_user_message() -> None:
-    messages = [{"role": "system", "content": "You are helpful"}]
+def test_build_input_multiple_tool_results() -> None:
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool-call",
+                    "id": "c1",
+                    "name": "read_file",
+                    "arguments": "{}",
+                },
+                {
+                    "type": "tool-call",
+                    "id": "c2",
+                    "name": "web_search",
+                    "arguments": "{}",
+                },
+            ],
+        },
+        {"role": "tool", "toolCallId": "c1", "content": "one"},
+        {"role": "tool", "toolCallId": "c2", "content": "two"},
+    ]
     parts = _build_input(messages)
-    assert parts == []
+    assert [p["name"] for p in parts] == ["read_file", "web_search"]
+
+
+def test_build_input_no_system_only_messages() -> None:
+    assert _build_input([{"role": "system", "content": "You are helpful"}]) == []
 
 
 def test_build_input_empty_user_text() -> None:
-    """A user message with empty text produces no input parts."""
-    messages = [{"role": "user", "content": ""}]
-    parts = _build_input(messages)
-    assert parts == []
-
-
-def test_build_input_tail_with_non_tool() -> None:
-    """A non-tool message at the end breaks the tool-result tail scan."""
-    messages = [
-        {"role": "user", "content": "Do something"},
-        {
-            "role": "assistant",
-            "content": [],
-            "tool_calls": [
-                {
-                    "id": "call_1",
-                    "function": {"name": "read_file", "arguments": "{}"},
-                }
-            ],
-        },
-        {
-            "role": "tool",
-            "toolCallId": "call_1",
-            "content": "file contents",
-        },
-        # A non-tool message at the end breaks the tail scan.
-        {"role": "user", "content": "Thanks!"},
-    ]
-    parts = _build_input(messages)
-    # The tail scan breaks at the user message, so no tool results are found.
-    # Falls through to extracting the last user message as text input.
-    assert len(parts) == 1
-    assert parts[0]["type"] == "text"
-    assert parts[0]["text"] == "Thanks!"
+    assert _build_input([{"role": "user", "content": ""}]) == []
 
 
 # ---------------------------------------------------------------------------
@@ -683,39 +286,482 @@ def test_build_function_tools() -> None:
     assert len(result) == 1
     assert result[0]["type"] == "function"
     assert result[0]["name"] == "read_file"
-    assert result[0]["description"] == "Read a file"
 
 
 def test_build_function_tools_no_params() -> None:
-    tools = [{"name": "no_params", "description": "No params"}]
-    result = _build_function_tools(tools)
+    result = _build_function_tools([{"name": "no_params", "description": "No params"}])
     assert result is not None
     assert result[0]["parameters"] == {"type": "object", "properties": {}}
 
 
 # ---------------------------------------------------------------------------
-# stream (public method)
+# _event_to_dict
 # ---------------------------------------------------------------------------
+
+
+def test_event_to_dict_dict() -> None:
+    assert _event_to_dict({"a": 1}) == {"a": 1}
+
+
+def test_event_to_dict_model_dump() -> None:
+    event = MagicMock()
+    event.model_dump.return_value = {"b": 2}
+    assert _event_to_dict(event) == {"b": 2}
+
+
+def test_event_to_dict_vars() -> None:
+    class Ev:
+        def __init__(self) -> None:
+            self.c = 3
+
+    assert _event_to_dict(Ev()) == {"c": 3}
+
+
+def test_event_to_dict_empty() -> None:
+    assert _event_to_dict("string") == {}
+
+
+# ---------------------------------------------------------------------------
+# _text_from_content
+# ---------------------------------------------------------------------------
+
+
+def test_text_from_content_string() -> None:
+    assert _text_from_content("hello") == "hello"
+
+
+def test_text_from_content_dict() -> None:
+    assert _text_from_content({"type": "text", "text": "hi"}) == "hi"
+    assert _text_from_content({"type": "image", "text": "skip"}) == ""
+
+
+def test_text_from_content_list() -> None:
+    content = [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
+    assert _text_from_content(content) == "ab"
+
+
+def test_text_from_content_other() -> None:
+    assert _text_from_content(42) == ""
+
+
+# ---------------------------------------------------------------------------
+# _stream_call
+# ---------------------------------------------------------------------------
+
+
+def _mock_client(events: list[Any]) -> MagicMock:
+    client = MagicMock()
+    client.interactions.create.return_value = iter(events)
+    return client
+
+
+@pytest.mark.asyncio
+async def test_stream_text_response(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [
+        {"event_type": "step.delta", "delta": {"type": "text", "text": "Hello"}},
+        {
+            "event_type": "interaction.completed",
+            "interaction": {"usage": {"input_tokens": 10, "output_tokens": 5}},
+        },
+    ]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        chunks = [
+            c
+            async for c in adapter._stream_call(
+                "gemini",
+                "gemini-4-hydrogen",
+                {"messages": [], "tools": None, "sessionId": "s1"},
+            )
+        ]
+
+    types = [c.get("type") for c in chunks]
+    assert "text-delta" in types
+    assert "usage" in types
+    assert "finish" in types
+
+
+@pytest.mark.asyncio
+async def test_stream_reasoning_response(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [
+        {
+            "event_type": "step.delta",
+            "delta": {"type": "thought_summary", "content": "Thinking..."},
+        },
+        {"event_type": "interaction.completed", "interaction": {}},
+    ]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        chunks = [
+            c
+            async for c in adapter._stream_call(
+                "gemini",
+                "gemini-4-hydrogen",
+                {"messages": [], "tools": None, "sessionId": "s1"},
+            )
+        ]
+
+    assert "reasoning-delta" in [c.get("type") for c in chunks]
+
+
+@pytest.mark.asyncio
+async def test_stream_tool_call(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [
+        {
+            "event_type": "step.delta",
+            "step": {"id": "call_1", "name": "read_file"},
+            "delta": {"type": "arguments_delta", "arguments": '{"path":"/tmp"}'},
+        },
+        {"event_type": "interaction.completed", "interaction": {}},
+    ]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        chunks = [
+            c
+            async for c in adapter._stream_call(
+                "gemini",
+                "gemini-4-hydrogen",
+                {"messages": [], "tools": None, "sessionId": "s1"},
+            )
+        ]
+
+    assert "tool-call-delta" in [c.get("type") for c in chunks]
+
+
+@pytest.mark.asyncio
+async def test_stream_error_event(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [{"event_type": "error", "error": {"message": "Rate limited"}}]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        with pytest.raises(Exception, match="Rate limited"):
+            async for _c in adapter._stream_call(
+                "gemini",
+                "gemini-4-hydrogen",
+                {"messages": [], "tools": None, "sessionId": "s1"},
+            ):
+                pass
+
+
+@pytest.mark.asyncio
+async def test_stream_tracks_interaction_id_per_session(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [
+        {"event_type": "interaction.created", "interaction": {"id": "int_123"}},
+        {"event_type": "interaction.completed", "interaction": {}},
+    ]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        async for _c in adapter._stream_call(
+            "gemini",
+            "gemini-4-hydrogen",
+            {"messages": [], "tools": None, "sessionId": "s1"},
+        ):
+            pass
+
+    assert adapter._interaction_ids["s1"] == "int_123"
+
+
+@pytest.mark.asyncio
+async def test_stream_interaction_ids_are_isolated_by_session(monkeypatch) -> None:
+    """Two sessions do not clobber each other's interaction state."""
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [
+        {"event_type": "interaction.created", "interaction": {"id": "int_A"}},
+        {"event_type": "interaction.completed", "interaction": {}},
+    ]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        async for _c in adapter._stream_call(
+            "gemini",
+            "gemini-4-hydrogen",
+            {"messages": [], "tools": None, "sessionId": "s1"},
+        ):
+            pass
+
+    assert adapter._interaction_ids == {"s1": "int_A"}
+
+
+@pytest.mark.asyncio
+async def test_stream_uses_previous_interaction_for_session(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    client = _mock_client([{"event_type": "interaction.completed", "interaction": {}}])
+
+    with patch("google.genai.Client", return_value=client):
+        adapter = GeminiAdapter()
+        adapter._interaction_ids["s1"] = "prev_123"
+        async for _c in adapter._stream_call(
+            "gemini",
+            "gemini-4-hydrogen",
+            {"messages": [], "tools": None, "sessionId": "s1"},
+        ):
+            pass
+
+    sent = client.interactions.create.call_args[1]
+    assert sent["previous_interaction_id"] == "prev_123"
+
+
+@pytest.mark.asyncio
+async def test_stream_omits_previous_for_unknown_session(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    client = _mock_client([{"event_type": "interaction.completed", "interaction": {}}])
+
+    with patch("google.genai.Client", return_value=client):
+        adapter = GeminiAdapter()
+        async for _c in adapter._stream_call(
+            "gemini",
+            "gemini-4-hydrogen",
+            {"messages": [], "tools": None, "sessionId": "other"},
+        ):
+            pass
+
+    assert "previous_interaction_id" not in client.interactions.create.call_args[1]
+
+
+@pytest.mark.asyncio
+async def test_stream_empty_interaction_id_not_recorded(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [
+        {"event_type": "interaction.created", "interaction": {}},
+        {"event_type": "interaction.completed", "interaction": {}},
+    ]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        async for _c in adapter._stream_call(
+            "gemini",
+            "gemini-4-hydrogen",
+            {"messages": [], "tools": None, "sessionId": "s1"},
+        ):
+            pass
+
+    assert "s1" not in adapter._interaction_ids
+
+
+@pytest.mark.asyncio
+async def test_stream_sends_system_instruction_from_messages(monkeypatch) -> None:
+    """The system prompt reaches the provider as system_instruction."""
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    client = _mock_client([{"event_type": "interaction.completed", "interaction": {}}])
+
+    messages = [
+        {"role": "system", "content": [{"type": "text", "text": "You are hsh."}]},
+        {"role": "user", "content": [{"type": "text", "text": "hi"}]},
+    ]
+    with patch("google.genai.Client", return_value=client):
+        adapter = GeminiAdapter()
+        async for _c in adapter._stream_call(
+            "gemini", "gemini-4-hydrogen", {"messages": messages, "sessionId": "s1"}
+        ):
+            pass
+
+    sent = client.interactions.create.call_args[1]
+    assert sent["system_instruction"] == "You are hsh."
+
+
+@pytest.mark.asyncio
+async def test_stream_omits_system_instruction_when_absent(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    client = _mock_client([{"event_type": "interaction.completed", "interaction": {}}])
+
+    with patch("google.genai.Client", return_value=client):
+        adapter = GeminiAdapter()
+        async for _c in adapter._stream_call(
+            "gemini",
+            "gemini-4-hydrogen",
+            {"messages": [{"role": "user", "content": "hi"}], "sessionId": "s1"},
+        ):
+            pass
+
+    assert "system_instruction" not in client.interactions.create.call_args[1]
+
+
+@pytest.mark.asyncio
+async def test_stream_unknown_event_type(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [
+        {"event_type": "some.unknown.event", "data": "ignored"},
+        {"event_type": "interaction.completed", "interaction": {}},
+    ]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        chunks = [
+            c
+            async for c in adapter._stream_call(
+                "gemini",
+                "gemini-4-hydrogen",
+                {"messages": [], "tools": None, "sessionId": "s1"},
+            )
+        ]
+
+    assert "finish" in [c.get("type") for c in chunks]
+
+
+@pytest.mark.asyncio
+async def test_stream_empty_delta_type(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [
+        {"event_type": "step.delta", "delta": {}},
+        {"event_type": "interaction.completed", "interaction": {}},
+    ]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        chunks = [
+            c
+            async for c in adapter._stream_call(
+                "gemini",
+                "gemini-4-hydrogen",
+                {"messages": [], "tools": None, "sessionId": "s1"},
+            )
+        ]
+
+    types = [c.get("type") for c in chunks]
+    assert "finish" in types
+    assert "text-delta" not in types
+
+
+@pytest.mark.asyncio
+async def test_stream_loop_exhausts_without_complete(monkeypatch) -> None:
+    """A stream that ends without interaction.completed still finishes."""
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [{"event_type": "step.delta", "delta": {"type": "text", "text": "Hi"}}]
+    with patch("google.genai.Client", return_value=_mock_client(events)):
+        adapter = GeminiAdapter()
+        chunks = [
+            c
+            async for c in adapter._stream_call(
+                "gemini",
+                "gemini-4-hydrogen",
+                {"messages": [], "tools": None, "sessionId": "s1"},
+            )
+        ]
+
+    types = [c.get("type") for c in chunks]
+    assert "text-delta" in types
+    assert "finish" in types
+
+
+@pytest.mark.asyncio
+async def test_stream_abort_yields_aborted_finish(monkeypatch) -> None:
+    """Aborting mid-stream finishes with an aborted reason, not a clean stop."""
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    events = [{"event_type": "step.delta", "delta": {"type": "text", "text": "Hi"}}]
+    client = _mock_client(events)
+
+    mock_signal = MagicMock()
+    mock_signal.is_aborted = True
+
+    with patch("google.genai.Client", return_value=client):
+        adapter = GeminiAdapter()
+        chunks = [
+            c
+            async for c in adapter._stream_call(
+                "gemini",
+                "gemini-4-hydrogen",
+                {
+                    "messages": [],
+                    "tools": None,
+                    "sessionId": "s1",
+                    "signal": mock_signal,
+                },
+            )
+        ]
+
+    finishes = [c for c in chunks if c.get("type") == "finish"]
+    assert len(finishes) == 1
+    assert finishes[0]["reason"]["kind"] == "aborted"
+
+
+@pytest.mark.asyncio
+async def test_stream_with_reasoning_effort(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    client = _mock_client([{"event_type": "interaction.completed", "interaction": {}}])
+
+    with patch("google.genai.Client", return_value=client):
+        adapter = GeminiAdapter()
+        async for _c in adapter._stream_call(
+            "gemini",
+            "gemini-4-hydrogen",
+            {
+                "messages": [],
+                "tools": None,
+                "sessionId": "s1",
+                "reasoningEffort": "high",
+            },
+        ):
+            pass
+
+    config = client.interactions.create.call_args[1]["generation_config"]
+    assert config["thinking_level"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_stream_with_tools(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+    client = _mock_client([{"event_type": "interaction.completed", "interaction": {}}])
+
+    tools = [
+        {
+            "name": "read_file",
+            "description": "Read a file",
+            "parameters": {"type": "object", "properties": {}},
+        }
+    ]
+    with patch("google.genai.Client", return_value=client):
+        adapter = GeminiAdapter()
+        async for _c in adapter._stream_call(
+            "gemini",
+            "gemini-4-hydrogen",
+            {"messages": [], "tools": tools, "sessionId": "s1"},
+        ):
+            pass
+
+    sent = client.interactions.create.call_args[1]["tools"]
+    assert sent[0]["name"] == "read_file"
 
 
 @pytest.mark.asyncio
 async def test_stream_public_method(monkeypatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "key")
+    client = _mock_client([{"event_type": "interaction.completed", "interaction": {}}])
 
-    mock_event_done = {
-        "event_type": "interaction.completed",
-        "interaction": {},
-    }
-    mock_client = MagicMock()
-    mock_client.interactions.create.return_value = iter([mock_event_done])
-
-    with patch("google.genai.Client", return_value=mock_client):
+    with patch("google.genai.Client", return_value=client):
         adapter = GeminiAdapter()
-        chunks: list[dict[str, Any]] = []
-        async for chunk in adapter.stream(
-            {"provider": "gemini", "model": "gemini-4-hydrogen"}
-        ):
-            chunks.append(chunk)
+        chunks = [
+            c
+            async for c in adapter.stream(
+                {
+                    "provider": "gemini",
+                    "model": "gemini-4-hydrogen",
+                    "sessionId": "s1",
+                }
+            )
+        ]
 
-    types = [c.get("type") for c in chunks]
-    assert "finish" in types
+    assert "finish" in [c.get("type") for c in chunks]
+
+
+def test_build_input_skips_non_user_messages() -> None:
+    """The reversed scan skips messages that are not from the user."""
+    messages = [
+        {"role": "user", "content": [{"type": "text", "text": "the task"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "thinking"}]},
+    ]
+    parts = _build_input(messages)
+    assert len(parts) == 1
+    assert parts[0]["text"] == "the task"
+
+
+def test_tool_name_map_skips_empty_call_id() -> None:
+    """A tool-call block with no id is not recorded."""
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "tool-call", "id": "", "name": "nameless", "arguments": "{}"}
+            ],
+        }
+    ]
+    assert _tool_name_map(messages) == {}

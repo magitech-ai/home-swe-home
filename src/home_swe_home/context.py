@@ -70,16 +70,15 @@ async def build_context(
 
 def _register_prompt_sections(ctx: Context) -> None:
     """Register home-swe-home's system prompt sections on ctx.system_prompt."""
-    from .instructions import agents_md, system_line
+    from .instructions import agents_md, base_instructions, system_line
 
-    # Identity section
+    # Identity section — read from the editable harness tree so the prompt
+    # stays data, not code (HOME_SWE_HOME_HARNESS_DIR can point elsewhere).
     ctx.system_prompt.section(
         {
             "name": "hsh:identity",
             "order": -500,
-            "text": "You are home-swe-home, a coding agent. You help with software "
-            "engineering tasks: reading and editing code, running commands, "
-            "searching the web, and verifying that changes pass checks.",
+            "text": lambda _ctx: base_instructions(),
         }
     )
 
