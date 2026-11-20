@@ -514,3 +514,10 @@ def test_remove_sigint_swallows_failures() -> None:
         loop = MagicMock()
         loop.remove_signal_handler.side_effect = error
         _remove_sigint(loop)  # must not raise
+
+
+def test_install_sigint_skips_when_already_installed() -> None:
+    """A second call is a no-op when a handler is already active."""
+    loop = MagicMock()
+    assert _install_sigint(loop, lambda: None, installed=True) is True
+    loop.add_signal_handler.assert_not_called()

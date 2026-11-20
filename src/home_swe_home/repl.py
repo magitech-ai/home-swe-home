@@ -156,8 +156,7 @@ async def run_repl(
                     print("No skills service mounted.")
                 continue
 
-            if not sig_installed:
-                sig_installed = _install_sigint(loop, _on_sigint)
+            sig_installed = _install_sigint(loop, _on_sigint, sig_installed)
 
             agent.followup(
                 create_user_message(
@@ -180,13 +179,17 @@ async def run_repl(
         _remove_sigint(loop)
 
 
-def _install_sigint(loop: Any, handler: Any) -> bool:
-    """Install a SIGINT handler, reporting whether it took effect.
+def _install_sigint(loop: Any, handler: Any, installed: bool = False) -> bool:
+    """Install a SIGINT handler once, reporting whether one is active.
 
     ``loop.add_signal_handler`` is unavailable on some platforms (notably
     Windows, which raises ``NotImplementedError``), so this returns False
     rather than raising and the REPL keeps running without Ctrl-C handling.
+    The ``installed`` argument keeps the state in one place, so the caller has
+    no platform-dependent branch of its own.
     """
+    if installed:
+        return True
     try:
         loop.add_signal_handler(py_signal.SIGINT, handler)
     except (NotImplementedError, RuntimeError, AttributeError, ValueError, OSError):
