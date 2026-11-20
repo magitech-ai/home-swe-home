@@ -70,3 +70,16 @@ path in `~/.agents/home-swe-home/config.toml`. Every remote step is confirmed.
 ## Design
 
 See `DESIGN.md` for how to run, setup, and every decision.
+
+## Review
+
+`hsh-review` is the independent reviewer. For experiments, it can run multiple
+independent trials and aggregate them by majority or unanimity:
+
+```sh
+uv run hsh-review --diff diff.txt --spec spec.txt --trials 3 --rule majority
+```
+
+Trials must be an odd, positive number. Per-trial verdicts are emitted in the
+JSON output and copied into the audit record. The GitHub PR gate currently uses
+a single trial; multi-trial aggregation is measured but not enabled by default.

@@ -23,6 +23,7 @@ from .client import config_for
 from .review import (
     REVIEWER_REASONING_EFFORT,
     Verdict,
+    aggregate_trials,
     build_user_prompt,
     run_review_with_usage,
 )
@@ -73,6 +74,8 @@ def evaluate(
     model: str,
     cases: tuple[Case, ...] = CASES,
     reasoning_effort: str | None = None,
+    trials: int = 1,
+    rule: str = "majority",
 ) -> list[Result]:
     """Run every case against one reviewer model, recording latency."""
     results: list[Result] = []
@@ -81,19 +84,27 @@ def evaluate(
             spec=case.spec, standards=[("REVIEW", REVIEW_STANDARD)], diff=case.diff
         )
         start = time.monotonic()
-        outcome = run_review_with_usage(
-            client,
-            model=model,
-            user_prompt=prompt,
-            reasoning_effort=reasoning_effort,
+        outcomes = [
+            run_review_with_usage(
+                client,
+                model=model,
+                user_prompt=prompt,
+                reasoning_effort=reasoning_effort,
+            )
+            for _ in range(trials)
+        ]
+        verdict = (
+            outcomes[0].verdict
+            if trials == 1
+            else aggregate_trials(outcomes, rule=rule)[0]
         )
         results.append(
             Result(
                 case,
-                outcome.verdict,
+                verdict,
                 time.monotonic() - start,
-                outcome.prompt_tokens,
-                outcome.completion_tokens,
+                sum(o.prompt_tokens for o in outcomes),
+                sum(o.completion_tokens for o in outcomes),
             )
         )
     return results
@@ -158,6 +169,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hsh-review-eval")
     parser.add_argument("--provider", required=True, help="reviewer provider id")
     parser.add_argument("--model", required=True, help="reviewer model id")
+    parser.add_argument("--trials", type=int, default=1)
+    parser.add_argument("--rule", choices=("majority", "unanimous"), default="majority")
     parser.add_argument("--out", required=True, metavar="FILE")
     return parser
 
@@ -171,6 +184,8 @@ def main(argv: list[str] | None = None) -> int:
         results = evaluate(
             client,
             model=args.model,
+            trials=args.trials,
+            rule=args.rule,
             reasoning_effort=(
                 REVIEWER_REASONING_EFFORT if args.provider == "gemini" else None
             ),

@@ -21,6 +21,7 @@ VERDICT_FIELDS = (
     "prompt_tokens",
     "completion_tokens",
 )
+OPTIONAL_FIELDS = ("trials", "approvals", "trial_records")
 
 
 def build_audit_record(
@@ -56,6 +57,9 @@ def build_audit_record(
     if missing:
         raise ValueError(f"review output missing required fields: {', '.join(missing)}")
     record.update({field: verdict[field] for field in VERDICT_FIELDS})
+    for field in OPTIONAL_FIELDS:
+        if field in verdict:
+            record[field] = verdict[field]
     if evidence_check is not None:
         record["evidence_check"] = evidence_check
     return record

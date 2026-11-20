@@ -48,6 +48,36 @@ def test_evaluate_runs_every_case(monkeypatch) -> None:
     assert all(r.verdict.approved == (not r.case.has_defect) for r in results)
 
 
+def test_evaluate_aggregates_unanimous(monkeypatch) -> None:
+    case = review_eval.Case("agg-u", "unit", "Do W", "diff", False, "")
+    approvals = iter([True, True, False])
+
+    def fake_run(_client, **_kwargs):
+        return ReviewOutcome(PERFECT if next(approvals) else CHANGED, 1, 1)
+
+    monkeypatch.setattr(review_eval, "run_review_with_usage", fake_run)
+    results = review_eval.evaluate(
+        SimpleNamespace(), model="m", cases=(case,), trials=3, rule="unanimous"
+    )
+    assert not results[0].verdict.approved
+
+
+def test_evaluate_aggregates_trials(monkeypatch) -> None:
+    case = review_eval.Case("agg", "unit", "Do Z", "diff", False, "")
+    approvals = iter([True, True, False])
+
+    def fake_run(_client, **_kwargs):
+        verdict = PERFECT if next(approvals) else CHANGED
+        return ReviewOutcome(verdict, 10, 5)
+
+    monkeypatch.setattr(review_eval, "run_review_with_usage", fake_run)
+    results = review_eval.evaluate(
+        SimpleNamespace(), model="m", cases=(case,), trials=3
+    )
+    assert results[0].verdict.approved
+    assert results[0].prompt_tokens == 30
+
+
 def result(case, approved: bool) -> review_eval.Result:
     return review_eval.Result(case, PERFECT if approved else CHANGED, 1.0)
 
@@ -99,7 +129,7 @@ def test_main_writes_results(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         review_eval,
         "evaluate",
-        lambda _client, *, model, reasoning_effort=None: [
+        lambda _client, *, model, reasoning_effort=None, trials=1, rule="majority": [
             result(review_eval.CASES[0], approved=False)
         ],
     )
