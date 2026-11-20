@@ -1,0 +1,12 @@
+{
+  "status": "error",
+  "pr": 107,
+  "commit": "19f641e60f8ad6c2b2daea4ff0f5441e8dcd199e",
+  "trigger_issue": 103,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44840708061,
+  "recorded_at": "2026-11-20T23:59:34Z",
+  "error": "hsh-review: Error code: 402\n"
+}
