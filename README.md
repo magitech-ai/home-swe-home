@@ -1,5 +1,8 @@
 # home-swe-home
 
+**New here? Read [START_HERE](https://github.com/magitech-ai/agents-home/blob/main/START_HERE.md).**
+It explains where the factory, decision log, evidence and audit records live.
+
 A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
 micro-kernel. Everything is a
 component: the core loop and all 15 tools are anima Services mounted on a
