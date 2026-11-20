@@ -1,0 +1,27 @@
+{
+  "status": "ok",
+  "pr": 96,
+  "commit": "5612bf2f4a939e3e055b5a2597f646253b734844",
+  "trigger_issue": 95,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44666298117,
+  "recorded_at": "2026-11-20T03:14:15Z",
+  "verdict": "APPROVE",
+  "summary": "1/1 independent trials approved (majority rule)",
+  "findings": [],
+  "elapsed_seconds": 2.003,
+  "prompt_tokens": 7038,
+  "completion_tokens": 57,
+  "trials": 1,
+  "approvals": 1,
+  "trial_records": [
+    {
+      "verdict": "APPROVE",
+      "summary": "Adds --trials and --rule flags to hsh-review and hsh-review-eval with aggregation support across trials, updating audit records and comprehensive unit tests.",
+      "findings": []
+    }
+  ],
+  "evidence_check": []
+}
