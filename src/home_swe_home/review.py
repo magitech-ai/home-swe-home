@@ -36,12 +36,12 @@ REVIEWER_REASONING_EFFORT = "low"
 REVIEW_TIMEOUT_SECONDS = 180.0
 
 # Diff size budget for one review. The reviewer's model accepts ~1M input
-# tokens, so this is not a context-limit guard: it keeps a diff small enough
-# that the reviewer can hold all of it in view and still meet its per-finding
-# evidence standard. A larger diff measurably degrades that standard, so the
-# default is deliberately conservative and the ceiling is not much higher.
-DEFAULT_MAX_DIFF_CHARS = 400_000
-MAX_DIFF_CHARS_CEILING = 600_000
+# tokens, so this is not a context-limit guard: 800k chars is roughly 200k
+# tokens, still well inside the window. The budget exists to bound how much a
+# single review must hold in view, and to fail early with an actionable
+# message when a PR should be split rather than skimmed.
+DEFAULT_MAX_DIFF_CHARS = 800_000
+MAX_DIFF_CHARS_CEILING = 800_000
 MAX_DIFF_CHARS_ENV = "HOME_SWE_HOME_MAX_DIFF_CHARS"
 
 
@@ -49,7 +49,9 @@ def resolve_max_diff_chars(raw: str | None = None) -> int:
     """Resolve the diff budget from an explicit value or the environment.
 
     Values outside ``1..MAX_DIFF_CHARS_CEILING`` are rejected rather than
-    clamped, so a typo cannot silently widen the review budget.
+    clamped, so a typo cannot silently widen the review budget. The ceiling
+    equals the default: a PR larger than the budget must be split, not
+    waved through by raising a flag.
     """
     source = raw if raw is not None else os.environ.get(MAX_DIFF_CHARS_ENV)
     if source is None or source.strip() == "":

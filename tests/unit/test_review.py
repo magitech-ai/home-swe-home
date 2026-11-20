@@ -345,10 +345,10 @@ def test_main_oversized_diff_fails_closed(tmp_path, capsys) -> None:
     assert "split the pull request" in capsys.readouterr().err
 
 
-def test_main_accepts_diff_under_raised_budget(monkeypatch, tmp_path) -> None:
-    """A diff over the default but under an explicit budget is reviewed."""
+def test_main_accepts_diff_under_ceiling_budget(monkeypatch, tmp_path) -> None:
+    """A diff between the old 400k cap and the 800k ceiling is reviewed."""
     diff = tmp_path / "diff.txt"
-    diff.write_text("x" * (review.DEFAULT_MAX_DIFF_CHARS + 1), encoding="utf-8")
+    diff.write_text("x" * (review.DEFAULT_MAX_DIFF_CHARS - 1), encoding="utf-8")
     spec = tmp_path / "spec.txt"
     spec.write_text("spec", encoding="utf-8")
 
@@ -375,7 +375,7 @@ def test_main_accepts_diff_under_raised_budget(monkeypatch, tmp_path) -> None:
             "--reviewer-model",
             "other",
             "--max-diff-chars",
-            "600000",
+            str(review.MAX_DIFF_CHARS_CEILING),
         ]
     )
     assert code == 0
@@ -411,12 +411,12 @@ def test_default_diff_budget(monkeypatch) -> None:
 
 
 def test_diff_budget_from_env(monkeypatch) -> None:
-    monkeypatch.setenv("HOME_SWE_HOME_MAX_DIFF_CHARS", "600000")
-    assert review.resolve_max_diff_chars() == review.MAX_DIFF_CHARS_CEILING
+    monkeypatch.setenv("HOME_SWE_HOME_MAX_DIFF_CHARS", "12345")
+    assert review.resolve_max_diff_chars() == 12345
 
 
 def test_diff_budget_explicit_beats_env(monkeypatch) -> None:
-    monkeypatch.setenv("HOME_SWE_HOME_MAX_DIFF_CHARS", "600000")
+    monkeypatch.setenv("HOME_SWE_HOME_MAX_DIFF_CHARS", "12345")
     assert review.resolve_max_diff_chars("1234") == 1234
 
 
@@ -439,6 +439,6 @@ def test_diff_budget_rejects_zero(monkeypatch) -> None:
         review.resolve_max_diff_chars("0")
 
 
-def test_ceiling_is_above_default() -> None:
-    """The ceiling leaves headroom for genuinely large mechanical PRs."""
-    assert review.MAX_DIFF_CHARS_CEILING > review.DEFAULT_MAX_DIFF_CHARS
+def test_budget_covers_the_ported_diff_size() -> None:
+    """The budget must accommodate a port of this scale (was refused at 400k)."""
+    assert review.DEFAULT_MAX_DIFF_CHARS >= 700_000
