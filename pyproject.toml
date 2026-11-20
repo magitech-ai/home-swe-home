@@ -14,8 +14,14 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-anima = { path = "/mnt/storage/projects/magitech/anima", editable = true }
-magitech-harness = { path = "/mnt/storage/projects/magitech/magitech-harness", editable = true }
+anima = { git = "https://github.com/magitech-ai/anima.git" }
+magitech-harness = { git = "https://github.com/magitech-ai/magitech-harness.git" }
+
+# magitech-harness pins anima with a repo-relative path (../anima) that cannot
+# resolve when it is installed from git, so the anima source is declared here
+# and forced for every consumer in this workspace.
+[tool.uv]
+override-dependencies = ["anima"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov>=6.0", "pytest-asyncio>=1.4", "mypy>=1.11", "ruff>=0.17"]
