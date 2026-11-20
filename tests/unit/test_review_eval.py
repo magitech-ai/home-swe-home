@@ -28,16 +28,23 @@ def test_case_suite_meets_d012_structure() -> None:
 
 
 def test_evaluate_runs_every_case(monkeypatch) -> None:
-    def fake_run(_client, *, model, user_prompt):
+    # Synthetic cases: real case specs can appear inside real PR diffs used by
+    # scale cases, which would make a spec-matching fake ambiguous.
+    cases = (
+        review_eval.Case("synthetic-bad", "unit", "Do X", "diff", True, "X"),
+        review_eval.Case("synthetic-good", "unit", "Do Y", "diff", False, ""),
+    )
+
+    def fake_run(_client, *, model, user_prompt, reasoning_effort=None):
         assert model == "reviewer"
-        for case in review_eval.CASES:
+        for case in cases:
             if case.spec in user_prompt:
                 return ReviewOutcome(CHANGED if case.has_defect else PERFECT, 10, 5)
         raise AssertionError("prompt did not contain a known case spec")
 
     monkeypatch.setattr(review_eval, "run_review_with_usage", fake_run)
-    results = review_eval.evaluate(SimpleNamespace(), model="reviewer")
-    assert len(results) == len(review_eval.CASES)
+    results = review_eval.evaluate(SimpleNamespace(), model="reviewer", cases=cases)
+    assert len(results) == len(cases)
     assert all(r.verdict.approved == (not r.case.has_defect) for r in results)
 
 
@@ -92,7 +99,9 @@ def test_main_writes_results(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         review_eval,
         "evaluate",
-        lambda _client, *, model: [result(review_eval.CASES[0], approved=False)],
+        lambda _client, *, model, reasoning_effort=None: [
+            result(review_eval.CASES[0], approved=False)
+        ],
     )
     out = tmp_path / "results.json"
     code = review_eval.main(["--provider", "fake", "--model", "m", "--out", str(out)])

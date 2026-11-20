@@ -20,7 +20,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from .client import config_for
-from .review import Verdict, build_user_prompt, run_review_with_usage
+from .review import (
+    REVIEWER_REASONING_EFFORT,
+    Verdict,
+    build_user_prompt,
+    run_review_with_usage,
+)
 
 REVIEW_STANDARD = """Review contract:
 - Every acceptance criterion must be met, with evidence from the diff.
@@ -63,7 +68,11 @@ class Result:
 
 
 def evaluate(
-    client: Any, *, model: str, cases: tuple[Case, ...] = CASES
+    client: Any,
+    *,
+    model: str,
+    cases: tuple[Case, ...] = CASES,
+    reasoning_effort: str | None = None,
 ) -> list[Result]:
     """Run every case against one reviewer model, recording latency."""
     results: list[Result] = []
@@ -72,7 +81,12 @@ def evaluate(
             spec=case.spec, standards=[("REVIEW", REVIEW_STANDARD)], diff=case.diff
         )
         start = time.monotonic()
-        outcome = run_review_with_usage(client, model=model, user_prompt=prompt)
+        outcome = run_review_with_usage(
+            client,
+            model=model,
+            user_prompt=prompt,
+            reasoning_effort=reasoning_effort,
+        )
         results.append(
             Result(
                 case,
@@ -154,7 +168,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         base_url, key, _label = config_for(args.provider)
         client = OpenAI(base_url=base_url, api_key=key, timeout=180, max_retries=0)
-        results = evaluate(client, model=args.model)
+        results = evaluate(
+            client,
+            model=args.model,
+            reasoning_effort=(
+                REVIEWER_REASONING_EFFORT if args.provider == "gemini" else None
+            ),
+        )
     except Exception as error:
         print(f"hsh-review-eval: {error}", file=sys.stderr)
         return 2
