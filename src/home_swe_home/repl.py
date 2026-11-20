@@ -174,8 +174,10 @@ async def run_repl(
         stop_stream()
         stop_events()
         stop_errors()
-        if sig_installed:
-            _remove_sigint(loop)
+        # Unconditional: _remove_sigint is safe when nothing was installed, so
+        # the cleanup runs on every platform (including ones where installing
+        # a SIGINT handler is unsupported, e.g. Windows).
+        _remove_sigint(loop)
 
 
 def _install_sigint(loop: Any, handler: Any) -> bool:
