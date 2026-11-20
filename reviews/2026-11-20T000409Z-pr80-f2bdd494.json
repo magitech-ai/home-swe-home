@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 80,
+  "commit": "f2bdd494ab39b121e14cf382600547e73a60c7ff",
+  "trigger_issue": 79,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44642751382,
+  "recorded_at": "2026-11-20T00:04:09Z",
+  "verdict": "APPROVE",
+  "summary": "Unsets the global http.extraheader installed by actions/checkout before pushing with the fine-grained PAT, satisfying the acceptance criterion.",
+  "findings": [],
+  "elapsed_seconds": 2.206,
+  "prompt_tokens": 2009,
+  "completion_tokens": 44,
+  "evidence_check": []
+}
