@@ -65,6 +65,8 @@ Rules:
 - Check that every acceptance criterion is met, that tests cover the behavior change,
   and that the change stays within the stated scope.
 - Do not raise style preferences that are not documented rules.
+- Do not invent requirements beyond the acceptance criteria and standards, and
+  do not contradict a type, field or structure explicitly stated in them.
 - If the material is insufficient to decide, request changes and say what is missing.
 
 Respond with ONLY a JSON object of this exact shape:
