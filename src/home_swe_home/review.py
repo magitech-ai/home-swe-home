@@ -33,7 +33,7 @@ DEFAULT_REVIEWER_PROVIDER = "gemini"
 DEFAULT_REVIEWER_MODEL = "gemini-3.8-flash"
 REVIEWER_REASONING_EFFORT = "low"
 REVIEW_TIMEOUT_SECONDS = 180.0
-MAX_DIFF_CHARS = 100_000
+MAX_DIFF_CHARS = 250_000
 
 SYSTEM_PROMPT = """You are an independent code reviewer for a small
 autonomous software factory.
