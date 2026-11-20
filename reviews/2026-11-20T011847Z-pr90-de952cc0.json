@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 90,
+  "commit": "de952cc06656a36a3d88bc80f99b01b8c3cd6486",
+  "trigger_issue": 89,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44652636265,
+  "recorded_at": "2026-11-20T01:18:47Z",
+  "verdict": "APPROVE",
+  "summary": "The change correctly updates the jq expressions in the workflow to read eval metrics nested under .summary.",
+  "findings": [],
+  "elapsed_seconds": 2.096,
+  "prompt_tokens": 1971,
+  "completion_tokens": 43,
+  "evidence_check": []
+}
