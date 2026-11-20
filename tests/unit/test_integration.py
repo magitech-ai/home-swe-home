@@ -7,7 +7,6 @@ tool execution through mth's pipeline, and session logging.
 from __future__ import annotations
 
 import json
-
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 

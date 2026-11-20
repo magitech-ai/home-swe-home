@@ -335,7 +335,7 @@ def test_main_same_model_fails_closed(monkeypatch, tmp_path, capsys) -> None:
 
 def test_main_oversized_diff_fails_closed(tmp_path, capsys) -> None:
     diff = tmp_path / "diff.txt"
-    diff.write_text("x" * (review.MAX_DIFF_CHARS + 1), encoding="utf-8")
+    diff.write_text("x" * (review.DEFAULT_MAX_DIFF_CHARS + 1), encoding="utf-8")
     spec = tmp_path / "spec.txt"
     spec.write_text("spec", encoding="utf-8")
     code = review.main(
@@ -343,6 +343,43 @@ def test_main_oversized_diff_fails_closed(tmp_path, capsys) -> None:
     )
     assert code == 2
     assert "split the pull request" in capsys.readouterr().err
+
+
+def test_main_accepts_diff_under_raised_budget(monkeypatch, tmp_path) -> None:
+    """A diff over the default but under an explicit budget is reviewed."""
+    diff = tmp_path / "diff.txt"
+    diff.write_text("x" * (review.DEFAULT_MAX_DIFF_CHARS + 1), encoding="utf-8")
+    spec = tmp_path / "spec.txt"
+    spec.write_text("spec", encoding="utf-8")
+
+    captured: dict[str, str] = {}
+
+    def fake_review(_client, *, model, user_prompt, **_kw):
+        captured["prompt"] = user_prompt
+        return review.ReviewOutcome(
+            review.Verdict(verdict="APPROVE", summary="ok", findings=[]), 1, 1
+        )
+
+    monkeypatch.setattr(review, "run_review_with_usage", fake_review)
+    monkeypatch.setattr(
+        review, "config_for", lambda _p: ("https://x.invalid", "k", "Fake")
+    )
+    monkeypatch.setattr(review, "OpenAI", lambda **_kw: object())
+
+    code = review.main(
+        [
+            "--diff",
+            str(diff),
+            "--spec",
+            str(spec),
+            "--reviewer-model",
+            "other",
+            "--max-diff-chars",
+            "600000",
+        ]
+    )
+    assert code == 0
+    assert "xxxx" in captured["prompt"]
 
 
 def test_main_bad_standard_fails_closed(monkeypatch, tmp_path, capsys) -> None:
@@ -361,3 +398,47 @@ def test_main_bad_standard_fails_closed(monkeypatch, tmp_path, capsys) -> None:
     )
     assert code == 2
     assert "invalid --standard" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Diff size budget
+# ---------------------------------------------------------------------------
+
+
+def test_default_diff_budget(monkeypatch) -> None:
+    monkeypatch.delenv("HOME_SWE_HOME_MAX_DIFF_CHARS", raising=False)
+    assert review.resolve_max_diff_chars() == review.DEFAULT_MAX_DIFF_CHARS
+
+
+def test_diff_budget_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("HOME_SWE_HOME_MAX_DIFF_CHARS", "600000")
+    assert review.resolve_max_diff_chars() == review.MAX_DIFF_CHARS_CEILING
+
+
+def test_diff_budget_explicit_beats_env(monkeypatch) -> None:
+    monkeypatch.setenv("HOME_SWE_HOME_MAX_DIFF_CHARS", "600000")
+    assert review.resolve_max_diff_chars("1234") == 1234
+
+
+def test_diff_budget_rejects_non_integer(monkeypatch) -> None:
+    monkeypatch.delenv("HOME_SWE_HOME_MAX_DIFF_CHARS", raising=False)
+    with pytest.raises(review.ConfigurationError, match="must be an integer"):
+        review.resolve_max_diff_chars("lots")
+
+
+def test_diff_budget_rejects_over_ceiling(monkeypatch) -> None:
+    monkeypatch.delenv("HOME_SWE_HOME_MAX_DIFF_CHARS", raising=False)
+    over = review.MAX_DIFF_CHARS_CEILING + 1
+    with pytest.raises(review.ConfigurationError, match="must be between"):
+        review.resolve_max_diff_chars(str(over))
+
+
+def test_diff_budget_rejects_zero(monkeypatch) -> None:
+    monkeypatch.delenv("HOME_SWE_HOME_MAX_DIFF_CHARS", raising=False)
+    with pytest.raises(review.ConfigurationError, match="must be between"):
+        review.resolve_max_diff_chars("0")
+
+
+def test_ceiling_is_above_default() -> None:
+    """The ceiling leaves headroom for genuinely large mechanical PRs."""
+    assert review.MAX_DIFF_CHARS_CEILING > review.DEFAULT_MAX_DIFF_CHARS
