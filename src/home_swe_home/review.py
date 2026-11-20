@@ -16,7 +16,6 @@ import argparse
 import json
 import sys
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -197,63 +196,6 @@ def run_review(
     return run_review_with_usage(client, model=model, user_prompt=user_prompt).verdict
 
 
-def aggregate_trials(
-    outcomes: Sequence[ReviewOutcome], *, rule: str = "majority"
-) -> tuple[Verdict, list[dict[str, Any]]]:
-    """Reduce independent review trials by majority, failing closed.
-
-    An odd number of trials is required so there is no tie. A majority APPROVE
-    is needed to approve; any minority findings are preserved in the trial
-    record for audit even when the aggregate verdict is APPROVE.
-    """
-    if not outcomes or len(outcomes) % 2 == 0:
-        raise ValueError("review trials must be an odd, positive number")
-    if rule not in ("majority", "unanimous"):
-        raise ValueError(f"unknown aggregation rule: {rule!r}")
-    approvals = sum(outcome.verdict.approved for outcome in outcomes)
-    approved = (
-        approvals == len(outcomes)
-        if rule == "unanimous"
-        else approvals > len(outcomes) / 2
-    )
-    records = [
-        {
-            "verdict": outcome.verdict.verdict,
-            "summary": outcome.verdict.summary,
-            "findings": [f.model_dump() for f in outcome.verdict.findings],
-        }
-        for outcome in outcomes
-    ]
-    if approved:
-        findings: list[Finding] = []
-    else:
-        findings = []
-        seen: set[tuple[str, str]] = set()
-        for outcome in outcomes:
-            for finding in outcome.verdict.findings:
-                key = (finding.evidence, finding.message)
-                if key in seen:
-                    continue
-                seen.add(key)
-                findings.append(finding)
-        if not findings:
-            findings = [
-                Finding(
-                    severity="blocker",
-                    evidence="independent review trials",
-                    message="A majority of review trials requested changes.",
-                )
-            ]
-    aggregate = Verdict(
-        verdict="APPROVE" if approved else "REQUEST_CHANGES",
-        summary=(
-            f"{approvals}/{len(outcomes)} independent trials approved (majority rule)"
-        ),
-        findings=findings,
-    )
-    return aggregate, records
-
-
 def check_distinct_models(*, author: str, reviewer: str) -> None:
     """Fail closed if author and reviewer use the same model."""
     if author == reviewer:
@@ -284,18 +226,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewer-model", default=DEFAULT_REVIEWER_MODEL)
     parser.add_argument(
         "--reviewer-provider", default=DEFAULT_REVIEWER_PROVIDER, choices=PROVIDERS
-    )
-    parser.add_argument(
-        "--trials",
-        type=int,
-        default=1,
-        help="odd number of independent review trials (default: 1)",
-    )
-    parser.add_argument(
-        "--rule",
-        choices=("majority", "unanimous"),
-        default="majority",
-        help="aggregation rule for multiple trials",
     )
     parser.add_argument("--out", metavar="FILE", help="write verdict JSON here")
     parser.add_argument(
@@ -334,46 +264,34 @@ def main(argv: list[str] | None = None) -> int:
             timeout=REVIEW_TIMEOUT_SECONDS,
             max_retries=0,
         )
-        if args.trials < 1 or args.trials % 2 == 0:
-            raise ConfigurationError("--trials must be an odd, positive number")
-        outcomes: list[ReviewOutcome] = []
         start = time.monotonic()
-        for _ in range(args.trials):
-            outcomes.append(
-                run_review_with_usage(
-                    client,
-                    model=args.reviewer_model,
-                    user_prompt=user_prompt,
-                    reasoning_effort=(
-                        REVIEWER_REASONING_EFFORT
-                        if args.reviewer_provider == "gemini"
-                        else None
-                    ),
-                )
-            )
+        outcome = run_review_with_usage(
+            client,
+            model=args.reviewer_model,
+            user_prompt=user_prompt,
+            reasoning_effort=(
+                REVIEWER_REASONING_EFFORT
+                if args.reviewer_provider == "gemini"
+                else None
+            ),
+        )
         elapsed = time.monotonic() - start
-        verdict, trial_records = aggregate_trials(outcomes, rule=args.rule)
-        prompt_tokens = sum(o.prompt_tokens for o in outcomes)
-        completion_tokens = sum(o.completion_tokens for o in outcomes)
     except Exception as error:
         print(f"hsh-review: {error}", file=sys.stderr)
         return 2
 
     payload = {
-        **verdict.model_dump(mode="json"),
+        **outcome.verdict.model_dump(mode="json"),
         "author_model": args.author_model,
         "reviewer_model": args.reviewer_model,
         "reviewer_provider": args.reviewer_provider,
         "elapsed_seconds": round(elapsed, 3),
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "trials": args.trials,
-        "approvals": sum(o.verdict.approved for o in outcomes),
-        "trial_records": trial_records,
+        "prompt_tokens": outcome.prompt_tokens,
+        "completion_tokens": outcome.completion_tokens,
         "evidence_check": [
             check.to_dict()
             for check in check_finding_evidence(
-                verdict.findings, diff=diff_text, root=Path.cwd()
+                outcome.verdict.findings, diff=diff_text, root=Path.cwd()
             )
         ],
     }
@@ -381,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.out:
         Path(args.out).write_text(rendered + "\n", encoding="utf-8")
     print(rendered)
-    return 0 if verdict.approved else 1
+    return 0 if outcome.verdict.approved else 1
 
 
 if __name__ == "__main__":  # pragma: no cover - entry point

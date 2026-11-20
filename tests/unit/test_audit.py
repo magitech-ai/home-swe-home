@@ -45,17 +45,6 @@ def test_evidence_check_is_recorded_when_present() -> None:
     assert record["evidence_check"] == checks
 
 
-def test_trial_fields_are_recorded_when_present() -> None:
-    verdict = dict(VERDICT)
-    verdict["trials"] = 3
-    verdict["approvals"] = 2
-    verdict["trial_records"] = [{"verdict": "APPROVE"}]
-    record = audit.build_audit_record(verdict=verdict, error="", **CONTEXT)
-    assert record["trials"] == 3
-    assert record["approvals"] == 2
-    assert record["trial_records"] == verdict["trial_records"]
-
-
 def test_missing_cost_fields_fail_closed() -> None:
     bad = dict(VERDICT)
     del bad["prompt_tokens"]
