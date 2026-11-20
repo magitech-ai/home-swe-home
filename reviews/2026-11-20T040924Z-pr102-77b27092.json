@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 102,
+  "commit": "77b27092da0772e008b31e88fb76b78a07f4aad5",
+  "trigger_issue": 101,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44672468907,
+  "recorded_at": "2026-11-20T04:09:24Z",
+  "verdict": "APPROVE",
+  "summary": "The diff adds a link to the canonical START_HERE guide in README.md, satisfying the acceptance criteria without out-of-scope changes.",
+  "findings": [],
+  "elapsed_seconds": 2.6,
+  "prompt_tokens": 1909,
+  "completion_tokens": 53,
+  "evidence_check": []
+}
