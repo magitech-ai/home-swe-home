@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from home_swe_home import review
-from home_swe_home.client import ConfigurationError
+from home_swe_home.providers import ConfigurationError
 
 
 @pytest.fixture(autouse=True)

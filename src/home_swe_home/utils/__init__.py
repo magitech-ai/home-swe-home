@@ -7,7 +7,6 @@ Service classes; these support them.
 
 from __future__ import annotations
 
-from .schema import service_schema
 from .text import decode_text
 
-__all__ = ["decode_text", "service_schema"]
+__all__ = ["decode_text"]

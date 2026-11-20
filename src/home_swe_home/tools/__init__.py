@@ -1,66 +1,9 @@
-"""home-swe-home's tool services, built as anima components.
+"""home-swe-home's tool definitions for magitech-harness.
 
-Public API: ``ToolService`` plus all individual tool Service classes.
-Schema inference lives in ``home_swe_home.utils.schema``. Each tool lives in its
-own file under ``src/home_swe_home/tools/`` with the filename matching the tool
-name (e.g. ``read_file.py`` defines ``ReadFileService``).
+All tools are defined in ``definitions.py`` as mth ``ToolDefinition`` dicts
+and registered on ``ctx.tools`` via ``register_tools(ctx)``.
 """
 
-from __future__ import annotations
+from .definitions import ALL_TOOLS, register_tools
 
-# Import every tool service module so its Service class is available.
-from . import (
-    add_repo,  # noqa: F401
-    code_metrics,  # noqa: F401
-    delete_file,  # noqa: F401
-    edit_file,  # noqa: F401
-    find_duplicates,  # noqa: F401
-    generate_docs,  # noqa: F401
-    grep_files,  # noqa: F401
-    list_directory,  # noqa: F401
-    load_skill,  # noqa: F401
-    read_file,  # noqa: F401
-    reload_module,  # noqa: F401
-    run_command,  # noqa: F401
-    verify_repo,  # noqa: F401
-    web_search,  # noqa: F401
-    write_file,  # noqa: F401
-)
-
-# Re-export individual tool service classes for direct use.
-from .add_repo import AddRepoService
-from .code_metrics import CodeMetricsService
-from .delete_file import DeleteFileService
-from .edit_file import EditFileService
-from .executor import ToolService  # noqa: F401
-from .find_duplicates import FindDuplicatesService
-from .generate_docs import GenerateDocsService
-from .grep_files import GrepFilesService
-from .list_directory import ListDirectoryService
-from .load_skill import LoadSkillService
-from .read_file import ReadFileService
-from .reload_module import ReloadModuleService
-from .run_command import RunCommandService
-from .verify_repo import VerifyRepoService
-from .web_search import WebSearchService
-from .write_file import WriteFileService
-
-# The services that are model-facing tools (used by CoreLoopService to build
-# the tool schema list and by tests to enumerate tools).
-TOOL_SERVICES = (
-    AddRepoService,
-    ReadFileService,
-    WriteFileService,
-    EditFileService,
-    DeleteFileService,
-    ListDirectoryService,
-    LoadSkillService,
-    GrepFilesService,
-    RunCommandService,
-    VerifyRepoService,
-    WebSearchService,
-    ReloadModuleService,
-    CodeMetricsService,
-    FindDuplicatesService,
-    GenerateDocsService,
-)
+__all__ = ["ALL_TOOLS", "register_tools"]

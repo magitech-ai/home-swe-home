@@ -24,8 +24,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
-from .client import PROVIDERS, ConfigurationError, config_for
 from .evidence import check_finding_evidence
+from .providers import PROVIDERS, ConfigurationError, config_for
 
 DEFAULT_AUTHOR_PROVIDER = "gemini"
 DEFAULT_AUTHOR_MODEL = "gemini-4-hydrogen"
