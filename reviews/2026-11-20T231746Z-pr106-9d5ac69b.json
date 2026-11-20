@@ -1,0 +1,12 @@
+{
+  "status": "error",
+  "pr": 106,
+  "commit": "9d5ac69b466d75f1ddab06d4ea946f0218745c25",
+  "trigger_issue": 103,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44835685056,
+  "recorded_at": "2026-11-20T23:17:46Z",
+  "error": "hsh-review: diff exceeds the review size limit; split the pull request\n"
+}
