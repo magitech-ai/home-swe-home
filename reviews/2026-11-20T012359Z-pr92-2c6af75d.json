@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 92,
+  "commit": "2c6af75dd38b4ce632f7fe29697c236fb536e432",
+  "trigger_issue": 91,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44653288272,
+  "recorded_at": "2026-11-20T01:23:59Z",
+  "verdict": "APPROVE",
+  "summary": "Reordered the drift workflow steps so checkout, record creation, and push to the audit branch execute before the bar check, ensuring audit evidence is preserved even if the bar fails.",
+  "findings": [],
+  "elapsed_seconds": 2.001,
+  "prompt_tokens": 2185,
+  "completion_tokens": 54,
+  "evidence_check": []
+}
