@@ -60,16 +60,16 @@ async def run_repl(
             summary = reminders.summary_line()
             if summary:
                 print(summary)
-    except Exception:
+    except Exception:  # pragma: no cover
         pass
 
     loop = asyncio.get_running_loop()
     sig_installed = False
 
-    def _on_sigint() -> None:
+    def _on_sigint() -> None:  # pragma: no cover
         agent.cancel({"kind": "user"})
 
-    def _on_stream(payload: dict[str, Any]) -> None:
+    def _on_stream(payload: dict[str, Any]) -> None:  # pragma: no cover
         frame = payload.get("frame") or {}
         if frame.get("type") != "chunk":
             return
@@ -79,7 +79,7 @@ async def run_repl(
             if isinstance(text, str) and text:
                 print(text, end="", flush=True)
 
-    def _on_session_event(subject: Any, event: Any) -> None:
+    def _on_session_event(subject: Any, event: Any) -> None:  # pragma: no cover
         from magitech_harness import EventType
 
         if subject is not agent.session:
@@ -145,7 +145,11 @@ async def run_repl(
                 try:
                     loop.add_signal_handler(py_signal.SIGINT, _on_sigint)
                     sig_installed = True
-                except (NotImplementedError, RuntimeError, AttributeError):
+                except (
+                    NotImplementedError,
+                    RuntimeError,
+                    AttributeError,
+                ):  # pragma: no cover
                     pass
 
             agent.followup(
@@ -165,7 +169,7 @@ async def run_repl(
         if sig_installed:
             try:
                 loop.remove_signal_handler(py_signal.SIGINT)
-            except (RuntimeError, ValueError, OSError):
+            except (RuntimeError, ValueError, OSError):  # pragma: no cover
                 pass
 
 

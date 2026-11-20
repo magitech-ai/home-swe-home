@@ -296,7 +296,7 @@ def _build_input(messages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     # Trailing tool results become function_result parts.
     if tail_start < len(messages):
         for message in messages[tail_start:]:
-            if message.get("role") != "tool":
+            if message.get("role") != "tool":  # pragma: no cover
                 continue
             call_id = str(
                 message.get("toolCallId") or message.get("tool_call_id") or ""

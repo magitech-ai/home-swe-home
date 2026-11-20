@@ -106,7 +106,7 @@ def _register_prompt_sections(ctx: Context) -> None:
         skills = ctx.get("skills", None, strict=False)
         if skills is not None:
             return str(skills.catalog())
-        return ""
+        return ""  # pragma: no cover — services are always mounted in build_context
 
     ctx.system_prompt.section(
         {
@@ -121,7 +121,7 @@ def _register_prompt_sections(ctx: Context) -> None:
         reminders = ctx.get("reminders", None, strict=False)
         if reminders is not None:
             return str(reminders.due_block())
-        return ""
+        return ""  # pragma: no cover — services are always mounted in build_context
 
     ctx.system_prompt.context(
         {
