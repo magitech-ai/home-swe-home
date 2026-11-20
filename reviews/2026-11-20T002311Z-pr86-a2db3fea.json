@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 86,
+  "commit": "a2db3fea4b6c6d9ad99fc9d4c247f9a2e3419bd6",
+  "trigger_issue": 0,
+  "author_model": "auto-revert",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44645384498,
+  "recorded_at": "2026-11-20T00:23:11Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The diff removes GH_TOKEN from the auto-revert workflow step instead of reverting a commit as specified by the acceptance criteria.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": ".github/workflows/auto-revert.yml:61",
+      "message": "The acceptance criterion requires this PR to revert exactly the commit named in its body, preserve the auto-revert label, and not auto-merge. Instead, the diff modifies `.github/workflows/auto-revert.yml` by removing `GH_TOKEN: ${{ secrets.REVERT_TOKEN }}`, which fails to meet the criteria and violates scope."
+    }
+  ],
+  "elapsed_seconds": 2.754,
+  "prompt_tokens": 1747,
+  "completion_tokens": 157,
+  "evidence_check": [
+    {
+      "evidence": ".github/workflows/auto-revert.yml:61",
+      "status": "unverifiable"
+    }
+  ]
+}
