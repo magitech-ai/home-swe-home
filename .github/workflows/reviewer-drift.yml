@@ -45,14 +45,14 @@ jobs:
       - name: Append result
         run: |
           set -euo pipefail
-          DATE=$(date -u +%Y-%m-%d)
+          STAMP=$(date -u +%Y-%m-%dT%H%M%SZ)
           mkdir -p audit-checkout/drift
-          cp results.json "audit-checkout/drift/${DATE}.json"
+          cp results.json "audit-checkout/drift/${STAMP}.json"
           cd audit-checkout
           git config user.name "home-swe-home drift"
           git config user.email "drift@users.noreply.github.com"
-          git add "drift/${DATE}.json"
-          git commit -m "drift: ${DATE}" || echo "no new result"
+          git add "drift/${STAMP}.json"
+          git commit -m "drift: ${STAMP}" || echo "no new result"
           git push origin audit
       - name: Check D-013 bar
         run: |
