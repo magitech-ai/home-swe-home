@@ -58,15 +58,6 @@ jobs:
           fi
           echo "message=$MSG" >> "$GITHUB_OUTPUT"
 
-      - name: Diagnose revert token
-        env:
-          REVERT_TOKEN: ${{ secrets.REVERT_TOKEN }}
-        run: |
-          curl -sS -H "Authorization: Bearer $REVERT_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY" \
-            | jq '{message, token_kind: (.permissions != null), permissions}'
-
       - name: Create revert branch and PR
         if: steps.guard.outputs.skip != 'true'
         env:
@@ -85,6 +76,10 @@ jobs:
           git revert --no-edit "$SHA"
           # GITHUB_TOKEN cannot push workflow-file changes. This step-scoped
           # fine-grained PAT has Workflows: write on this repo only.
+          # actions/checkout installs a global http.extraheader with the
+          # GITHUB_TOKEN credentials; it overrides the token in the URL and
+          # would still be rejected for workflow files. Remove it first.
+          git config --global --unset-all 'http.https://github.com/.extraheader' || true
           git remote set-url origin \
             "https://x-access-token:${REVERT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push -u origin "$BRANCH"
