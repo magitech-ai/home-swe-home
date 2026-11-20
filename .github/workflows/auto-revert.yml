@@ -79,7 +79,7 @@ jobs:
           # actions/checkout installs a global http.extraheader with the
           # GITHUB_TOKEN credentials; it overrides the token in the URL and
           # would still be rejected for workflow files. Remove it first.
-          git config --global --unset-all 'http.https://github.com/.extraheader' || true
+          git config --local --unset-all 'http.https://github.com/.extraheader' || true
           git remote set-url origin \
             "https://x-access-token:${REVERT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push -u origin "$BRANCH"
