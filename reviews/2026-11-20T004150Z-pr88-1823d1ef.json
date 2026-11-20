@@ -1,0 +1,12 @@
+{
+  "status": "error",
+  "pr": 88,
+  "commit": "1823d1efeedc8c9d2ea35e416fa761675fffe5af",
+  "trigger_issue": 87,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44647865054,
+  "recorded_at": "2026-11-20T00:41:50Z",
+  "error": "hsh-review: diff exceeds the review size limit; split the pull request\n"
+}
