@@ -6,6 +6,8 @@ tool execution through mth's pipeline, and session logging.
 
 from __future__ import annotations
 
+import json
+
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -67,7 +69,7 @@ async def test_full_stack_read_file(tmp_path: Any) -> None:
                 "index": 0,
                 "id": "call_1",
                 "name": "read_file",
-                "argumentsDelta": '{"path": "' + str(test_file) + '"}',
+                "argumentsDelta": json.dumps({"path": str(test_file)}),
             },
             {
                 "type": "block-end",
@@ -76,7 +78,7 @@ async def test_full_stack_read_file(tmp_path: Any) -> None:
                     "type": "tool-call",
                     "id": "call_1",
                     "name": "read_file",
-                    "arguments": '{"path": "' + str(test_file) + '"}',
+                    "arguments": json.dumps({"path": str(test_file)}),
                 },
             },
             {"type": "finish", "reason": {"kind": "tool-calls"}},
