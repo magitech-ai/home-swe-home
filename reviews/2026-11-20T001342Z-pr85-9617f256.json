@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 85,
+  "commit": "9617f2565968d9cca38756f5b317cfec11f979d9",
+  "trigger_issue": 0,
+  "author_model": "auto-revert",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44644097470,
+  "recorded_at": "2026-11-20T00:13:42Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The submitted diff modifies a workflow file instead of reverting the specified commit as required by the acceptance criteria.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": ".github/workflows/auto-revert.yml:64",
+      "message": "The acceptance criteria require reverting exactly the commit named in the issue body, but this change modifies .github/workflows/auto-revert.yml instead of performing the revert commit."
+    }
+  ],
+  "elapsed_seconds": 2.659,
+  "prompt_tokens": 1747,
+  "completion_tokens": 115,
+  "evidence_check": [
+    {
+      "evidence": ".github/workflows/auto-revert.yml:64",
+      "status": "unverifiable"
+    }
+  ]
+}
