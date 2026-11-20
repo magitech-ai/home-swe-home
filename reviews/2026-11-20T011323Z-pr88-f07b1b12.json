@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 88,
+  "commit": "f07b1b12862fae28d2c64f06c179e9206137ba46",
+  "trigger_issue": 87,
+  "author_model": "gemini-4-hydrogen",
+  "reviewer_model": "gemini-3.8-flash",
+  "reviewer_provider": "gemini",
+  "workflow_run_id": 44651944909,
+  "recorded_at": "2026-11-20T01:13:23Z",
+  "verdict": "APPROVE",
+  "summary": "The change adds multi-file long scale cases and prompt injection variants to the fixed review cases suite, adds the weekly drift check GitHub Action, and updates review eval to use production reasoning effort for Gemini.",
+  "findings": [],
+  "elapsed_seconds": 4.004,
+  "prompt_tokens": 80392,
+  "completion_tokens": 64,
+  "evidence_check": []
+}
