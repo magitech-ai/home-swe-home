@@ -1,222 +1,523 @@
-"""Tests for home_swe_home.repl."""
+"""Tests for the REPL module."""
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from anima import Context
 
-from home_swe_home.client import MiniClaudeError
-from home_swe_home.context import AGENT_SERVICES
-from home_swe_home.core_loop import TurnInterrupted, TurnLimitReached
-from home_swe_home.repl import _show_context, run_repl
-
-
-class FakeCoreLoop:
-    """A fake CoreLoopService that raises a given exception when called."""
-
-    name = "core_loop"
-
-    def __init__(self, side_effect):
-        self._side_effect = side_effect
-        self._capture = None
-
-    async def __call__(self, **kwargs):
-        if self._capture is not None:
-            return await self._capture(**kwargs)
-        raise self._side_effect
-
-
-async def _build_context(with_core_loop: bool = True) -> Context:
-    ctx = Context()
-    from home_swe_home.core_loop import CoreLoopService
-
-    for service_cls in AGENT_SERVICES:
-        if service_cls is not CoreLoopService or with_core_loop:
-            ctx.use(service_cls)
-    await ctx.flush()
-    return ctx
-
-
-async def _build_context_with_fake(side_effect) -> Context:
-    ctx = Context()
-    from home_swe_home.core_loop import CoreLoopService
-
-    for service_cls in AGENT_SERVICES:
-        if service_cls is not CoreLoopService:
-            ctx.use(service_cls)
-    ctx.reflect.provide("core_loop", FakeCoreLoop(side_effect))
-    await ctx.flush()
-    return ctx
-
-
-class FakeClient:
-    pass
+from home_swe_home.repl import (
+    _install_sigint,
+    _remove_sigint,
+    _show_context,
+    _text_preview,
+    run_repl,
+)
 
 
 @pytest.mark.asyncio
-async def test_repl_exits_on_eof(capsys):
-    ctx = await _build_context()
-    with patch("home_swe_home.repl.input", side_effect=EOFError):
-        await run_repl(model="m", ctx=ctx)
-    out = capsys.readouterr().out
-    assert "home-swe-home interactive chat" in out
+async def test_repl_exit_on_eof(capsys: pytest.CaptureFixture) -> None:
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={
+            "agent": MagicMock(),
+            "dispose": AsyncMock(),
+        }
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
 
-
-@pytest.mark.asyncio
-async def test_repl_keyboard_interrupt_continues(capsys):
-    ctx = await _build_context()
     with patch(
-        "home_swe_home.repl.input",
-        side_effect=[KeyboardInterrupt, EOFError],
-    ):
-        await run_repl(model="m", ctx=ctx)
-    assert "Turn interrupted" not in capsys.readouterr().out
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=EOFError):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "home-swe-home interactive chat" in captured
 
 
 @pytest.mark.asyncio
-async def test_repl_model_switch(capsys):
-    ctx = await _build_context()
+async def test_repl_model_command(capsys: pytest.CaptureFixture) -> None:
+    mock_agent = MagicMock()
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": mock_agent, "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    inputs = iter(["/model", "/model new-model"])
+
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
     with patch(
-        "home_swe_home.repl.input", side_effect=["/model other/model", EOFError]
-    ):
-        await run_repl(model="m", ctx=ctx)
-    out = capsys.readouterr().out
-    assert "model: m" in out
-    assert "model: other/model" in out
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "model: m" in captured
+    assert "model: new-model" in captured
 
 
 @pytest.mark.asyncio
-async def test_repl_model_command_without_id_shows_current(capsys):
-    ctx = await _build_context()
-    with patch("home_swe_home.repl.input", side_effect=["/model", EOFError]):
-        await run_repl(model="m", ctx=ctx)
-    assert capsys.readouterr().out.count("model: m") == 2
+async def test_repl_context_command(capsys: pytest.CaptureFixture) -> None:
+    mock_agent = MagicMock()
+    mock_agent.session.events = []
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": mock_agent, "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
 
+    inputs = iter(["/context"])
 
-@pytest.mark.asyncio
-async def test_repl_blank_lines_are_ignored():
-    ctx = await _build_context()
-    with patch("home_swe_home.repl.input") as mock_input:
-        mock_input.side_effect = ["   ", "", EOFError]
-        await run_repl(model="m", ctx=ctx)
-    assert mock_input.call_count == 3
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
 
-
-@pytest.mark.asyncio
-async def test_repl_turn_interrupted_is_swallowed(capsys):
-    ctx = await _build_context_with_fake(TurnInterrupted())
-    with patch("home_swe_home.repl.input", side_effect=["say hi", EOFError]):
-        await run_repl(model="m", ctx=ctx)
-    assert "Turn interrupted." in capsys.readouterr().out
-
-
-@pytest.mark.asyncio
-async def test_repl_api_error_prints_and_continues(capsys):
-    ctx = await _build_context_with_fake(MiniClaudeError("The model does not exist"))
-    with patch("home_swe_home.repl.input", side_effect=["say hi", EOFError]):
-        await run_repl(model="m", ctx=ctx)
-    out = capsys.readouterr().out
-    assert "home-swe-home: The model does not exist" in out
-
-
-@pytest.mark.asyncio
-async def test_repl_skill_command_prints_skill(monkeypatch, capsys):
-    ctx = await _build_context()
-    monkeypatch.setattr(ctx.skills, "load", lambda name: f"SKILL BODY: {name}")
-    with patch("home_swe_home.repl.input", side_effect=["/skill tdd", EOFError]):
-        await run_repl(model="m", ctx=ctx)
-    assert "SKILL BODY: tdd" in capsys.readouterr().out
-
-
-async def test_repl_context_command(capsys):
-    ctx = await _build_context()
     with patch(
-        "home_swe_home.repl.input",
-        side_effect=["/context", EOFError],
-    ):
-        await run_repl(model="m", ctx=ctx)
-    out = capsys.readouterr().out
-    assert "context window" in out
-    assert "tokens" in out
-    assert "[0] system" in out
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "context window" in captured
 
 
 @pytest.mark.asyncio
-async def test_repl_user_message_reaches_turn():
-    ctx = await _build_context()
-    seen = {}
+async def test_repl_reminders_command(capsys: pytest.CaptureFixture) -> None:
+    mock_reminders = MagicMock()
+    mock_reminders.report.return_value = "Due:\n  r1"
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=mock_reminders)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
 
-    async def capture_turn(
-        *,
-        model: str,
-        messages: list,
-        client: Any = None,
-        reply_prefix: str = "",
-        max_turns: int = 20,
-        stream: bool = False,
-        show_reasoning: bool = False,
-        show_events: bool = False,
-        effort: str = "medium",
-    ):
-        seen["messages"] = messages
-        seen["model"] = model
-        seen["reply_prefix"] = reply_prefix
-        seen["max_turns"] = max_turns
+    inputs = iter(["/reminders"])
 
-    # Replace CoreLoopService with a fake that captures the call
-    fake = FakeCoreLoop(None)
-    fake._capture = capture_turn
-    ctx.reflect.provide("core_loop", fake)
-    await ctx.flush()
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
 
-    with patch("home_swe_home.repl.input", side_effect=["hello world", EOFError]):
-        await run_repl(model="m", ctx=ctx)
-    assert seen["model"] == "m"
-    assert seen["messages"][0]["role"] == "system"
-    assert seen["messages"][1] == {
-        "role": "user",
-        "content": "hello world",
-    }
-    assert seen["reply_prefix"] == "< "
-    assert seen["max_turns"] == 20
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "Due:" in captured
 
 
 @pytest.mark.asyncio
-async def test_repl_turn_limit_reached(capsys):
-    """REPL should report TurnLimitReached error when run_core_loop raises it."""
-    ctx = await _build_context_with_fake(TurnLimitReached("Turn limit reached"))
-    with patch("home_swe_home.repl.input", side_effect=["hello world", EOFError]):
-        await run_repl(model="m", ctx=ctx)
-    out = capsys.readouterr().out
-    assert "Turn limit reached" in out
+async def test_repl_reminders_no_service(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    inputs = iter(["/reminders"])
+
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "No reminders service" in captured
 
 
 @pytest.mark.asyncio
-async def test_repl_context_shows_tool_calls(capsys):
-    ctx = await _build_context()
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": "You are home-swe-home."},
-        {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": "call-1",
-                    "type": "function",
-                    "function": {
-                        "name": "read_file",
-                        "arguments": '{"path": "x.txt"}',
-                    },
-                }
-            ],
-        },
+async def test_repl_skill_command(capsys: pytest.CaptureFixture) -> None:
+    mock_skills = MagicMock()
+    mock_skills.load.return_value = "Skill body"
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=mock_skills)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    inputs = iter(["/skill test"])
+
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "Skill body" in captured
+
+
+@pytest.mark.asyncio
+async def test_repl_skill_no_service(capsys: pytest.CaptureFixture) -> None:
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    inputs = iter(["/skill test"])
+
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "No skills service" in captured
+
+
+@pytest.mark.asyncio
+async def test_repl_normal_message(capsys: pytest.CaptureFixture) -> None:
+    mock_agent = MagicMock()
+    mock_agent.when_idle = AsyncMock()
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": mock_agent, "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    inputs = iter(["hello"])
+
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    mock_agent.followup.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_repl_error_during_turn(capsys: pytest.CaptureFixture) -> None:
+    mock_agent = MagicMock()
+    mock_agent.when_idle = AsyncMock(side_effect=RuntimeError("boom"))
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": mock_agent, "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    inputs = iter(["hello"])
+
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "Error during turn" in captured
+
+
+@pytest.mark.asyncio
+async def test_repl_empty_input_skipped(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    inputs = iter(["", "  "])
+
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+
+@pytest.mark.asyncio
+async def test_repl_keyboard_interrupt(capsys: pytest.CaptureFixture) -> None:
+    """KeyboardInterrupt in input is caught and continues the loop."""
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    call_count = 0
+
+    def input_side_effect(_prompt: str) -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise KeyboardInterrupt
+        raise EOFError
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=input_side_effect):
+            await run_repl(model="m")
+
+    # Should have printed the interrupt message and continued
+    captured = capsys.readouterr().out
+    assert "home-swe-home interactive chat" in captured
+
+
+@pytest.mark.asyncio
+async def test_repl_reminder_summary_empty(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Empty reminder summary doesn't print."""
+    mock_reminders = MagicMock()
+    mock_reminders.summary_line.return_value = ""
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=mock_reminders)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=EOFError):
+            await run_repl(model="m")
+
+
+@pytest.mark.asyncio
+async def test_repl_two_messages_sig_already_installed(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Second message skips signal handler installation."""
+    mock_agent = MagicMock()
+    mock_agent.when_idle = AsyncMock()
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": mock_agent, "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=None)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    inputs = iter(["hello", "world"])
+
+    def fake_input(_prompt: str) -> str:
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=fake_input):
+            await run_repl(model="m")
+
+    assert mock_agent.followup.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_repl_reminder_summary_shown(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    mock_reminders = MagicMock()
+    mock_reminders.summary_line.return_value = "  1 due"
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=mock_reminders)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=EOFError):
+            await run_repl(model="m")
+
+    captured = capsys.readouterr().out
+    assert "1 due" in captured
+
+
+@pytest.mark.asyncio
+async def test_repl_reminder_summary_exception(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    mock_reminders = MagicMock()
+    mock_reminders.summary_line.side_effect = RuntimeError("fail")
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(
+        return_value={"agent": MagicMock(), "dispose": AsyncMock()}
+    )
+    mock_ctx.get = MagicMock(return_value=mock_reminders)
+    mock_ctx.on = MagicMock(return_value=lambda: None)
+
+    with patch(
+        "home_swe_home.repl.build_context", new_callable=AsyncMock
+    ) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch("builtins.input", side_effect=EOFError):
+            await run_repl(model="m")
+
+    # Should not crash — exception is caught
+
+
+# ---------------------------------------------------------------------------
+# _show_context
+# ---------------------------------------------------------------------------
+
+
+def test_show_context(capsys: pytest.CaptureFixture) -> None:
+    """Show a message-by-message preview with an estimated token count."""
+    mock_agent = MagicMock()
+    mock_agent.session.events = []
+    mock_agent.session.derive_messages = None
+
+    messages = [
+        {"role": "system", "content": [{"type": "text", "text": "SYS"}]},
+        {"role": "user", "content": [{"type": "text", "text": "hello there"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
     ]
-    _show_context(messages, ctx)
-    out = capsys.readouterr().out
-    assert "context window" in out
-    assert "[0] system" in out
-    assert "[1] assistant (1 tool call(s))" in out
-    assert "tool: read_file" in out
+
+    with patch("magitech_harness.derive_messages", return_value=messages):
+        _show_context(mock_agent)
+
+    captured = capsys.readouterr().out
+    assert "context window: 3 messages" in captured
+    assert "tokens" in captured
+    assert "system" in captured
+    assert "hello there" in captured
+    assert "assistant" in captured
+
+
+def test_text_preview_string_content() -> None:
+    assert _text_preview("plain text") == "plain text"
+
+
+def test_text_preview_truncates() -> None:
+    long = "x" * 300
+    preview = _text_preview(long)
+    assert preview.endswith("...")
+    assert len(preview) == 203
+
+
+def test_text_preview_non_text_content() -> None:
+    assert _text_preview(12345) == ""
+    assert _text_preview([{"type": "image"}]) == ""
+
+
+# ---------------------------------------------------------------------------
+# Platform-independent SIGINT handling
+# ---------------------------------------------------------------------------
+
+
+def test_install_sigint_succeeds() -> None:
+    loop = MagicMock()
+    assert _install_sigint(loop, lambda: None) is True
+    loop.add_signal_handler.assert_called_once()
+
+
+def test_install_sigint_unsupported_platform() -> None:
+    """Windows-style loop raises NotImplementedError; report False, do not raise."""
+    loop = MagicMock()
+    loop.add_signal_handler.side_effect = NotImplementedError
+    assert _install_sigint(loop, lambda: None) is False
+
+
+def test_install_sigint_other_failures_are_contained() -> None:
+    for error in (RuntimeError, AttributeError, ValueError, OSError):
+        loop = MagicMock()
+        loop.add_signal_handler.side_effect = error
+        assert _install_sigint(loop, lambda: None) is False
+
+
+def test_remove_sigint_is_safe() -> None:
+    loop = MagicMock()
+    _remove_sigint(loop)
+    loop.remove_signal_handler.assert_called_once()
+
+
+def test_remove_sigint_swallows_failures() -> None:
+    for error in (RuntimeError, ValueError, OSError, KeyError):
+        loop = MagicMock()
+        loop.remove_signal_handler.side_effect = error
+        _remove_sigint(loop)  # must not raise
+
+
+def test_install_sigint_skips_when_already_installed() -> None:
+    """A second call is a no-op when a handler is already active."""
+    loop = MagicMock()
+    assert _install_sigint(loop, lambda: None, installed=True) is True
+    loop.add_signal_handler.assert_not_called()

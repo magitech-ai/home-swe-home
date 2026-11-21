@@ -102,3 +102,11 @@ def test_run_wizard_dry_run_skips_commands(tmp_path, monkeypatch):
     assert accepted is True
     assert seen == []
     assert (tmp_path / "home" / "AGENTS.md").is_file()
+
+
+def test_plan_wizard(tmp_path):
+    plan = onboard.plan_wizard(tmp_path / "home", "org/agents-home")
+    assert plan["root"] == str((tmp_path / "home").expanduser())
+    assert plan["repo"] == "org/agents-home"
+    assert isinstance(plan["files"], list)
+    assert len(plan["files"]) > 0

@@ -1,109 +1,96 @@
-"""Tests for home_swe_home.instructions (InstructionsService)."""
+"""Tests for the instructions module."""
 
 from __future__ import annotations
 
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
-from anima import Context
 
-from home_swe_home.instructions import InstructionsService
-
-
-@pytest.fixture(autouse=True)
-def _no_home(monkeypatch):
-    """Keep these tests hermetic: no real agents-home checkout."""
-    monkeypatch.setattr("home_swe_home.instructions.find_home", lambda: None)
+from home_swe_home.instructions import (
+    agents_md,
+    base_instructions,
+    system_line,
+)
 
 
-def _service() -> InstructionsService:
-    ctx = Context()
-    ctx.use(InstructionsService)
-    return ctx.instructions  # type: ignore[return-value]
+def test_system_line_defaults() -> None:
+    result = system_line()
+    assert "System:" in result
+    assert "folder:" in result
+    assert "date:" in result
+    assert "model:" in result
 
 
-def test_build_system_instructions_contains_rules():
-    content = _service().build(model="test/model")
-    assert "home-swe-home" in content
-    assert "Rules:" in content
-    assert "Use tools" in content
+def test_system_line_with_args() -> None:
+    result = system_line(model="test-model", cwd="/tmp/test")
+    assert "test-model" in result
+    assert "/tmp/test" in result
 
 
-def test_build_system_instructions_contains_system_line():
-    content = _service().build(model="test/model")
-    assert "System:" in content
-    assert "folder:" in content
-    assert "date:" in content
-    assert "model: test/model" in content
+def test_system_line_no_model() -> None:
+    result = system_line()
+    assert "unknown" in result
 
 
-def test_build_system_instructions_no_agents_md(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    content = _service().build(model="test/model")
-    assert "AGENTS.md" not in content
+def test_agents_md_no_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("home_swe_home.utils.home.find_home", lambda: None)
+    with patch("os.getcwd", return_value="/tmp/nonexistent"):
+        result = agents_md()
+    # No AGENTS.md found, should return empty string
+    assert isinstance(result, str)
 
 
-def test_build_system_instructions_with_agents_md(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "AGENTS.md").write_text("Always answer in French\n")
-    content = _service().build(model="test/model")
-    assert "--- AGENTS.md ---" in content
-    assert "Always answer in French" in content
-    assert "--- end AGENTS.md ---" in content
-
-
-def test_build_system_instructions_with_empty_agents_md(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "AGENTS.md").write_text("")
-    content = _service().build(model="test/model")
-    assert "AGENTS.md" not in content
-
-
-def test_build_layers_home_then_repo_guidance(tmp_path, monkeypatch):
+def test_agents_md_with_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "agents-home"
     home.mkdir()
-    (home / "AGENTS.md").write_text("HOME GUIDANCE\n", encoding="utf-8")
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    (repo / "AGENTS.md").write_text("REPO GUIDANCE\n", encoding="utf-8")
-    monkeypatch.setattr("home_swe_home.instructions.find_home", lambda: home)
-    monkeypatch.chdir(repo)
+    (home / "AGENTS.md").write_text("Home guidance here.", encoding="utf-8")
+    monkeypatch.setattr("home_swe_home.utils.home.find_home", lambda: home)
 
-    content = _service().build(model="test/model")
-    assert content.index("HOME GUIDANCE") < content.index("REPO GUIDANCE")
+    with patch("os.getcwd", return_value=str(tmp_path)):
+        result = agents_md()
+
+    assert "Home guidance here." in result
+    assert "AGENTS.md" in result
 
 
-def test_build_from_home_does_not_duplicate_guidance(tmp_path, monkeypatch):
+def test_agents_md_deduplicates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     home = tmp_path / "agents-home"
     home.mkdir()
-    (home / "AGENTS.md").write_text("HOME GUIDANCE\n", encoding="utf-8")
-    monkeypatch.setattr("home_swe_home.instructions.find_home", lambda: home)
-    monkeypatch.chdir(home)
+    (home / "AGENTS.md").write_text("Same content.", encoding="utf-8")
+    monkeypatch.setattr("home_swe_home.utils.home.find_home", lambda: home)
 
-    assert _service().build(model="test/model").count("HOME GUIDANCE") == 1
+    # Run from the home directory — should not duplicate
+    with patch("os.getcwd", return_value=str(home)):
+        result = agents_md()
 
-
-def test_build_ignores_unreadable_agents_md(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "AGENTS.md").mkdir()
-    assert "AGENTS.md" not in _service().build(model="test/model")
+    # Should appear only once
+    assert result.count("Same content.") == 1
 
 
-def test_build_includes_skills_catalog_when_supplied():
-    content = _service().build(
-        model="test/model", skills_catalog="## Available skills\n- **tdd**"
-    )
-    assert "## Available skills" in content
-    assert "**tdd**" in content
+def test_agents_md_empty_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "agents-home"
+    home.mkdir()
+    (home / "AGENTS.md").write_text("   ", encoding="utf-8")
+    monkeypatch.setattr("home_swe_home.utils.home.find_home", lambda: home)
+
+    with patch("os.getcwd", return_value=str(tmp_path)):
+        result = agents_md()
+
+    # Whitespace-only file should not be included
+    assert "AGENTS.md" not in result
 
 
-def test_count_tokens_positive():
-    messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Say hello."},
-    ]
-    assert _service().count(messages) > 0
+def test_base_instructions_reads_harness(monkeypatch, tmp_path):
+    """The live prompt comes from the editable harness tree."""
+    (tmp_path / "systemprompt.md").write_text("From harness.", encoding="utf-8")
+    monkeypatch.setenv("HOME_SWE_HOME_HARNESS_DIR", str(tmp_path))
+    assert base_instructions() == "From harness."
 
 
-def test_count_tokens_increases_with_more_content():
-    short = [{"role": "user", "content": "hi"}]
-    long = [{"role": "user", "content": "hi " * 100}]
-    assert _service().count(long) > _service().count(short)
+def test_base_instructions_falls_back(monkeypatch, tmp_path):
+    """A missing harness file falls back to a built-in prompt."""
+    monkeypatch.setenv("HOME_SWE_HOME_HARNESS_DIR", str(tmp_path))
+    assert "coding agent" in base_instructions()

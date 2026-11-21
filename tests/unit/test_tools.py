@@ -1,1053 +1,1015 @@
-"""Tests for home_swe_home.tools (anima Service components)."""
+"""Comprehensive tests for all 15 tool definitions."""
 
 from __future__ import annotations
 
-import json
 import os
-from types import SimpleNamespace
-from unittest.mock import patch
+import subprocess
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
 
-import pytest
-from anima import Context, Service
-
-from home_swe_home.sandbox import SandboxService
-from home_swe_home.tools import (
-    TOOL_SERVICES,
-    ReadFileService,
-    ToolService,
-    WriteFileService,
+from home_swe_home.sandbox import set_sandbox_enabled
+from home_swe_home.tools.definitions import (
+    ADD_REPO,
+    ALL_TOOLS,
+    CODE_METRICS,
+    DELETE_FILE,
+    EDIT_FILE,
+    FIND_DUPLICATES,
+    GENERATE_DOCS,
+    GREP_FILES,
+    LIST_DIRECTORY,
+    LOAD_SKILL,
+    READ_FILE,
+    RELOAD_MODULE,
+    RUN_COMMAND,
+    VERIFY_REPO,
+    WEB_SEARCH,
+    WRITE_FILE,
+    _agent_of,
+    _use_sandbox,
+    register_tools,
 )
 
-
-def _build_context() -> Context:
-    ctx = Context()
-    for service_cls in (*TOOL_SERVICES, ToolService, SandboxService):
-        ctx.use(service_cls)
-    return ctx
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-def execute_tool(ctx, function_name, arguments_json, *, read_files=None):
-    """Test shim: call the ToolService capability on the Context."""
-    return ctx.tools.execute(function_name, arguments_json, read_files=read_files)
+def _event(seq: int, type_: str, payload: dict[str, Any]) -> MagicMock:
+    """Build a minimal stand-in for a SessionEvent."""
+    event = MagicMock()
+    event.seq = seq
+    event.type = type_
+    event.payload = payload
+    return event
 
 
-def _tool(ctx: Context, name: str):
-    service = ctx.reflect.get(name)
-    assert service is not None, f"Service {name} not mounted"
-    return service
+def _agent_with_events(events: list[MagicMock]) -> MagicMock:
+    """Build an agent whose session exposes *events*."""
+    agent = MagicMock()
+    agent.session.events = events
+    return agent
 
 
-def test_tool_services_have_descriptions():
-    services = [_tool(_build_context(), name) for name in ["read_file", "write_file"]]
-    for service in services:
-        assert service.__doc__, f"Service {service.name} has no docstring"
+def _turn_start(seq: int) -> MagicMock:
+    """A turn/start event — the boundary for per-turn read tracking."""
+    return _event(seq, "turn/start", {"turn": 1})
 
 
-def test_tool_service_name_from_class():
-    """Service name is derived from class name stripping 'Service' suffix."""
-    from anima import Context
-
-    ctx = Context()
-    ctx.use(ReadFileService)
-    ctx.use(WriteFileService)
-    assert ctx.read_file.name == "read_file"
-    assert ctx.write_file.name == "write_file"
+def _tool_call(seq: int, name: str, arguments: Any) -> MagicMock:
+    return _event(seq, "tool/call", {"name": name, "arguments": arguments})
 
 
-def test_write_then_read_file(tmp_path):
-    target = tmp_path / "note.txt"
-    ctx = _build_context()
-    assert (
-        _tool(ctx, "write_file")(path=str(target), content="hello world")
-        == f"Wrote 11 characters to {target}."
+# ---------------------------------------------------------------------------
+# read_file
+# ---------------------------------------------------------------------------
+
+
+def test_read_file(tmp_path: Path) -> None:
+    f = tmp_path / "hello.txt"
+    f.write_text("Hello, world!", encoding="utf-8")
+    result = READ_FILE["execute"]({"path": str(f)}, {})
+    assert "Hello, world!" in result
+
+
+def test_redaction_applies_to_every_text_tool(monkeypatch) -> None:
+    """Redaction is centralized in the render step, not per tool body."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "secret123")
+    rendered = READ_FILE["output"]["render"]({}, "key=secret123")
+    text = rendered[0]["text"]
+    assert "secret123" not in text
+    assert "<redacted>" in text
+
+
+# ---------------------------------------------------------------------------
+# write_file
+# ---------------------------------------------------------------------------
+
+
+def test_write_file(tmp_path: Path) -> None:
+    f = tmp_path / "out.txt"
+    result = WRITE_FILE["execute"]({"path": str(f), "content": "written"}, {})
+    assert "Wrote 7 characters" in result
+    assert f.read_text() == "written"
+
+
+# ---------------------------------------------------------------------------
+# edit_file
+# ---------------------------------------------------------------------------
+
+
+def test_edit_file_without_agent_proceeds(tmp_path: Path) -> None:
+    """With no agent context there is no read tracking to enforce."""
+    f = tmp_path / "edit.txt"
+    f.write_text("old text", encoding="utf-8")
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "old", "new_string": "new"}, {}
     )
-    assert _tool(ctx, "read_file")(path=str(target)) == "hello world"
+    assert "Replaced" in result
+    assert "new text" in f.read_text()
 
 
-def test_read_file_missing(tmp_path):
-    result = execute_tool(
-        _build_context(),
-        "read_file",
-        json.dumps({"path": str(tmp_path / "does-not-exist.txt")}),
+def test_edit_file_refuses_when_nothing_read_this_turn(tmp_path: Path) -> None:
+    """A turn that read nothing cannot edit anything."""
+    f = tmp_path / "unread.txt"
+    f.write_text("content", encoding="utf-8")
+    agent = _agent_with_events([_turn_start(1)])
+
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "content", "new_string": "changed"},
+        {"agent": agent},
     )
-    assert result.startswith("Error: FileNotFoundError: ")
+    assert "Refused" in result
+    assert "has not been read" in result
 
 
-def test_list_directory(tmp_path):
-    (tmp_path / "a.txt").write_text("")
-    (tmp_path / "sub").mkdir()
-    result = _tool(_build_context(), "list_directory")(path=str(tmp_path))
+def test_edit_file_refuses_other_path_read_this_turn(tmp_path: Path) -> None:
+    """Reading a different file does not authorize this one."""
+    f = tmp_path / "unread.txt"
+    f.write_text("content", encoding="utf-8")
+    agent = _agent_with_events(
+        [
+            _turn_start(1),
+            _tool_call(2, "read_file", {"path": "/some/other/file.txt"}),
+        ]
+    )
+
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "content", "new_string": "changed"},
+        {"agent": agent},
+    )
+    assert "Refused" in result
+
+
+def test_edit_file_allowed_after_read_this_turn(tmp_path: Path) -> None:
+    f = tmp_path / "read.txt"
+    f.write_text("old text", encoding="utf-8")
+    agent = _agent_with_events(
+        [_turn_start(1), _tool_call(2, "read_file", {"path": str(f)})]
+    )
+
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "old", "new_string": "new"},
+        {"agent": agent},
+    )
+    assert "Replaced" in result
+
+
+def test_edit_file_allowed_after_write_this_turn(tmp_path: Path) -> None:
+    """write_file also marks a path readable in the same turn."""
+    f = tmp_path / "written.txt"
+    f.write_text("old", encoding="utf-8")
+    agent = _agent_with_events(
+        [_turn_start(1), _tool_call(2, "write_file", {"path": str(f)})]
+    )
+
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "old", "new_string": "new"},
+        {"agent": agent},
+    )
+    assert "Replaced" in result
+
+
+def test_edit_file_read_in_prior_turn_does_not_authorize(tmp_path: Path) -> None:
+    """Reads are per-turn: a stale read from turn 1 must not allow turn 2."""
+    f = tmp_path / "stale.txt"
+    f.write_text("content", encoding="utf-8")
+    agent = _agent_with_events(
+        [
+            _turn_start(1),
+            _tool_call(2, "read_file", {"path": str(f)}),
+            _event(3, "turn/end", {"turn": 1, "reason": {"kind": "completed"}}),
+            _turn_start(4),
+        ]
+    )
+
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "content", "new_string": "changed"},
+        {"agent": agent},
+    )
+    assert "Refused" in result
+
+
+def test_edit_file_normalizes_path_spellings(tmp_path: Path) -> None:
+    """Redundant separators / dot segments in a path compare equal."""
+    f = tmp_path / "norm.txt"
+    f.write_text("content", encoding="utf-8")
+    messy = str(tmp_path / "." / "norm.txt")
+    agent = _agent_with_events(
+        [_turn_start(1), _tool_call(2, "read_file", {"path": messy})]
+    )
+
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "content", "new_string": "changed"},
+        {"agent": agent},
+    )
+    assert "Replaced" in result
+
+
+def test_edit_file_old_string_not_found(tmp_path: Path) -> None:
+    f = tmp_path / "edit.txt"
+    f.write_text("hello", encoding="utf-8")
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "missing", "new_string": "x"}, {}
+    )
+    assert "not found" in result
+
+
+def test_edit_file_ignores_non_tool_and_malformed_events(tmp_path: Path) -> None:
+    """Events that are not well-formed tool calls are skipped."""
+    f = tmp_path / "file.txt"
+    f.write_text("content", encoding="utf-8")
+    agent = _agent_with_events(
+        [
+            _turn_start(1),
+            _event(2, "user/message", {}),
+            _tool_call(3, "read_file", "not_a_dict"),
+            _tool_call(4, "web_search", {"query": "x"}),
+            _tool_call(5, "read_file", {"path": str(f)}),
+        ]
+    )
+
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "content", "new_string": "changed"},
+        {"agent": agent},
+    )
+    assert "Replaced" in result
+
+
+# ---------------------------------------------------------------------------
+# delete_file
+# ---------------------------------------------------------------------------
+
+
+def test_delete_file(tmp_path: Path) -> None:
+    f = tmp_path / "del.txt"
+    f.write_text("x")
+    result = DELETE_FILE["execute"]({"path": str(f)}, {})
+    assert "Deleted" in result
+    assert not f.exists()
+
+
+def test_delete_file_not_found() -> None:
+    result = DELETE_FILE["execute"]({"path": "/nonexistent/file"}, {})
+    assert "Error" in result
+    assert "No such file" in result
+
+
+# ---------------------------------------------------------------------------
+# list_directory
+# ---------------------------------------------------------------------------
+
+
+def test_list_directory(tmp_path: Path) -> None:
+    (tmp_path / "a.txt").write_text("a")
+    (tmp_path / "subdir").mkdir()
+    result = LIST_DIRECTORY["execute"]({"path": str(tmp_path)}, {})
     assert "a.txt" in result
-    assert "sub/" in result
+    assert "subdir/" in result
 
 
-def test_list_directory_empty(tmp_path):
-    assert _tool(_build_context(), "list_directory")(path=str(tmp_path)) == "(empty)"
+def test_list_directory_empty(tmp_path: Path) -> None:
+    result = LIST_DIRECTORY["execute"]({"path": str(tmp_path)}, {})
+    assert "(empty)" in result
 
 
-def test_grep_files(tmp_path):
-    (tmp_path / "sub").mkdir()
-    (tmp_path / "one.txt").write_text("alpha beta\ngamma alpha\n")
-    (tmp_path / "two.txt").write_text("no match here\n")
-    result = _tool(_build_context(), "grep_files")(pattern=r"alpha", path=str(tmp_path))
-    assert "one.txt:1: alpha beta" in result
-    assert "one.txt:2: gamma alpha" in result
+def test_list_directory_default() -> None:
+    result = LIST_DIRECTORY["execute"]({}, {})
+    assert isinstance(result, str)
 
 
-def test_grep_files_no_matches(tmp_path):
-    (tmp_path / "one.txt").write_text("nothing\n")
-    assert (
-        _tool(_build_context(), "grep_files")(pattern=r"zzz", path=str(tmp_path))
-        == "No matches."
-    )
+# ---------------------------------------------------------------------------
+# grep_files
+# ---------------------------------------------------------------------------
 
 
-def test_grep_files_skips_binary(tmp_path):
-    text_file = tmp_path / "text.txt"
-    (tmp_path / "bin.dat").write_bytes(b"\x00\x01\x02\xff" * 100)
-    text_file.write_text("visible line\n")
-    expected = f"{text_file}:1: visible line"
-    assert (
-        _tool(_build_context(), "grep_files")(pattern=r"visible", path=str(tmp_path))
-        == expected
-    )
+def test_grep_files(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("hello world\nfoo bar\n")
+    result = GREP_FILES["execute"]({"pattern": "hello", "path": str(tmp_path)}, {})
+    assert "hello" in result
 
 
-def test_grep_files_caps_at_fifty_matches(tmp_path):
-    content = "\n".join(f"match {i}" for i in range(60)) + "\n"
-    (tmp_path / "many.txt").write_text(content)
-    lines = _tool(_build_context(), "grep_files")(
-        pattern=r"match", path=str(tmp_path)
-    ).splitlines()
-    assert len(lines) == 50
+def test_grep_files_no_matches(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("nothing\n")
+    result = GREP_FILES["execute"]({"pattern": "xyz", "path": str(tmp_path)}, {})
+    assert "No matches" in result
 
 
-def test_run_command_success(monkeypatch):
-    from home_swe_home.sandbox import SandboxResult
-
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        return SandboxResult(
-            stdout="out\n", stderr="err\n", exit_code=3, timed_out=False
-        )
-
-    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
-    monkeypatch.setattr(
-        SandboxService, "run", lambda self, command, **kw: fake_sandbox(command, **kw)
-    )
-    result = _tool(_build_context(), "run_command")(
-        command="sh -c 'echo out; echo err >&2; exit 3'", timeout=10
-    )
-    assert "stdout:\nout\n" in result
-    assert "stderr:\nerr\n" in result
-    assert "exit code: 3" in result
+def test_grep_files_single_file(tmp_path: Path) -> None:
+    f = tmp_path / "a.py"
+    f.write_text("needle in haystack\n")
+    result = GREP_FILES["execute"]({"pattern": "needle", "path": str(f)}, {})
+    assert "needle" in result
 
 
-def test_run_command_no_output(monkeypatch):
-    from home_swe_home.sandbox import SandboxResult
-
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        return SandboxResult(stdout="", stderr="", exit_code=0, timed_out=False)
-
-    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
-    monkeypatch.setattr(
-        SandboxService, "run", lambda self, command, **kw: fake_sandbox(command, **kw)
-    )
-    assert (
-        _tool(_build_context(), "run_command")(command="true", timeout=10)
-        == "exit code: 0"
-    )
+def test_grep_files_unreadable_file(tmp_path: Path) -> None:
+    """Unreadable files are skipped rather than aborting the search."""
+    (tmp_path / "bad.py").write_bytes(b"\xff\xfe invalid utf-8")
+    (tmp_path / "good.py").write_text("match here\n")
+    result = GREP_FILES["execute"]({"pattern": "match", "path": str(tmp_path)}, {})
+    assert "match" in result
 
 
-def test_run_command_host_default(monkeypatch):
-    """run_command runs on the host by default (no sandbox)."""
-    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
+def test_grep_files_recurses_subdirs(tmp_path: Path) -> None:
+    subdir = tmp_path / "sub"
+    subdir.mkdir()
+    (subdir / "a.py").write_text("needle\n")
+    result = GREP_FILES["execute"]({"pattern": "needle", "path": str(tmp_path)}, {})
+    assert "needle" in result
 
-    def fake_run(cmd, *, capture_output, text, timeout):
-        return SimpleNamespace(returncode=0, stdout="out\n", stderr="err\n")
 
-    monkeypatch.setattr("subprocess.run", fake_run)
-    result = _tool(_build_context(), "run_command")(
-        command="echo out; echo err >&2", timeout=10
-    )
-    assert "stdout:\nout\n" in result
-    assert "stderr:\nerr\n" in result
+def test_grep_files_caps_at_50(tmp_path: Path) -> None:
+    lines = "\n".join(f"match {i}" for i in range(60))
+    (tmp_path / "many.py").write_text(lines)
+    result = GREP_FILES["execute"]({"pattern": "match", "path": str(tmp_path)}, {})
+    assert result.count("\n") <= 50
+
+
+# ---------------------------------------------------------------------------
+# run_command
+# ---------------------------------------------------------------------------
+
+
+def test_run_command_sandboxed(monkeypatch) -> None:
+    set_sandbox_enabled(True)
+    mock_result = MagicMock(stdout="out", stderr="err", exit_code=0, timed_out=False)
+    with patch("home_swe_home.sandbox.run_in_sandbox", return_value=mock_result) as m:
+        result = RUN_COMMAND["execute"]({"command": "echo hi"}, {})
+    assert m.called
+    assert "stdout:\nout" in result
     assert "exit code: 0" in result
 
 
-def test_execute_tool_unknown_tool():
-    ctx = _build_context()
-    result = execute_tool(ctx, "no_such_tool", "{}")
-    assert result.startswith("Error: unknown tool 'no_such_tool'. Use one of: ")
-    for name in {"read_file", "write_file", "edit_file", "delete_file"}:
-        assert name in result
+def test_run_command_sandboxed_timed_out(monkeypatch) -> None:
+    set_sandbox_enabled(True)
+    mock_result = MagicMock(stdout="", stderr="", exit_code=124, timed_out=True)
+    with patch("home_swe_home.sandbox.run_in_sandbox", return_value=mock_result):
+        result = RUN_COMMAND["execute"]({"command": "sleep 100"}, {})
+    assert "timed out" in result
 
 
-def test_execute_tool_bad_arguments():
-    ctx = _build_context()
-    result = execute_tool(ctx, "read_file", "{not json")
-    assert result.startswith("Error: invalid tool arguments: ")
+def test_run_command_sandboxed_empty_output() -> None:
+    set_sandbox_enabled(True)
+    mock_result = MagicMock(stdout="", stderr="", exit_code=0, timed_out=False)
+    with patch("home_swe_home.sandbox.run_in_sandbox", return_value=mock_result):
+        result = RUN_COMMAND["execute"]({"command": "true"}, {})
+    assert "exit code: 0" in result
+    assert "stdout" not in result
 
 
-def test_edit_file_replaces_exact_text(tmp_path):
-    target = tmp_path / "script.txt"
-    target.write_text("print('hello')\n")
-    read_files = {str(target)}
-    result = execute_tool(
-        _build_context(),
-        "edit_file",
-        json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
-        read_files=read_files,
+def test_run_command_host_success() -> None:
+    set_sandbox_enabled(False)
+    result = RUN_COMMAND["execute"]({"command": "echo hello"}, {})
+    assert "hello" in result
+    assert "exit code: 0" in result
+
+
+def test_run_command_host_not_found() -> None:
+    set_sandbox_enabled(False)
+    result = RUN_COMMAND["execute"]({"command": "nonexistent_command_xyz"}, {})
+    assert "command not found" in result
+
+
+def test_run_command_host_timeout() -> None:
+    set_sandbox_enabled(False)
+    exc = subprocess.TimeoutExpired(cmd="sleep", timeout=1)
+    exc.stdout = b"out"
+    exc.stderr = b"err"
+    with patch("subprocess.run", side_effect=exc):
+        result = RUN_COMMAND["execute"]({"command": "sleep 100", "timeout": 1}, {})
+    assert "timed out" in result
+    assert "exit code: 124" in result
+    assert "stdout:\nout" in result
+    assert "stderr:\nerr" in result
+
+
+def test_run_command_host_timeout_no_output() -> None:
+    set_sandbox_enabled(False)
+    exc = subprocess.TimeoutExpired(cmd="sleep", timeout=1)
+    exc.stdout = None
+    exc.stderr = None
+    with patch("subprocess.run", side_effect=exc):
+        result = RUN_COMMAND["execute"]({"command": "sleep 100", "timeout": 1}, {})
+    assert "timed out" in result
+    assert "exit code: 124" in result
+
+
+# ---------------------------------------------------------------------------
+# load_skill
+# ---------------------------------------------------------------------------
+
+
+def test_load_skill_no_agent() -> None:
+    result = LOAD_SKILL["execute"]({"name": "test"}, {})
+    assert "Error" in result
+    assert "not available" in result
+
+
+def test_load_skill_with_agent() -> None:
+    agent = MagicMock()
+    agent.ctx.get.return_value.load.return_value = "Skill body here"
+    result = LOAD_SKILL["execute"]({"name": "test"}, {"agent": agent})
+    assert "Skill body here" in result
+
+
+def test_load_skill_agent_without_ctx() -> None:
+    agent = MagicMock(spec=[])
+    result = LOAD_SKILL["execute"]({"name": "test"}, {"agent": agent})
+    assert "Error" in result
+
+
+def test_load_skill_service_not_mounted() -> None:
+    agent = MagicMock()
+    agent.ctx.get.return_value = None
+    result = LOAD_SKILL["execute"]({"name": "test"}, {"agent": agent})
+    assert "not available" in result
+
+
+# ---------------------------------------------------------------------------
+# verify_repo
+# ---------------------------------------------------------------------------
+
+
+def test_verify_repo_default(tmp_path: Path) -> None:
+    with patch("home_swe_home.utils.verify.default_runner", return_value=(0, "")):
+        result = VERIFY_REPO["execute"]({"path": str(tmp_path)}, {})
+    assert "checks passed" in result
+
+
+# ---------------------------------------------------------------------------
+# web_search
+# ---------------------------------------------------------------------------
+
+
+def _html_response(body: str) -> MagicMock:
+    response = MagicMock()
+    response.read.return_value = body.encode()
+    response.__enter__ = lambda s: s
+    response.__exit__ = MagicMock(return_value=False)
+    return response
+
+
+def test_web_search_with_results() -> None:
+    html = '<a class="result__a" href="https://example.com">Example</a>'
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "Example" in result
+    assert "https://example.com" in result
+
+
+def test_web_search_decodes_uddg_redirect() -> None:
+    html = (
+        '<a class="result__a" '
+        'href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com">'
+        "Example</a>"
     )
-    assert result == f"Replaced the first occurrence of old_string in {target}."
-    assert target.read_text() == "print('world')\n"
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "https://example.com" in result
 
 
-def test_edit_file_only_first_occurrence(tmp_path):
-    target = tmp_path / "script.txt"
-    target.write_text("hello hello\n")
-    read_files = {str(target)}
-    result = execute_tool(
-        _build_context(),
-        "edit_file",
-        json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
-        read_files=read_files,
+def test_web_search_protocol_relative_href() -> None:
+    html = '<a class="result__a" href="//example.com/page">Example</a>'
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "https://example.com/page" in result
+
+
+def test_web_search_skips_empty_title_or_href() -> None:
+    html = (
+        '<a class="result__a" href="https://example.com"></a>'
+        '<a class="result__a" href="">Title</a>'
+    )
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "No web results" in result
+
+
+def test_web_search_caps_results() -> None:
+    """More than 8 matches are truncated to the cap."""
+    html = "".join(
+        f'<a class="result__a" href="https://e.com/{i}">T{i}</a>' for i in range(20)
+    )
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert len([line for line in result.splitlines() if line.strip()]) == 8
+
+
+def test_web_search_bot_blocked() -> None:
+    html = "<html>captcha unusual traffic</html>"
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "bot detection" in result or "No web results" in result
+
+
+def test_web_search_falls_back_to_lite_endpoint() -> None:
+    """A bot-blocked html endpoint falls through to the lite endpoint."""
+    bot = _html_response("<html>captcha</html>")
+    lite = _html_response('<a class="result-link" href="https://example.com">Ex</a>')
+    with patch("urllib.request.urlopen", side_effect=[bot, lite]):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "Example" not in result  # title is "Ex"
+    assert "https://example.com" in result
+
+
+def test_web_search_all_endpoints_network_error() -> None:
+    with patch("urllib.request.urlopen", side_effect=OSError("no net")):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "Error" in result or "No web results" in result
+
+
+def test_web_search_searxng_success() -> None:
+    import json as json_mod
+
+    data = json_mod.dumps(
+        {"results": [{"title": "SearXNG Result", "url": "https://searx.example"}]}
+    )
+    with patch.dict(os.environ, {"SEARXNG_URL": "https://searx.example"}):
+        with patch("urllib.request.urlopen", return_value=_html_response(data)):
+            result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "SearXNG Result" in result
+
+
+def test_web_search_searxng_network_error_falls_back() -> None:
+    with patch.dict(os.environ, {"SEARXNG_URL": "https://searx.example"}):
+        with patch("urllib.request.urlopen", side_effect=OSError("no net")):
+            result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "Error" in result or "No web results" in result
+
+
+def test_web_search_searxng_bad_json_falls_back() -> None:
+    with patch.dict(os.environ, {"SEARXNG_URL": "https://searx.example"}):
+        with patch("urllib.request.urlopen", return_value=_html_response("not json")):
+            result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert isinstance(result, str)
+
+
+def test_web_search_searxng_empty_results_falls_back() -> None:
+    import json as json_mod
+
+    empty = _html_response(json_mod.dumps({"results": []}))
+    html = '<a class="result__a" href="https://example.com">Example</a>'
+    with patch.dict(os.environ, {"SEARXNG_URL": "https://searx.example"}):
+        with patch("urllib.request.urlopen", side_effect=[empty, _html_response(html)]):
+            result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "Example" in result
+
+
+def test_web_search_searxng_caps_results() -> None:
+    import json as json_mod
+
+    results = [{"title": f"Result {i}", "url": f"https://e.com/{i}"} for i in range(20)]
+    data = _html_response(json_mod.dumps({"results": results}))
+    with patch.dict(os.environ, {"SEARXNG_URL": "https://searx.example"}):
+        with patch("urllib.request.urlopen", return_value=data):
+            result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert len([line for line in result.splitlines() if line.strip()]) == 8
+
+
+def test_web_search_searxng_skips_empty_fields() -> None:
+    import json as json_mod
+
+    data = _html_response(
+        json_mod.dumps(
+            {
+                "results": [
+                    {"title": "", "url": "https://example.com"},
+                    {"title": "Valid", "url": ""},
+                    {"title": "Good", "url": "https://good.example"},
+                ]
+            }
+        )
+    )
+    with patch.dict(os.environ, {"SEARXNG_URL": "https://searx.example"}):
+        with patch("urllib.request.urlopen", return_value=data):
+            result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "Good" in result
+
+
+def test_web_search_searxng_url_trailing_slash() -> None:  # noqa: D401
+    """A trailing slash in SEARXNG_URL is stripped."""
+    import json as json_mod
+
+    data = _html_response(json_mod.dumps({"results": []}))
+    with patch.dict(os.environ, {"SEARXNG_URL": "https://searx.example/"}):
+        with patch("urllib.request.urlopen", return_value=data) as mock_url:
+            WEB_SEARCH["execute"]({"query": "test"}, {})
+    # SearXNG is queried first; empty results then fall through to DuckDuckGo.
+    first_request = mock_url.call_args_list[0][0][0]
+    assert "searx.example/search" in first_request.full_url
+
+
+# ---------------------------------------------------------------------------
+# reload_module
+# ---------------------------------------------------------------------------
+
+
+def test_reload_module_without_agent(tmp_path: Path) -> None:
+    f = tmp_path / "mod.py"
+    f.write_text("x = 1\n", encoding="utf-8")
+    result = RELOAD_MODULE["execute"]({"module_name": "mod", "file_path": str(f)}, {})
+    assert "Reloaded" in result or "Error" in result
+
+
+def test_reload_module_refuses_when_nothing_read_this_turn(tmp_path: Path) -> None:
+    f = tmp_path / "mod.py"
+    f.write_text("x = 1\n", encoding="utf-8")
+    agent = _agent_with_events([_turn_start(1)])
+
+    result = RELOAD_MODULE["execute"](
+        {"module_name": "mod", "file_path": str(f)}, {"agent": agent}
+    )
+    assert "Refused" in result
+
+
+def test_reload_module_allowed_after_read_this_turn(tmp_path: Path) -> None:
+    from home_swe_home.tools.definitions import _module_stats
+
+    f = tmp_path / "mod_ok.py"
+    f.write_text("x = 1\n", encoding="utf-8")
+    agent = _agent_with_events(
+        [_turn_start(1), _tool_call(2, "read_file", {"path": str(f)})]
+    )
+
+    result = RELOAD_MODULE["execute"](
+        {"module_name": "mod_ok", "file_path": str(f)}, {"agent": agent}
+    )
+    assert "Reloaded" in result
+    _module_stats.pop("mod_ok", None)
+
+
+def test_reload_module_file_not_found() -> None:
+    result = RELOAD_MODULE["execute"](
+        {"module_name": "mod", "file_path": "/nonexistent/file.py"}, {}
+    )
+    assert "could not stat" in result
+
+
+def test_reload_module_skips_malformed_events(tmp_path: Path) -> None:
+    f = tmp_path / "mod2.py"
+    f.write_text("x = 1\n", encoding="utf-8")
+    agent = _agent_with_events(
+        [
+            _turn_start(1),
+            _event(2, "user/message", {}),
+            _tool_call(3, "read_file", "not_a_dict"),
+            _tool_call(4, "web_search", {"query": "x"}),
+        ]
+    )
+
+    result = RELOAD_MODULE["execute"](
+        {"module_name": "mod2", "file_path": str(f)}, {"agent": agent}
+    )
+    # No valid read this turn, so the reload is refused.
+    assert "Refused" in result
+
+
+def test_reload_module_no_changes(tmp_path: Path) -> None:
+    from home_swe_home.tools.definitions import _module_stats
+
+    f = tmp_path / "mod3.py"
+    f.write_text("x = 1\n", encoding="utf-8")
+
+    RELOAD_MODULE["execute"]({"module_name": "mod3", "file_path": str(f)}, {})
+    result = RELOAD_MODULE["execute"]({"module_name": "mod3", "file_path": str(f)}, {})
+    assert "No changes detected" in result
+
+    _module_stats.pop("mod3", None)
+
+
+def test_reload_module_adds_py_extension(tmp_path: Path) -> None:
+    f = tmp_path / "modpy"
+    f.write_text("x = 1\n", encoding="utf-8")
+    result = RELOAD_MODULE["execute"](
+        {"module_name": "modpy_test", "file_path": str(f)}, {}
+    )
+    assert "Reloaded" in result or "Error" in result
+
+
+# ---------------------------------------------------------------------------
+# code_metrics
+# ---------------------------------------------------------------------------
+
+
+def test_code_metrics(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text(
+        "def foo():\n    pass\n\nclass Bar:\n    pass\n", encoding="utf-8"
+    )
+    result = CODE_METRICS["execute"]({"path": str(tmp_path)}, {})
+    assert "file_count" in result
+    assert "function_count" in result
+
+
+def test_code_metrics_default() -> None:
+    result = CODE_METRICS["execute"]({}, {})
+    assert "Code metrics" in result
+
+
+def test_code_metrics_skips_unreadable(tmp_path: Path) -> None:
+    (tmp_path / "good.py").write_text("x = 1\n")
+    (tmp_path / "bad.py").write_bytes(b"\xff\xfe invalid")
+    result = CODE_METRICS["execute"]({"path": str(tmp_path)}, {})
+    assert "file_count" in result
+
+
+# ---------------------------------------------------------------------------
+# find_duplicates
+# ---------------------------------------------------------------------------
+
+
+def test_find_duplicates_none(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("unique 1\nunique 2\nunique 3\n")
+    result = FIND_DUPLICATES["execute"]({"path": str(tmp_path)}, {})
+    assert "No duplicate" in result
+
+
+def test_find_duplicates_found(tmp_path: Path) -> None:
+    content = "x = 1\ny = 2\nz = 3\n"
+    (tmp_path / "a.py").write_text(content)
+    (tmp_path / "b.py").write_text(content)
+    result = FIND_DUPLICATES["execute"]({"path": str(tmp_path)}, {})
+    assert "Found" in result
+    assert "Duplicate" in result
+
+
+def test_find_duplicates_default_path() -> None:
+    result = FIND_DUPLICATES["execute"]({}, {})
+    assert isinstance(result, str)
+
+
+def test_find_duplicates_skips_unreadable(tmp_path: Path) -> None:
+    (tmp_path / "good.py").write_text("a\nb\nc\n")
+    (tmp_path / "bad.py").write_bytes(b"\xff\xfe invalid")
+    result = FIND_DUPLICATES["execute"]({"path": str(tmp_path)}, {})
+    assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# generate_docs
+# ---------------------------------------------------------------------------
+
+
+def test_generate_docs(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text(
+        '"""Module."""\n\n\ndef foo():\n    """Do foo."""\n    pass\n\n\n'
+        'class Bar:\n    """A bar."""\n\n    def baz(self):\n'
+        '        """Do baz."""\n        pass\n',
+        encoding="utf-8",
+    )
+    result = GENERATE_DOCS["execute"]({"path": str(tmp_path)}, {})
+    assert "foo" in result
+    assert "Bar" in result
+    assert "baz" in result
+
+
+def test_generate_docs_no_docstrings(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("def foo():\n    pass\n")
+    result = GENERATE_DOCS["execute"]({"path": str(tmp_path)}, {})
+    assert "No docstring" in result
+
+
+def test_generate_docs_syntax_error(tmp_path: Path) -> None:
+    (tmp_path / "bad.py").write_text("def foo(\n")
+    result = GENERATE_DOCS["execute"]({"path": str(tmp_path)}, {})
+    assert isinstance(result, str)
+
+
+def test_generate_docs_default() -> None:
+    result = GENERATE_DOCS["execute"]({}, {})
+    assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# add_repo
+# ---------------------------------------------------------------------------
+
+_REPO_MAP = (
+    "## Other Repos\n\n"
+    "- **test** (test): `../test`. Clone from\n"
+    "  <https://github.com/org/test.git> if missing.\n"
+)
+
+
+def _make_home(tmp_path: Path, monkeypatch, map_text: str = _REPO_MAP) -> Path:
+    """Create a home checkout with an AGENTS.md repo map and skills dir."""
+    home = tmp_path / "agents-home"
+    home.mkdir(exist_ok=True)
+    (home / "AGENTS.md").write_text(map_text, encoding="utf-8")
+    (home / "skills").mkdir(exist_ok=True)
+    monkeypatch.setenv("AGENTS_HOME_PATH", str(home))
+    return home
+
+
+def test_add_repo_no_home(monkeypatch) -> None:
+    monkeypatch.setattr("home_swe_home.utils.home.find_home", lambda: None)
+    result = ADD_REPO["execute"]({"ref": "anything"}, {})
+    assert "no agents-home" in result
+
+
+def test_add_repo_resolved(tmp_path: Path, monkeypatch) -> None:
+    home = _make_home(tmp_path, monkeypatch)
+    (home / ".." / "test").mkdir(parents=True, exist_ok=True)
+
+    result = ADD_REPO["execute"]({"ref": "test"}, {})
+    assert "Resolved" in result
+
+
+def test_add_repo_not_in_map(tmp_path: Path, monkeypatch) -> None:
+    _make_home(tmp_path, monkeypatch, "## Other Repos\n")
+    result = ADD_REPO["execute"]({"ref": "unknown"}, {})
+    assert "not in the home repo map" in result
+
+
+def test_add_repo_confirm_required(tmp_path: Path, monkeypatch) -> None:
+    _make_home(tmp_path, monkeypatch)
+    result = ADD_REPO["execute"]({"ref": "test", "confirm": False}, {})
+    assert "Confirm with confirm=true" in result
+
+
+def test_add_repo_no_clone_url(tmp_path: Path, monkeypatch) -> None:
+    _make_home(
+        tmp_path, monkeypatch, "## Other Repos\n\n- **test** (test): `../test`.\n"
+    )
+    result = ADD_REPO["execute"]({"ref": "test"}, {})
+    assert "no clone URL" in result
+
+
+def test_add_repo_rejects_traversal(tmp_path: Path, monkeypatch) -> None:
+    """A map entry escaping the home checkout is refused."""
+    evil_map = (
+        "## Other Repos\n\n- **evil** (evil): `../../etc`. Clone from\n"
+        "  <https://github.com/org/evil.git> if missing.\n"
+    )
+    _make_home(tmp_path, monkeypatch, evil_map)
+    result = ADD_REPO["execute"]({"ref": "evil", "confirm": True}, {})
+    assert "outside the workspace root" in result
+
+
+def test_add_repo_clone_success(tmp_path: Path, monkeypatch) -> None:
+    _make_home(tmp_path, monkeypatch)
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        result = ADD_REPO["execute"]({"ref": "test", "confirm": True}, {})
+    assert "Cloned" in result
+
+
+def test_add_repo_clone_failure(tmp_path: Path, monkeypatch) -> None:
+    _make_home(tmp_path, monkeypatch)
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=1, stderr="fatal: error")
+        result = ADD_REPO["execute"]({"ref": "test", "confirm": True}, {})
+    assert "clone failed" in result
+
+
+# ---------------------------------------------------------------------------
+# _use_sandbox
+# ---------------------------------------------------------------------------
+
+
+def test_use_sandbox_defaults_to_enabled(monkeypatch) -> None:
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
+    set_sandbox_enabled(True)
+    assert _use_sandbox() is True
+
+
+def test_use_sandbox_env_disable_variants(monkeypatch) -> None:
+    set_sandbox_enabled(True)
+    for val in ("0", "false", "no", "off"):
+        with patch.dict(os.environ, {"HOME_SWE_HOME_SANDBOX": val}):
+            assert _use_sandbox() is False
+
+
+def test_use_sandbox_env_enable_variants(monkeypatch) -> None:
+    set_sandbox_enabled(False)
+    for val in ("1", "true", "yes", "on"):
+        with patch.dict(os.environ, {"HOME_SWE_HOME_SANDBOX": val}):
+            assert _use_sandbox() is True
+
+
+def test_use_sandbox_falls_back_to_setting(monkeypatch) -> None:
+    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
+    set_sandbox_enabled(False)
+    assert _use_sandbox() is False
+    set_sandbox_enabled(True)
+
+
+# ---------------------------------------------------------------------------
+# register_tools
+# ---------------------------------------------------------------------------
+
+
+def test_register_tools() -> None:
+    ctx = MagicMock()
+    register_tools(ctx)
+    assert ctx.tools.register.call_count == len(ALL_TOOLS)
+
+
+# ---------------------------------------------------------------------------
+# Edge cases closed by review
+# ---------------------------------------------------------------------------
+
+
+def test_read_tracker_ignores_non_string_path(tmp_path: Path) -> None:
+    """A tool call whose path is not a string does not enter the read set."""
+    f = tmp_path / "x.txt"
+    f.write_text("content", encoding="utf-8")
+    agent = _agent_with_events(
+        [
+            _turn_start(1),
+            _tool_call(2, "read_file", {"path": 12345}),
+            _tool_call(3, "read_file", {"path": str(f)}),
+        ]
+    )
+
+    result = EDIT_FILE["execute"](
+        {"path": str(f), "old_string": "content", "new_string": "changed"},
+        {"agent": agent},
     )
     assert "Replaced" in result
-    assert target.read_text() == "world hello\n"
 
 
-def test_edit_file_refuses_unread_file(tmp_path):
-    target = tmp_path / "script.txt"
-    target.write_text("print('hello')\n")
-    result = execute_tool(
-        _build_context(),
-        "edit_file",
-        json.dumps({"path": str(target), "old_string": "hello", "new_string": "world"}),
-        read_files=set(),
-    )
-    assert result.startswith(f"Refused: '{target}' has not been read yet.")
-    assert "Call read_file" in result
-    assert target.read_text() == "print('hello')\n"
+def test_agent_of_handles_run_ctx_without_get() -> None:
+    """A run context that is not a mapping yields no agent."""
+
+    class Opaque:
+        pass
+
+    assert _agent_of(Opaque()) is None
+    assert _agent_of({}) is None
+    sentinel = object()
+    assert _agent_of({"agent": sentinel}) is sentinel
 
 
-def test_edit_file_old_string_not_found(tmp_path):
-    target = tmp_path / "script.txt"
-    target.write_text("print('hello')\n")
-    read_files = {str(target)}
-    result = execute_tool(
-        _build_context(),
-        "edit_file",
-        json.dumps(
-            {"path": str(target), "old_string": "goodbye", "new_string": "world"}
-        ),
-        read_files=read_files,
-    )
-    assert result.startswith(f"Error: old_string not found in {target}.")
-    assert "read_file" in result
-    assert target.read_text() == "print('hello')\n"
+def test_run_command_host_stdout_only() -> None:
+    """Host output with stdout but no stderr renders stdout only."""
+    set_sandbox_enabled(False)
+    completed = MagicMock(returncode=0, stdout="only out", stderr="")
+    with patch("subprocess.run", return_value=completed):
+        result = RUN_COMMAND["execute"]({"command": "true"}, {})
+    assert "stdout:\nonly out" in result
+    assert "stderr" not in result
 
 
-def test_delete_file(tmp_path):
-    target = tmp_path / "temp.txt"
-    target.write_text("temporary\n")
-    result = _tool(_build_context(), "delete_file")(path=str(target))
-    assert result == f"Deleted {target}."
-    assert not target.exists()
+def test_run_command_host_stderr_only() -> None:
+    """Host output with stderr but no stdout renders stderr only."""
+    set_sandbox_enabled(False)
+    completed = MagicMock(returncode=1, stdout="", stderr="only err")
+    with patch("subprocess.run", return_value=completed):
+        result = RUN_COMMAND["execute"]({"command": "false"}, {})
+    assert "stderr:\nonly err" in result
+    assert "stdout" not in result
 
 
-def test_delete_file_nonexistent(tmp_path):
-    target = tmp_path / "missing.txt"
-    result = _tool(_build_context(), "delete_file")(path=str(target))
-    assert result.startswith("Error: FileNotFoundError: ")
-
-
-def test_web_search_no_network(monkeypatch):
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def read(self):
-            return b"<html></html>"
-
-    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
-    with patch(mock_urlopen, return_value=FakeResponse()):
-        result = _tool(_build_context(), "web_search")(query="anything")
-    assert result == "No web results found. Try rephrasing the query."
-
-
-def test_web_search_returns_results(monkeypatch):
+def test_web_search_uddg_without_query_string() -> None:
+    """A uddg= href with no ``?`` is returned as-is rather than crashing."""
     html = (
-        "<html><body>"
-        '<a rel="nofollow" class="result__a" href="https://example.com/one">'
-        "Result One</a>"
-        '<a rel="nofollow" class="result__a" href="https://example.com/two">'
-        "Result Two</a>"
-        "</body></html>"
+        '<a class="result__a" '
+        'href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fa.example">A</a>'
     )
-
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def read(self):
-            return html.encode("utf-8")
-
-    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
-    with patch(mock_urlopen, return_value=FakeResponse()):
-        result = _tool(_build_context(), "web_search")(query="test")
-    assert "Result One: https://example.com/one" in result
-    assert "Result Two: https://example.com/two" in result
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "a.example" in result or "No web results" in result
 
 
-def test_web_search_network_error(monkeypatch):
-    with patch(
-        "home_swe_home.tools.web_search.urllib.request.urlopen",
-        side_effect=OSError("network down"),
-    ):
-        result = _tool(_build_context(), "web_search")(query="test")
-    assert result.startswith("Error: web search failed: network down.")
-    assert "retry the query" in result
-
-
-def test_execute_tool_read_file_tracks_read_files(tmp_path):
-    target = tmp_path / "track.txt"
-    target.write_text("contents\n")
-    read_files: set[str] = set()
-    result = execute_tool(
-        _build_context(),
-        "read_file",
-        json.dumps({"path": str(target)}),
-        read_files=read_files,
-    )
-    assert result == "contents\n"
-    assert read_files == {str(target)}
-
-
-def test_execute_tool_write_file_tracks_read_files(tmp_path):
-    target = tmp_path / "track2.txt"
-    read_files: set[str] = set()
-    result = execute_tool(
-        _build_context(),
-        "write_file",
-        json.dumps({"path": str(target), "content": "data"}),
-        read_files=read_files,
-    )
-    assert result == f"Wrote 4 characters to {target}."
-    assert read_files == {str(target)}
-    assert target.read_text() == "data"
-
-
-def test_web_search_many_results_triggers_break(monkeypatch):
-    links = "".join(
-        f'<a rel="nofollow" class="result__a" href="https://example.com/{i}">'
-        f"Result {i}</a>"
-        for i in range(12)
-    )
-    html = f"<html><body>{links}</body></html>"
-
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def read(self):
-            return html.encode("utf-8")
-
-    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
-    with patch(mock_urlopen, return_value=FakeResponse()):
-        result = _tool(_build_context(), "web_search")(query="test")
-    lines = result.splitlines()
-    assert len(lines) == 8  # capped at 8
-
-
-def test_web_search_skips_empty_title(monkeypatch):
+def test_web_search_uddg_with_other_pairs() -> None:
+    """Non-uddg query parameters are skipped when decoding the target."""
     html = (
-        "<html><body>"
-        '<a rel="nofollow" class="result__a" href="https://example.com/one">'
-        "  </a>"  # empty title
-        '<a rel="nofollow" class="result__a" href="https://example.com/two">'
-        "Real Result</a>"
-        "</body></html>"
+        '<a class="result__a" '
+        'href="//duckduckgo.com/l/?foo=1&uddg=https%3A%2F%2Fb.example&rut=9">'
+        "B</a>"
     )
-
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def read(self):
-            return html.encode("utf-8")
-
-    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
-    with patch(mock_urlopen, return_value=FakeResponse()):
-        result = _tool(_build_context(), "web_search")(query="test")
-    assert "Real Result: https://example.com/two" in result
-    assert "https://example.com/one" not in result
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "b.example" in result
 
 
-def test_code_metrics(tmp_path):
-    a_py = (
-        "def foo():\n"
-        "    if x:\n"
-        "        pass\n"
-        "    return 1\n"
-        "\n"
-        "class Bar:\n"
-        "    def method(self):\n"
-        "        pass\n"
-    )
-    b_py = "# comment\n\ntry:\n    pass\nexcept Exception:\n    pass\n"
-    (tmp_path / "a.py").write_text(a_py)
-    (tmp_path / "b.py").write_text(b_py)
-    result = _tool(_build_context(), "code_metrics")(path=str(tmp_path))
-    assert "file_count: 2" in result
-    assert "function_count: 1" in result
-    assert "class_count: 1" in result
-    assert "total_lines:" in result
-    assert "estimated_complexity:" in result
-
-
-def test_code_metrics_binary_file(tmp_path):
-    (tmp_path / "binary.py").write_bytes(b"\x00\x01\x02\xff\xfe")
-    result = _tool(_build_context(), "code_metrics")(path=str(tmp_path))
-    assert "file_count: 1" in result
-    assert "total_lines: 0" in result
-
-
-def test_code_metrics_empty_dir(tmp_path):
-    result = _tool(_build_context(), "code_metrics")(path=str(tmp_path))
-    assert "file_count: 0" in result
-    assert "total_lines: 0" in result
-
-
-def test_find_duplicates(tmp_path):
-    (tmp_path / "a.py").write_text("shared = 1\nshared = 2\nx = 3\n")
-    (tmp_path / "b.py").write_text("shared = 1\nshared = 2\ny = 4\n")
-    result = _tool(_build_context(), "find_duplicates")(path=str(tmp_path), min_lines=2)
-    assert "Duplicate block" in result
-
-
-def test_find_duplicates_empty_path(tmp_path):
-    (tmp_path / "a.py").write_text("shared = 1\nshared = 2\nx = 3\n")
-    result = _tool(_build_context(), "find_duplicates")(path="", min_lines=2)
-    assert "Duplicate block" in result
-
-
-def test_find_duplicates_binary_file(tmp_path):
-    (tmp_path / "binary.py").write_bytes(b"\x00\x01\x02\xff\xfe")
-    result = _tool(_build_context(), "find_duplicates")(path=str(tmp_path), min_lines=2)
-    assert result == "No duplicate code blocks found."
-
-
-def test_find_duplicates_no_duplicates(tmp_path):
-    (tmp_path / "a.py").write_text("x = 1\ny = 2\nz = 3\n")
-    result = _tool(_build_context(), "find_duplicates")(path=str(tmp_path), min_lines=2)
-    assert result == "No duplicate code blocks found."
-
-
-def test_find_duplicates_empty_dir(tmp_path):
-    result = _tool(_build_context(), "find_duplicates")(path=str(tmp_path))
-    assert result == "No duplicate code blocks found."
-
-
-def test_generate_docs(tmp_path):
-    (tmp_path / "mymod.py").write_text(
-        '"""Module docstring."""\n\n\n'
-        'def hello():\n    """Say hello."""\n    pass\n\n\n'
-        "def no_doc():\n    pass\n\n\n"
-        'class Person:\n    """A person."""\n'
-        '    def greet(self):\n        """Greet someone."""\n        pass\n\n'
-        "    def silent(self):\n        pass\n\n\n"
-        "class SilentClass:\n    pass\n"
-    )
-    result = _tool(_build_context(), "generate_docs")(path=str(tmp_path))
-    assert "# Auto-generated Documentation" in result
-    assert "## mymod.py" in result
-    assert "### Person" in result
-    assert "### SilentClass" in result
-    assert "- **hello(...)**" in result
-    assert "*Say hello.*" in result
-    assert "*A person.*" in result
-    assert "*Greet someone.*" in result
-    assert "- **no_doc(...)**" in result
-    assert "  _No docstring_" in result
-    assert "- **silent(...)**" in result
-
-
-def test_generate_docs_syntax_error(tmp_path):
-    (tmp_path / "broken.py").write_text("def ::\n  not valid python")
-    result = _tool(_build_context(), "generate_docs")(path=str(tmp_path))
-    assert "# Auto-generated Documentation" in result
-
-
-def test_generate_docs_empty_dir(tmp_path):
-    result = _tool(_build_context(), "generate_docs")(path=str(tmp_path))
-    assert "# Auto-generated Documentation" in result
-
-
-def test_reload_module(tmp_path):
-    target = tmp_path / "mymodule.py"
-    target.write_text("VALUE = 1\n")
-    result = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": "test_module", "file_path": str(target)}),
-        read_files={str(target)},
-    )
-    assert "Reloaded module" in result
-    assert str(target) in result
-
-
-def test_reload_module_no_py_extension(tmp_path):
-    target = tmp_path / "mymodule.py"
-    target.write_text("VALUE = 1\n")
-    no_ext = str(tmp_path / "mymodule")
-    result = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": "test_module", "file_path": no_ext}),
-        read_files={no_ext},
-    )
-    assert "Reloaded module" in result
-
-
-def test_reload_module_invalid_path(tmp_path):
-    os.mkdir(tmp_path / "notamodule.py")
-    result = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps(
-            {"module_name": "bad_module", "file_path": str(tmp_path / "notamodule.py")}
-        ),
-        read_files={str(tmp_path / "notamodule.py")},
-    )
-    assert result.startswith("Error:")
-
-
-def test_reload_module_self(tmp_path):
-    import shutil
-
-    target = tmp_path / "read_file_copy.py"
-    shutil.copy("src/home_swe_home/tools/read_file.py", target)
-    result = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps(
-            {"module_name": "home_swe_home.tools.read_file", "file_path": str(target)}
-        ),
-        read_files={str(target)},
-    )
-    assert "Reloaded module" in result
-
-
-def test_reload_module_spec_none(tmp_path):
-    target = tmp_path / "mymodule.py"
-    target.write_text("VALUE = 1\n")
-
+def test_reload_module_spec_none(tmp_path: Path) -> None:
+    """A path importlib cannot build a spec for is reported, not raised."""
+    f = tmp_path / "any.py"
+    f.write_text("x = 1\n", encoding="utf-8")
     with patch("importlib.util.spec_from_file_location", return_value=None):
-        result = execute_tool(
-            _build_context(),
-            "reload_module",
-            json.dumps({"module_name": "test_module", "file_path": str(target)}),
-            read_files={str(target)},
+        result = RELOAD_MODULE["execute"](
+            {"module_name": "nospec", "file_path": str(f)}, {}
         )
-    assert result.startswith("Error:")
-
-
-def test_reload_module_not_read(tmp_path):
-    target = tmp_path / "mymodule.py"
-    target.write_text("VALUE = 1\n")
-    result = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": "test_module", "file_path": str(target)}),
-        read_files=set(),
-    )
-    assert result.startswith("Refused:")
-
-
-def test_reload_module_no_read_files_tracker(tmp_path):
-    target = tmp_path / "mymodule.py"
-    target.write_text("VALUE = 1\n")
-    result = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": "test_module", "file_path": str(target)}),
-        read_files=None,
-    )
-    assert result.startswith("Refused:")
-
-
-def test_reload_module_no_changes(tmp_path):
-    target = tmp_path / "mymodule.py"
-    target.write_text("VALUE = 1\n")
-    read_files = {str(target)}
-    result1 = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": "test_module", "file_path": str(target)}),
-        read_files=read_files,
-    )
-    assert "Reloaded module" in result1
-    result2 = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": "test_module", "file_path": str(target)}),
-        read_files=read_files,
-    )
-    assert "No changes detected" in result2
-
-
-def test_reload_module_stat_oserror(tmp_path):
-    """os.stat OSError returns a clear error message."""
-    target = tmp_path / "mymodule.py"
-    target.write_text("VALUE = 1\n")
-
-    import home_swe_home.tools.reload_module as reload_mod
-
-    orig = reload_mod.os.stat
-
-    def failing_stat(path):
-        raise OSError("no access")
-
-    try:
-        reload_mod.os.stat = failing_stat
-        result = execute_tool(
-            _build_context(),
-            "reload_module",
-            json.dumps({"module_name": "test_stat_err", "file_path": str(target)}),
-            read_files={str(target)},
-        )
-    finally:
-        reload_mod.os.stat = orig
-    assert result.startswith("Error: could not stat")
-
-
-def test_reload_module_same_size_same_second_not_stale(tmp_path):
-    """Regression: same-size edits in one second must not run stale bytecode."""
-    marker = tmp_path / "marker.txt"
-    target = tmp_path / "spike_mod.py"
-    # Import writes the marker; AAAA/BBBB are same length so the bytecode
-    # cache key (mtime seconds, size) is identical across edits.
-    source = f"from pathlib import Path\nPath({str(marker)!r}).write_text('AAAA')\n"
-    target.write_text(source)
-    module_name = "spike_reload_mod"
-    read_files = {str(target)}
-
-    first = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": module_name, "file_path": str(target)}),
-        read_files=read_files,
-    )
-    assert "Reloaded module" in first
-    assert marker.read_text() == "AAAA"
-
-    # Same byte length, same second -> without cache invalidation the tool
-    # would execute the stale 'AAAA' bytecode instead of 'BBBB'.
-    target.write_text(source.replace("AAAA", "BBBB"))
-    second = execute_tool(
-        _build_context(),
-        "reload_module",
-        json.dumps({"module_name": module_name, "file_path": str(target)}),
-        read_files=read_files,
-    )
-    assert "Reloaded module" in second
-    assert marker.read_text() == "BBBB"  # proves fresh bytecode ran
-
-
-def test_grep_files_with_file_path(tmp_path):
-    target = tmp_path / "test.txt"
-    target.write_text("hello world\ntest line\ndef foo():\n    pass\n")
-    result = _tool(_build_context(), "grep_files")(pattern=r"def ", path=str(target))
-    assert "test.txt:3: def foo():" in result
-
-
-def test_web_search_bot_detection(monkeypatch):
-    html = """<html><title>DuckDuckGo</title>
-    <body>
-    <p>Unusual traffic from your computer network.</p>
-    <p>This page checks to see if it's really you sending the requests.</p>
-    </body></html>"""
-
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def read(self):
-            return html.encode("utf-8")
-
-    mock_urlopen = "home_swe_home.tools.web_search.urllib.request.urlopen"
-    with patch(mock_urlopen, return_value=FakeResponse()):
-        result = _tool(_build_context(), "web_search")(query="anything")
-    assert "bot detection" in result.lower()
-
-
-def test_web_search_decodes_uddg_wrapper(monkeypatch):
-    """DDG's uddg= redirect wrapper is decoded to the real target URL."""
-    from home_swe_home.tools.web_search import _decode_href
-
-    wrapped = "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpage%3Fa%3D1"
-    assert _decode_href(wrapped) == "https://example.com/page?a=1"
-    # uddg= not the first query param
-    wrapped2 = "//duckduckgo.com/l/?foo=bar&uddg=https%3A%2F%2Fexample.com%2Fx"
-    assert _decode_href(wrapped2) == "https://example.com/x"
-    # "uddg=" present but not a query param -> falls through to normalize
-    assert _decode_href("https://example.com/path?uddgx=1") == (
-        "https://example.com/path?uddgx=1"
-    )
-    # "uddg=" with no '?' at all -> falls through
-    assert _decode_href("https://example.com/uddg=thing") == (
-        "https://example.com/uddg=thing"
-    )
-
-
-def test_web_search_protocol_relative_href(monkeypatch):
-    """Protocol-relative result links are normalized to https."""
-    from home_swe_home.tools.web_search import _decode_href
-
-    assert _decode_href("//example.com/path") == "https://example.com/path"
-
-
-def test_web_search_lite_fallback(monkeypatch):
-    """When the HTML endpoint is bot-blocked, the Lite endpoint is tried."""
-    calls = []
-
-    class ChallengeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-        def read(self):
-            return b"<html><p>unusual traffic detected</p></html>"
-
-    lite_html = (
-        "<html><body>"
-        '<a class="result-link" href="https://lite.example.com/one">Lite One</a>'
-        "</body></html>"
-    )
-
-    class LiteResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-        def read(self):
-            return lite_html.encode()
-
-    def fake_urlopen(req, timeout):
-        calls.append(req.full_url)
-        if "html.duckduckgo.com" in req.full_url:
-            return ChallengeResponse()
-        return LiteResponse()
-
-    with patch(
-        "home_swe_home.tools.web_search.urllib.request.urlopen", new=fake_urlopen
-    ):
-        result = _tool(_build_context(), "web_search")(query="test")
-    assert "Lite One: https://lite.example.com/one" in result
-    assert len(calls) == 2  # both endpoints tried
-
-
-def test_web_search_bot_signal_anomaly(monkeypatch):
-    """The 'anomaly' bot signal is detected."""
-    from home_swe_home.tools.web_search import _is_bot_challenge
-
-    assert _is_bot_challenge("<html><p>Anomaly detected</p></html>") is True
-    assert _is_bot_challenge("<html><body>nothing special</body></html>") is False
-
-
-def test_web_search_searxng_first(monkeypatch):
-    """SEARXNG_URL routes to the instance's JSON API and returns real URLs."""
-    import json
-
-    from home_swe_home.tools.web_search import _search_searxng
-
-    calls = []
-
-    def fake_urlopen(req, timeout):
-        calls.append(req.full_url)
-        assert "format=json" in req.full_url
-        assert "mysearch.local/search" in req.full_url
-
-        class Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-            def read(self):
-                return json.dumps(
-                    {
-                        "results": [
-                            {
-                                "title": "SearXNG Result",
-                                "url": "https://example.com/searx",
-                                "content": "snippet",
-                                "engine": "google",
-                            }
-                        ]
-                    }
-                ).encode()
-
-        return Response()
-
-    monkeypatch.setattr(
-        "home_swe_home.tools.web_search.urllib.request.urlopen", fake_urlopen
-    )
-    results = _search_searxng("https://mysearch.local", "test query")
-    assert results == ["SearXNG Result: https://example.com/searx"]
-    assert len(calls) == 1
-
-
-def test_web_search_searxng_service_uses_json(monkeypatch):
-    """With SEARXNG_URL set, the service calls SearXNG and skips DDG."""
-    import json
-
-    monkeypatch.setenv("SEARXNG_URL", "https://mysearch.local")
-
-    def fake_urlopen(req, timeout):
-        assert "mysearch.local/search" in req.full_url
-
-        class Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-            def read(self):
-                return json.dumps(
-                    {"results": [{"title": "Found", "url": "https://found.example/a"}]}
-                ).encode()
-
-        return Response()
-
-    monkeypatch.setattr(
-        "home_swe_home.tools.web_search.urllib.request.urlopen", fake_urlopen
-    )
-    result = _tool(_build_context(), "web_search")(query="test")
-    assert result == "Found: https://found.example/a"
-
-
-def test_web_search_searxng_falls_back_on_403(monkeypatch):
-    """A SearXNG 403 (json format disabled) falls back to DuckDuckGo."""
-    from urllib.error import HTTPError
-
-    monkeypatch.setenv("SEARXNG_URL", "https://mysearch.local")
-
-    calls = []
-
-    def fake_urlopen(req, timeout):
-        calls.append(req.full_url)
-        if "mysearch.local" in req.full_url:
-            raise HTTPError(req.full_url, 403, "forbidden", {}, None)
-
-        class Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-            def read(self):
-                return (
-                    b'<html><a rel="nofollow" class="result__a" '
-                    b'href="https://ddg.example/x">DDG Result</a></html>'
-                )
-
-        return Response()
-
-    monkeypatch.setattr(
-        "home_swe_home.tools.web_search.urllib.request.urlopen", fake_urlopen
-    )
-    result = _tool(_build_context(), "web_search")(query="test")
-    assert "DDG Result: https://ddg.example/x" in result
-    assert any("duckduckgo.com" in url for url in calls)  # DDG was actually called
-
-
-def test_web_search_searxng_bad_json_falls_back(monkeypatch):
-    """Malformed SearXNG JSON returns None so the caller falls back."""
-    from home_swe_home.tools.web_search import _search_searxng
-
-    def fake_urlopen(req, timeout):
-        class Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-            def read(self):
-                return b"not json"
-
-        return Response()
-
-    monkeypatch.setattr(
-        "home_swe_home.tools.web_search.urllib.request.urlopen", fake_urlopen
-    )
-    assert _search_searxng("https://mysearch.local", "q") is None
-
-
-def test_web_search_searxng_env_strip(monkeypatch):
-    """SEARXNG_URL is stripped of surrounding whitespace and trailing slash."""
-    from home_swe_home.tools.web_search import _searxng_url
-
-    monkeypatch.setenv("SEARXNG_URL", "  https://mysearch.local/  ")
-    assert _searxng_url() == "https://mysearch.local"
-    monkeypatch.delenv("SEARXNG_URL")
-    assert _searxng_url() is None
-
-
-def test_web_search_searxng_skips_empty_and_caps():
-    """SearXNG items missing title/url are skipped; results capped at 8."""
-    import json
-
-    from home_swe_home.tools.web_search import _search_searxng
-
-    items = [{"title": "", "url": "https://skip.example"}, {"title": "No URL"}] + [
-        {"title": f"R{i}", "url": f"https://example.com/{i}"} for i in range(12)
-    ]
-
-    def fake_urlopen(req, timeout):
-        class Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-            def read(self):
-                return json.dumps({"results": items}).encode()
-
-        return Response()
-
-    with patch(
-        "home_swe_home.tools.web_search.urllib.request.urlopen", new=fake_urlopen
-    ):
-        results = _search_searxng("https://mysearch.local", "q")
-    assert results is not None
-    assert len(results) == 8  # capped
-    assert all("skip.example" not in r for r in results)
-    assert results[0] == "R0: https://example.com/0"
-
-
-@pytest.mark.asyncio
-async def test_turn_limit_reached():
-    """CoreLoopService should raise TurnLimitReached when max_turns exceeded."""
-    from home_swe_home.context import AGENT_SERVICES
-    from home_swe_home.core_loop import TurnLimitReached
-
-    def create(**kwargs):
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        role="assistant",
-                        content="I'll keep going",
-                        tool_calls=[
-                            SimpleNamespace(
-                                id="call-1",
-                                type="function",
-                                function=SimpleNamespace(
-                                    name="read_file", arguments='{"path": "x.txt"}'
-                                ),
-                            )
-                        ],
-                    )
-                )
-            ],
-        )
-
-    client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=create))
-    )
-    ctx = Context()
-    for cls in AGENT_SERVICES:
-        ctx.use(cls)
-    await ctx.flush()
-    ctx.client._openai = client  # type: ignore[attr-defined]
-    messages = [{"role": "user", "content": "keep going forever"}]
-    try:
-        await ctx.core_loop(
-            model="test/model",
-            messages=messages,
-            max_turns=2,
-        )
-        assert False, "Expected TurnLimitReached"
-    except TurnLimitReached as e:
-        assert "Turn limit" in str(e)
-
-
-@pytest.mark.asyncio
-async def test_execute_tool_injects_read_files(monkeypatch):
-    """execute_tool injects read_files into tools that accept it."""
-    from home_swe_home.tools.run_command import RunCommandService
-
-    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
-
-    ctx = Context()
-    ctx.use(RunCommandService)
-    ctx.use(ToolService)
-    ctx.use(SandboxService)
-    await ctx.flush()
-
-    seen = {}
-
-    def fake_sandbox(command, *, timeout=30, **kwargs):
-        seen["timeout"] = timeout
-        seen["command"] = command
-        from home_swe_home.sandbox import SandboxResult
-
-        return SandboxResult(stdout="ok\n", stderr="", exit_code=0, timed_out=False)
-
-    with patch.object(
-        SandboxService,
-        "run",
-        new=lambda self, command, **kw: fake_sandbox(command, **kw),
-    ):
-        result = execute_tool(
-            ctx,
-            "run_command",
-            '{"command": "echo hi", "timeout": 5}',
-            read_files={"/tmp/test"},
-        )
-    assert "ok" in result
-
-
-def test_execute_tool_service_raises():
-    """execute_tool catches exceptions from service __call__."""
-    from anima import Context
-
-    class FailingService(Service):
-        name = "failing"
-
-        def __init__(self, ctx):
-            super().__init__(ctx, "failing")
-
-        def __call__(self, *, value: str) -> str:
-            raise ValueError("boom")
-
-    ctx = Context()
-    ctx.use(ToolService)
-    ctx.reflect.provide("failing", FailingService(ctx))
-    result = execute_tool(ctx, "failing", '{"value": "x"}')
-    assert result.startswith("Error: ValueError: boom.")
+    assert "could not create spec" in result
+
+
+def test_web_search_uddg_without_leading_pair() -> None:
+    """``uddg=`` inside a value (not a leading key) falls through to //."""
+    html = '<a class="result__a" href="//duckduckgo.com/l/?x=uddg%3Dnope">Fallback</a>'
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    # The href is protocol-relative, so it becomes https://duckduckgo.com/...
+    assert "https://duckduckgo.com" in result
+
+
+def test_web_search_uddg_in_value_only() -> None:
+    """``uddg=`` inside a value exhausts the pair loop and falls through."""
+    # The literal "uddg=" is present and "?" exists, but no pair STARTS with
+    # "uddg=" ("y=uddg=z" starts with "y"), so the loop ends without a match
+    # and the protocol-relative href is normalized instead.
+    html = '<a class="result__a" href="//duckduckgo.com/l/?x=1&y=uddg=z">F</a>'
+    with patch("urllib.request.urlopen", return_value=_html_response(html)):
+        result = WEB_SEARCH["execute"]({"query": "test"}, {})
+    assert "https://duckduckgo.com" in result

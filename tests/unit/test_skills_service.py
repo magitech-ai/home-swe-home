@@ -7,7 +7,6 @@ from pathlib import Path
 from anima import Context
 
 from home_swe_home.skills import SkillsService
-from home_swe_home.tools.load_skill import LoadSkillService
 
 
 def _skill(root: Path, name: str, description: str, *, disabled: bool = False) -> None:
@@ -21,75 +20,111 @@ def _skill(root: Path, name: str, description: str, *, disabled: bool = False) -
     (path / "SKILL.md").write_text(content, encoding="utf-8")
 
 
-def _service(monkeypatch, tmp_path, *, trusted=()):
-    user = tmp_path / "userhome"
-    user.mkdir()
-    home = tmp_path / "agents-home"
-    home.mkdir()
-    (home / "AGENTS.md").write_text("# Home\n")
-    (home / "skills").mkdir()
-    project = tmp_path / "project"
-    project.mkdir()
-    (project / ".agents" / "skills").mkdir(parents=True)
-    _skill(home / "skills", "tdd", "Red-green testing.")
-    _skill(home / "skills", "gated", "User only.", disabled=True)
-    _skill(user / ".agents" / "skills", "review", "Review a diff.")
-    _skill(project / ".agents" / "skills", "local", "Project-local skill.")
-
-    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: home)
-    monkeypatch.setattr("home_swe_home.skills.trusted_projects", lambda: trusted)
-    monkeypatch.setattr(Path, "home", lambda: user)
-    monkeypatch.chdir(project)
-    ctx = Context()
-    ctx.use(SkillsService)
-    return ctx
-
-
-def test_catalog_lists_model_invokable_skills(monkeypatch, tmp_path):
-    skills = _service(monkeypatch, tmp_path).skills
-    catalog = skills.catalog()
-    assert "**tdd**" in catalog
-    assert "**review**" in catalog
-    assert "gated" not in catalog
-    assert "local" not in catalog  # project scope is untrusted
-
-
-def test_project_skills_require_trust(monkeypatch, tmp_path):
-    ctx = _service(monkeypatch, tmp_path, trusted=(str(tmp_path / "project"),))
-    skills = ctx.skills
-    assert "**local**" in skills.catalog()
-
-
-def test_load_returns_body_and_dedupes(monkeypatch, tmp_path):
-    skills = _service(monkeypatch, tmp_path).skills
-    body = skills.load("tdd")
-    assert "Body for tdd." in body
-    assert "already in context" in skills.load("tdd")
-
-
-def test_load_unknown_skill(monkeypatch, tmp_path):
-    assert "not available" in _service(monkeypatch, tmp_path).skills.load("missing")
-
-
-def test_load_user_invoked_skill_explicitly(monkeypatch, tmp_path):
-    assert "Body for gated." in _service(monkeypatch, tmp_path).skills.load("gated")
-
-
-def test_warnings_reported(monkeypatch, tmp_path):
-    skills = _service(monkeypatch, tmp_path).skills
-    assert isinstance(skills.warnings(), list)
-
-
-def test_roots_without_home(monkeypatch, tmp_path):
+def test_catalog_lists_visible_skills(tmp_path: Path, monkeypatch) -> None:
+    user_skills = tmp_path / ".agents" / "skills"
+    _skill(user_skills, "alpha", "Alpha skill")
+    _skill(user_skills, "beta", "Beta skill", disabled=True)
     monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
-    monkeypatch.setattr("home_swe_home.skills.trusted_projects", lambda: ())
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
+
     ctx = Context()
     ctx.use(SkillsService)
-    assert "**" not in ctx.skills.catalog()  # type: ignore[attr-defined]
+    catalog = ctx.skills.catalog()
+
+    assert "alpha" in catalog
+    assert "Alpha skill" in catalog
+    assert "beta" not in catalog
 
 
-def test_load_skill_tool_uses_service(monkeypatch, tmp_path):
-    ctx = _service(monkeypatch, tmp_path)
-    ctx.use(LoadSkillService)
-    assert "Body for tdd." in ctx.load_skill(name="tdd")
+def test_load_returns_body_once(tmp_path: Path, monkeypatch) -> None:
+    user_skills = tmp_path / ".agents" / "skills"
+    _skill(user_skills, "alpha", "Alpha skill")
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
+
+    ctx = Context()
+    ctx.use(SkillsService)
+
+    first = ctx.skills.load("alpha")
+    second = ctx.skills.load("alpha")
+
+    assert "Body for alpha" in first
+    assert "already in context" in second
+
+
+def test_load_unknown_skill(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
+
+    ctx = Context()
+    ctx.use(SkillsService)
+
+    result = ctx.skills.load("nonexistent")
+    assert "Error" in result
+    assert "not available" in result
+
+
+def test_load_unknown_skill_with_others(tmp_path: Path, monkeypatch) -> None:
+    """Loading an unknown skill when other skills exist iterates the full list."""
+    user_skills = tmp_path / ".agents" / "skills"
+    _skill(user_skills, "alpha", "Alpha skill")
+    _skill(user_skills, "beta", "Beta skill")
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
+
+    ctx = Context()
+    ctx.use(SkillsService)
+
+    result = ctx.skills.load("nonexistent")
+    assert "Error" in result
+    assert "not available" in result
+
+
+def test_skills_with_home(tmp_path: Path, monkeypatch) -> None:
+    """Skills from the home directory are discovered."""
+    home = tmp_path / "agents-home"
+    home_skills = home / "skills"
+    _skill(home_skills, "home_skill", "From home")
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: home)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
+
+    ctx = Context()
+    ctx.use(SkillsService)
+    catalog = ctx.skills.catalog()
+
+    assert "home_skill" in catalog
+    assert "From home" in catalog
+
+
+def test_skills_warnings(tmp_path: Path, monkeypatch) -> None:
+    """Shadowing warnings are reported."""
+    home = tmp_path / "agents-home"
+    user_skills = tmp_path / ".agents" / "skills"
+    _skill(home / "skills", "dup", "Home version")
+    _skill(user_skills, "dup", "User version")
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: home)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
+
+    ctx = Context()
+    ctx.use(SkillsService)
+    warnings = ctx.skills.warnings()
+
+    assert len(warnings) > 0
+
+
+def test_skills_project_scope(tmp_path: Path, monkeypatch) -> None:
+    """Project-scoped skills are discovered when cwd is trusted."""
+    project_skills = tmp_path / ".agents" / "skills"
+    _skill(project_skills, "proj_skill", "Project skill")
+    monkeypatch.setattr("home_swe_home.skills.find_home", lambda: None)
+    monkeypatch.setattr("home_swe_home.utils.home.Path.home", lambda: tmp_path)
+    monkeypatch.setattr(
+        "home_swe_home.skills.trusted_projects", lambda: (str(tmp_path),)
+    )
+    monkeypatch.chdir(tmp_path)
+
+    ctx = Context()
+    ctx.use(SkillsService)
+    catalog = ctx.skills.catalog()
+
+    assert "proj_skill" in catalog

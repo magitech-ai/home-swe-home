@@ -1,16 +1,27 @@
 [project]
 name = "home-swe-home"
-version = "0.2.0"
-description = "A small coding agent built on the anima micro-kernel, over the NVIDIA API."
+version = "0.3.0"
+description = "A small coding agent built on the anima micro-kernel and magitech-harness."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "openai>=3,<4",
     "python-dotenv>=1.0",
     "tiktoken>=0.8",
-    "anima @ git+https://github.com/magitech-ai/anima.git",
+    "anima",
+    "magitech-harness",
     "google-genai>=3.6.1",
+    "openai>=3,<4",
 ]
+
+[tool.uv.sources]
+anima = { git = "https://github.com/magitech-ai/anima.git" }
+magitech-harness = { git = "https://github.com/magitech-ai/magitech-harness.git" }
+
+# magitech-harness pins anima with a repo-relative path (../anima) that cannot
+# resolve when it is installed from git, so the anima source is declared here
+# and forced for every consumer in this workspace.
+[tool.uv]
+override-dependencies = ["anima"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov>=6.0", "pytest-asyncio>=1.4", "mypy>=1.11", "ruff>=0.17"]

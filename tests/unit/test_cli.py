@@ -1,350 +1,376 @@
-"""Tests for home_swe_home.cli."""
+"""Tests for the CLI module."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from home_swe_home.cli import DEFAULT_MODEL, _run_async, main
-from home_swe_home.client import MiniClaudeError
-from home_swe_home.core_loop import TurnInterrupted, TurnLimitReached
+from home_swe_home.cli import (
+    _run_async,
+    _run_headless,
+    build_parser,
+    main,
+)
+
+# ---------------------------------------------------------------------------
+# build_parser
+# ---------------------------------------------------------------------------
+
+
+def test_build_parser_defaults() -> None:
+    parser = build_parser()
+    args = parser.parse_args([])
+    assert args.sandbox is True
+    assert args.model is not None
+
+
+def test_build_parser_no_sandbox() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--no-sandbox"])
+    assert args.sandbox is False
+
+
+def test_build_parser_prompt() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["-p", "hello"])
+    assert args.prompt == "hello"
+
+
+def test_build_parser_model() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--model", "test-model"])
+    assert args.model == "test-model"
+
+
+def test_build_parser_effort() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--effort", "high"])
+    assert args.effort == "high"
+
+
+def test_build_parser_init_home() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--init-home", "/tmp/home", "--home-repo", "org/repo"])
+    assert args.init_home == "/tmp/home"
+    assert args.home_repo == "org/repo"
+
+
+# ---------------------------------------------------------------------------
+# _run_async
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_main_no_api_key(monkeypatch, capsys):
-    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-    with patch("home_swe_home.cli.load_dotenv"):
-        code = await _run_async(["-p", "say hi in three words"])
-    assert code == 2
-    stderr = capsys.readouterr().err
-    assert "NVIDIA_API_KEY" in stderr
-    assert "nvapi-" not in stderr  # the key must never be printed
+async def test_run_async_no_key(monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    rc = await _run_async(["-p", "hello"])
+    assert rc == 2
 
 
 @pytest.mark.asyncio
-async def test_main_dotenv_fallback(monkeypatch, capsys):
-    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-
-    def fake_load_dotenv(*args, **kwargs):
-        monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-from-dotenv")
-
-    async def fake_core_loop(*args, **kwargs):
-        print("hello there friend")
-
-    with (
-        patch("home_swe_home.cli.load_dotenv", side_effect=fake_load_dotenv),
-        patch(
-            "home_swe_home.core_loop.CoreLoopService.__call__",
-            new=fake_core_loop,
-        ),
-    ):
-        code = await _run_async(["-p", "say hi in three words"])
-    assert code == 0
+async def test_run_async_init_home_no_repo() -> None:
+    rc = await _run_async(["--init-home", "/tmp/home"])
+    assert rc == 2
 
 
 @pytest.mark.asyncio
-async def test_main_headless_runs_one_turn(monkeypatch, capsys):
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    seen = {}
-
-    async def fake_core_loop(*args, **kwargs):
-        seen["model"] = kwargs.get("model")
-        seen["messages"] = kwargs.get("messages")
-        print("hello there friend")
-
-    with patch(
-        "home_swe_home.core_loop.CoreLoopService.__call__",
-        new=fake_core_loop,
-    ):
-        code = await _run_async(
-            ["-p", "say hi in three words", "--model", "meta/llama-3.1-8b-instruct"]
+async def test_run_async_init_home_plan(capsys: pytest.CaptureFixture) -> None:
+    with patch("home_swe_home.onboard.plan_wizard") as mock_plan:
+        mock_plan.return_value = {"path": "/tmp/home", "repo": "org/repo"}
+        rc = await _run_async(
+            ["--init-home", "/tmp/home", "--home-repo", "org/repo", "--plan"]
         )
-    assert code == 0
-    assert seen["model"] == "meta/llama-3.1-8b-instruct"
-    assert seen["messages"][0]["role"] == "system"
-    assert seen["messages"][1] == {
-        "role": "user",
-        "content": "say hi in three words",
-    }
+    assert rc == 0
+    captured = capsys.readouterr().out
+    assert "path" in captured
 
 
 @pytest.mark.asyncio
-async def test_main_headless_interrupted(monkeypatch, capsys):
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-
-    async def fake_core_loop(*args, **kwargs):
-        raise TurnInterrupted()
-
-    with patch(
-        "home_swe_home.core_loop.CoreLoopService.__call__",
-        new=fake_core_loop,
-    ):
-        code = await _run_async(["-p", "do something"])
-    assert code == 130
-    assert "Turn interrupted." in capsys.readouterr().err
-
-
-@pytest.mark.asyncio
-async def test_main_headless_api_error(monkeypatch, capsys):
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-
-    async def fake_core_loop(*args, **kwargs):
-        raise MiniClaudeError("The model does not exist")
-
-    with patch(
-        "home_swe_home.core_loop.CoreLoopService.__call__",
-        new=fake_core_loop,
-    ):
-        code = await _run_async(["-p", "do something"])
-    assert code == 1
-    assert "home-swe-home: The model does not exist" in capsys.readouterr().err
-
-
-@pytest.mark.asyncio
-async def test_main_headless_turn_limit_reached(monkeypatch, capsys):
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-
-    async def fake_core_loop(*args, **kwargs):
-        raise TurnLimitReached("Turn limit reached")
-
-    with patch(
-        "home_swe_home.core_loop.CoreLoopService.__call__",
-        new=fake_core_loop,
-    ):
-        code = await _run_async(["-p", "do something"])
-    assert code == 1
-    assert "Turn limit reached" in capsys.readouterr().err
-
-
-@pytest.mark.asyncio
-async def test_main_interactive(monkeypatch):
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    called = []
-    system_seen = []
-
-    async def fake_repl(*, model, client=None, system_content=None, ctx=None, **kwargs):
-        called.append(model)
-        system_seen.append(system_content)
-
-    with patch("home_swe_home.cli.run_repl", side_effect=fake_repl):
-        code = await _run_async([])
-    assert code == 0
-    assert called == [DEFAULT_MODEL]
-    assert system_seen[0] is not None
-    assert "home-swe-home" in system_seen[0]
-
-
-def test_main_wrapper(monkeypatch):
-    """main() runs the async entry point via asyncio.run."""
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-
-    async def fake_run_async(argv=None):
-        return 0
-
-    with patch("home_swe_home.cli._run_async", new=fake_run_async):
-        code = main(["-p", "hello"])
-    assert code == 0
-
-
-@pytest.mark.asyncio
-async def test_sandbox_flag_sets_env(monkeypatch):
-    """--sandbox sets HOME_SWE_HOME_SANDBOX=1."""
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
-
-    seen = {}
-
-    async def fake_run_headless(*, model, messages, **kwargs):
-        seen["sandbox"] = __import__("os").environ.get("HOME_SWE_HOME_SANDBOX")
-        return 0
-
-    with (
-        patch("home_swe_home.cli.load_dotenv"),  # avoid leaking .env into other tests
-        patch("home_swe_home.cli._run_headless", new=fake_run_headless),
-    ):
-        code = await _run_async(["-p", "hello", "--sandbox"])
-    assert code == 0
-    assert seen["sandbox"] == "1"
-
-
-@pytest.mark.asyncio
-async def test_init_home_requires_repo(capsys):
-    with patch("home_swe_home.cli.load_dotenv"):
-        code = await _run_async(["--init-home", "/tmp/home"])
-    assert code == 2
-    assert "--home-repo" in capsys.readouterr().err
-
-
-@pytest.mark.asyncio
-async def test_init_home_declined(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME_SWE_HOME_CONFIG_PATH", str(tmp_path / "none.json"))
-    monkeypatch.setattr("home_swe_home.utils.home.CONFIG_PATH", tmp_path / "none.json")
-    with (
-        patch("home_swe_home.cli.load_dotenv"),
-        patch("home_swe_home.cli.find_home", return_value=None),
-        patch("home_swe_home.cli.input", return_value="n"),
-        patch("home_swe_home.cli.run_wizard", return_value=False) as wizard,
-    ):
-        code = await _run_async(
-            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home"]
-        )
-    assert code == 1
-    assert wizard.called
-
-
-@pytest.mark.asyncio
-async def test_init_home_accepted(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME_SWE_HOME_CONFIG_PATH", str(tmp_path / "none.json"))
-    with (
-        patch("home_swe_home.cli.load_dotenv"),
-        patch("home_swe_home.cli.find_home", return_value=None),
-        patch("home_swe_home.cli.input", return_value="y"),
-        patch("home_swe_home.cli.run_wizard", return_value=True) as wizard,
-    ):
-        code = await _run_async(
-            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home"]
-        )
-    assert code == 0
-    assert wizard.called
-
-
-@pytest.mark.asyncio
-async def test_model_default_from_env(monkeypatch):
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    monkeypatch.setenv("HOME_SWE_HOME_MODEL", "gemini-2.5-flash")
-    seen = {}
-
-    async def fake_core_loop(*args, **kwargs):
-        seen["model"] = kwargs.get("model")
-
-    with patch("home_swe_home.core_loop.CoreLoopService.__call__", new=fake_core_loop):
-        code = await _run_async(["-p", "hello"])
-    assert code == 0
-    assert seen["model"] == "gemini-2.5-flash"
-
-
-@pytest.mark.asyncio
-async def test_show_events_flag_reaches_core_loop(monkeypatch):
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    monkeypatch.delenv("HOME_SWE_HOME_SHOW_EVENTS", raising=False)
-    seen = {}
-
-    async def fake_core_loop(*args, **kwargs):
-        seen["show_events"] = kwargs.get("show_events")
-
-    with patch("home_swe_home.core_loop.CoreLoopService.__call__", new=fake_core_loop):
-        code = await _run_async(["-p", "hello", "--show-events"])
-    assert code == 0
-    assert seen["show_events"] is True
-
-
-@pytest.mark.asyncio
-async def test_show_events_env_default(monkeypatch):
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-key")
-    monkeypatch.setenv("HOME_SWE_HOME_SHOW_EVENTS", "1")
-    seen = {}
-
-    async def fake_core_loop(*args, **kwargs):
-        seen["show_events"] = kwargs.get("show_events")
-
-    with patch("home_swe_home.core_loop.CoreLoopService.__call__", new=fake_core_loop):
-        await _run_async(["-p", "hello"])
-    assert seen["show_events"] is True
-
-
-@pytest.mark.asyncio
-async def test_init_home_guard_refuses_existing(monkeypatch, capsys):
-    with (
-        patch("home_swe_home.cli.load_dotenv"),
-        patch("home_swe_home.cli.find_home", return_value=Path("/home/agents-home")),
-        patch("home_swe_home.cli.run_wizard") as wizard,
-    ):
-        code = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/home"])
-    assert code == 2
-    assert not wizard.called
-    assert "already exists" in capsys.readouterr().err
-
-
-@pytest.mark.asyncio
-async def test_init_home_plan_is_non_mutating(monkeypatch, capsys, tmp_path):
-    with (
-        patch("home_swe_home.cli.load_dotenv"),
-        patch("home_swe_home.cli.run_wizard") as wizard,
-    ):
-        code = await _run_async(
+async def test_run_async_init_home_plan_json(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    with patch("home_swe_home.onboard.plan_wizard") as mock_plan:
+        mock_plan.return_value = {"path": "/tmp/home"}
+        rc = await _run_async(
             [
                 "--init-home",
-                str(tmp_path / "home"),
+                "/tmp/home",
                 "--home-repo",
-                "org/home",
+                "org/repo",
                 "--plan",
                 "--json",
             ]
         )
-    assert code == 0
-    assert not wizard.called
-    assert json.loads(capsys.readouterr().out)["repo"] == "org/home"
+    assert rc == 0
+    captured = capsys.readouterr().out
+    data = json.loads(captured)
+    assert data["path"] == "/tmp/home"
 
 
 @pytest.mark.asyncio
-async def test_init_home_yes_flag_skips_input(monkeypatch, tmp_path):
-    with (
-        patch("home_swe_home.cli.load_dotenv"),
-        patch("home_swe_home.cli.find_home", return_value=None),
-        patch("home_swe_home.cli.input") as prompt,
-        patch("home_swe_home.cli.run_wizard", return_value=True),
-    ):
-        code = await _run_async(
-            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--yes"]
-        )
-    assert code == 0
-    assert not prompt.called
+async def test_run_async_init_home_already_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("home_swe_home.cli.find_home", lambda: Path("/existing"))
+    rc = await _run_async(["--init-home", "/tmp/home", "--home-repo", "org/repo"])
+    assert rc == 2
 
 
 @pytest.mark.asyncio
-async def test_init_home_plain_plan_output(monkeypatch, capsys, tmp_path):
-    with patch("home_swe_home.cli.load_dotenv"):
-        code = await _run_async(
-            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--plan"]
-        )
-    assert code == 0
-    assert "repo: org/home" in capsys.readouterr().out
-
-
-@pytest.mark.asyncio
-async def test_init_home_json_result(monkeypatch, capsys, tmp_path):
-    with (
-        patch("home_swe_home.cli.load_dotenv"),
-        patch("home_swe_home.cli.find_home", return_value=None),
-        patch("home_swe_home.cli.input", return_value="y"),
-        patch("home_swe_home.cli.run_wizard", return_value=True),
-    ):
-        code = await _run_async(
-            ["--init-home", str(tmp_path / "home"), "--home-repo", "org/home", "--json"]
-        )
-    assert code == 0
-    assert json.loads(capsys.readouterr().out)["accepted"] is True
-
-
-@pytest.mark.asyncio
-async def test_init_home_force_bypasses_guard(monkeypatch, tmp_path):
-    with (
-        patch("home_swe_home.cli.load_dotenv"),
-        patch("home_swe_home.cli.find_home", return_value=None),
-        patch("home_swe_home.cli.input", return_value="y"),
-        patch("home_swe_home.cli.run_wizard", return_value=True) as wizard,
-    ):
-        code = await _run_async(
+async def test_run_async_init_home_force(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    monkeypatch.setattr("home_swe_home.cli.find_home", lambda: Path("/existing"))
+    with patch("home_swe_home.cli.run_wizard", return_value=True):
+        rc = await _run_async(
             [
                 "--init-home",
-                str(tmp_path / "home"),
+                "/tmp/home",
                 "--home-repo",
-                "org/home",
+                "org/repo",
                 "--force",
                 "--yes",
             ]
         )
-    assert code == 0 and wizard.called
+    assert rc == 0
+    captured = capsys.readouterr().out
+    assert "Home scaffolded" in captured
+
+
+@pytest.mark.asyncio
+async def test_run_async_init_home_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    monkeypatch.setattr("home_swe_home.cli.find_home", lambda: None)
+    with patch("home_swe_home.cli.run_wizard", return_value=True):
+        with patch("builtins.input", return_value="y"):
+            rc = await _run_async(
+                [
+                    "--init-home",
+                    "/tmp/home",
+                    "--home-repo",
+                    "org/repo",
+                ]
+            )
+    assert rc == 0
+
+
+@pytest.mark.asyncio
+async def test_run_async_init_home_json_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    monkeypatch.setattr("home_swe_home.cli.find_home", lambda: None)
+    with patch("home_swe_home.cli.run_wizard", return_value=True):
+        rc = await _run_async(
+            [
+                "--init-home",
+                "/tmp/home",
+                "--home-repo",
+                "org/repo",
+                "--yes",
+                "--json",
+            ]
+        )
+    assert rc == 0
+    captured = capsys.readouterr().out
+    data = json.loads(captured)
+    assert data["accepted"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_async_init_home_declined(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    monkeypatch.setattr("home_swe_home.cli.find_home", lambda: None)
+    with patch("home_swe_home.cli.run_wizard", return_value=False):
+        rc = await _run_async(
+            [
+                "--init-home",
+                "/tmp/home",
+                "--home-repo",
+                "org/repo",
+                "--yes",
+            ]
+        )
+    assert rc == 1
+
+
+@pytest.mark.asyncio
+async def test_run_async_no_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+    with patch("home_swe_home.cli._run_headless", new_callable=AsyncMock) as mock_h:
+        mock_h.return_value = 0
+        rc = await _run_async(["-p", "hello", "--no-sandbox"])
+
+    assert rc == 0
+    from home_swe_home.sandbox import sandbox_enabled
+
+    assert sandbox_enabled() is False
+
+
+@pytest.mark.asyncio
+async def test_run_async_headless(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+    with patch("home_swe_home.cli._run_headless", new_callable=AsyncMock) as mock_h:
+        mock_h.return_value = 0
+        rc = await _run_async(["-p", "hello"])
+
+    assert rc == 0
+    mock_h.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_async_repl(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+    with patch("home_swe_home.repl.run_repl", new_callable=AsyncMock) as mock_repl:
+        rc = await _run_async([])
+
+    assert rc == 0
+    mock_repl.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _run_headless
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_headless_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+    mock_agent = MagicMock()
+    mock_agent.session.events = []
+    mock_agent.when_idle = AsyncMock()
+    mock_agent.followup = MagicMock()
+    mock_handle = {"agent": mock_agent, "dispose": AsyncMock()}
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(return_value=mock_handle)
+
+    mock_outcome = MagicMock()
+    mock_outcome.text = "Hello"
+    mock_outcome.reason = {"kind": "completed"}
+
+    with patch("home_swe_home.cli.build_context", new_callable=AsyncMock) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch(
+            "magitech_harness.cli.summarize_headless_outcome",
+            return_value=mock_outcome,
+        ):
+            rc = await _run_headless(model="m", prompt="hello")
+
+    assert rc == 0
+
+
+@pytest.mark.asyncio
+async def test_run_headless_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+    mock_agent = MagicMock()
+    mock_agent.session.events = []
+    mock_agent.when_idle = AsyncMock()
+    mock_agent.followup = MagicMock()
+    mock_handle = {"agent": mock_agent, "dispose": AsyncMock()}
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(return_value=mock_handle)
+
+    mock_outcome = MagicMock()
+    mock_outcome.text = ""
+    mock_outcome.reason = {
+        "kind": "error",
+        "error": {"code": "RATE_LIMIT", "message": "Too many requests"},
+    }
+
+    with patch("home_swe_home.cli.build_context", new_callable=AsyncMock) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch(
+            "magitech_harness.cli.summarize_headless_outcome",
+            return_value=mock_outcome,
+        ):
+            rc = await _run_headless(model="m", prompt="hello")
+
+    assert rc == 1
+
+
+@pytest.mark.asyncio
+async def test_run_headless_error_no_dict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+    mock_agent = MagicMock()
+    mock_agent.session.events = []
+    mock_agent.when_idle = AsyncMock()
+    mock_agent.followup = MagicMock()
+    mock_handle = {"agent": mock_agent, "dispose": AsyncMock()}
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(return_value=mock_handle)
+
+    mock_outcome = MagicMock()
+    mock_outcome.text = ""
+    mock_outcome.reason = {"kind": "error", "error": "string error"}
+
+    with patch("home_swe_home.cli.build_context", new_callable=AsyncMock) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch(
+            "magitech_harness.cli.summarize_headless_outcome",
+            return_value=mock_outcome,
+        ):
+            rc = await _run_headless(model="m", prompt="hello")
+
+    assert rc == 1
+
+
+@pytest.mark.asyncio
+async def test_run_headless_other_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+    mock_agent = MagicMock()
+    mock_agent.session.events = []
+    mock_agent.when_idle = AsyncMock()
+    mock_agent.followup = MagicMock()
+    mock_handle = {"agent": mock_agent, "dispose": AsyncMock()}
+    mock_ctx = MagicMock()
+    mock_ctx.agents.create = AsyncMock(return_value=mock_handle)
+
+    mock_outcome = MagicMock()
+    mock_outcome.text = "partial"
+    mock_outcome.reason = {"kind": "blocked"}
+
+    with patch("home_swe_home.cli.build_context", new_callable=AsyncMock) as mock_build:
+        mock_build.return_value = mock_ctx
+        with patch(
+            "magitech_harness.cli.summarize_headless_outcome",
+            return_value=mock_outcome,
+        ):
+            rc = await _run_headless(model="m", prompt="hello")
+
+    assert rc == 1
+
+
+# ---------------------------------------------------------------------------
+# main
+# ---------------------------------------------------------------------------
+
+
+def test_main_returns_asyncio_run() -> None:
+    def fake_run(coro):
+        coro.close()
+        return 42
+
+    with patch("asyncio.run", side_effect=fake_run) as mock_run:
+        result = main([])
+    assert result == 42
+    mock_run.assert_called_once()

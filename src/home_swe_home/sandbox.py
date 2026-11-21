@@ -44,6 +44,22 @@ DEFAULT_PIDS_LIMIT = 64
 OUTPUT_CAP = 8192  # bytes per stream
 KILL_TIMEOUT = 5  # seconds to wait for docker kill/rm on cleanup
 
+# Process-wide sandbox policy. Sandboxed by default; the CLI sets this
+# explicitly from --no-sandbox so the tool and the flag share one source of
+# truth instead of a side-channel environment variable.
+_sandbox_enabled = True
+
+
+def set_sandbox_enabled(enabled: bool) -> None:
+    """Set whether run_command executes inside the Docker sandbox."""
+    global _sandbox_enabled
+    _sandbox_enabled = bool(enabled)
+
+
+def sandbox_enabled() -> bool:
+    """Return whether run_command currently executes sandboxed."""
+    return _sandbox_enabled
+
 
 @dataclass
 class SandboxResult:

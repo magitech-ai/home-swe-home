@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -24,8 +25,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
-from .client import PROVIDERS, ConfigurationError, config_for
 from .evidence import check_finding_evidence
+from .providers import PROVIDERS, ConfigurationError, config_for
 
 DEFAULT_AUTHOR_PROVIDER = "gemini"
 DEFAULT_AUTHOR_MODEL = "gemini-4-hydrogen"
@@ -33,7 +34,41 @@ DEFAULT_REVIEWER_PROVIDER = "gemini"
 DEFAULT_REVIEWER_MODEL = "gemini-3.8-flash"
 REVIEWER_REASONING_EFFORT = "low"
 REVIEW_TIMEOUT_SECONDS = 180.0
-MAX_DIFF_CHARS = 400_000
+
+# Diff size budget for one review. The reviewer's model accepts ~1M input
+# tokens, so this is not a context-limit guard: 800k chars is roughly 200k
+# tokens, still well inside the window. The budget exists to bound how much a
+# single review must hold in view, and to fail early with an actionable
+# message when a PR should be split rather than skimmed.
+DEFAULT_MAX_DIFF_CHARS = 800_000
+MAX_DIFF_CHARS_CEILING = 800_000
+MAX_DIFF_CHARS_ENV = "HOME_SWE_HOME_MAX_DIFF_CHARS"
+
+
+def resolve_max_diff_chars(raw: str | None = None) -> int:
+    """Resolve the diff budget from an explicit value or the environment.
+
+    Values outside ``1..MAX_DIFF_CHARS_CEILING`` are rejected rather than
+    clamped, so a typo cannot silently widen the review budget. The ceiling
+    equals the default: a PR larger than the budget must be split, not
+    waved through by raising a flag.
+    """
+    source = raw if raw is not None else os.environ.get(MAX_DIFF_CHARS_ENV)
+    if source is None or source.strip() == "":
+        return DEFAULT_MAX_DIFF_CHARS
+    try:
+        value = int(source)
+    except ValueError as error:
+        raise ConfigurationError(
+            f"{MAX_DIFF_CHARS_ENV} must be an integer, got {source!r}"
+        ) from error
+    if not 1 <= value <= MAX_DIFF_CHARS_CEILING:
+        raise ConfigurationError(
+            f"{MAX_DIFF_CHARS_ENV} must be between 1 and "
+            f"{MAX_DIFF_CHARS_CEILING}, got {value}"
+        )
+    return value
+
 
 SYSTEM_PROMPT = """You are an independent code reviewer for a small
 autonomous software factory.
@@ -165,7 +200,11 @@ def run_review_with_usage(
     """Ask the reviewer model for a verdict, retaining token usage.
 
     ``reasoning_effort`` is a documented OpenAI-compatible field on the Gemini
-    endpoint only; it must not be sent to providers that do not declare it.
+    endpoint only; it must not be sent to providers that do not declare it
+    (OpenRouter rejects unknown parameters with a 400).
+
+    The call is deliberately non-streaming with no tools: the reviewer judges
+    the diff in one shot and CI remains the authority for tests.
     """
     params: dict[str, Any] = {
         "model": model,
@@ -231,6 +270,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dispute", metavar="FILE", help="author rebuttal as an untrusted claim"
     )
+    parser.add_argument(
+        "--max-diff-chars",
+        dest="max_diff_chars",
+        metavar="N",
+        help=(
+            "diff size budget in characters (default: "
+            f"{DEFAULT_MAX_DIFF_CHARS}, ceiling {MAX_DIFF_CHARS_CEILING}; "
+            f"or set {MAX_DIFF_CHARS_ENV})"
+        ),
+    )
     return parser
 
 
@@ -246,9 +295,12 @@ def main(argv: list[str] | None = None) -> int:
                 raise ConfigurationError(f"invalid --standard {item!r}; use NAME=FILE")
             standards.append((name, _read(path)))
         diff_text = _read(args.diff)
-        if len(diff_text) > MAX_DIFF_CHARS:
+        max_diff_chars = resolve_max_diff_chars(args.max_diff_chars)
+        if len(diff_text) > max_diff_chars:
             raise ConfigurationError(
-                "diff exceeds the review size limit; split the pull request"
+                f"diff is {len(diff_text)} chars, over the {max_diff_chars}-char "
+                "review budget; split the pull request or raise the budget with "
+                f"--max-diff-chars (ceiling {MAX_DIFF_CHARS_CEILING})"
             )
         dispute = _read(args.dispute) if args.dispute else None
         user_prompt = build_user_prompt(
@@ -269,6 +321,9 @@ def main(argv: list[str] | None = None) -> int:
             client,
             model=args.reviewer_model,
             user_prompt=user_prompt,
+            # ``reasoning_effort`` is a Gemini-only OpenAI-compatible field.
+            # Other providers reject unknown parameters (OpenRouter 400s on
+            # them), so it is sent for Gemini alone.
             reasoning_effort=(
                 REVIEWER_REASONING_EFFORT
                 if args.reviewer_provider == "gemini"

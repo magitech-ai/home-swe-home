@@ -19,7 +19,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from .client import config_for
+from .providers import config_for
 from .review import (
     REVIEWER_REASONING_EFFORT,
     Verdict,

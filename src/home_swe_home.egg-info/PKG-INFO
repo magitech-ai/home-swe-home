@@ -1,14 +1,15 @@
 Metadata-Version: 2.4
 Name: home-swe-home
-Version: 0.2.0
-Summary: A small coding agent built on the anima micro-kernel, over the NVIDIA API.
+Version: 0.3.0
+Summary: A small coding agent built on the anima micro-kernel and magitech-harness.
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
-Requires-Dist: openai<4,>=3
 Requires-Dist: python-dotenv>=1.0
 Requires-Dist: tiktoken>=0.8
-Requires-Dist: anima @ git+https://github.com/magitech-ai/anima.git
+Requires-Dist: anima
+Requires-Dist: magitech-harness
 Requires-Dist: google-genai>=3.6.1
+Requires-Dist: openai<4,>=3
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-cov>=6.0; extra == "dev"
@@ -17,6 +18,9 @@ Requires-Dist: mypy>=1.11; extra == "dev"
 Requires-Dist: ruff>=0.17; extra == "dev"
 
 # home-swe-home
+
+**New here? Read [START_HERE](https://github.com/magitech-ai/agents-home/blob/main/START_HERE.md).**
+It explains where the factory, decision log, evidence and audit records live.
 
 A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
 micro-kernel. Everything is a
@@ -59,14 +63,18 @@ readable thought summaries; show them with `--show-reasoning` or
 events are translated and unknown ones are printed as `UNKNOWN:` so new upstream
 events are visible.
 
-Replies stream token-by-token by default; pass `--no-stream` to wait for the full reply. Known provider events are quiet by default; `--show-events` (or `HOME_SWE_HOME_SHOW_EVENTS=1`) prints them, while unknown event types are always printed as `UNKNOWN:`.
+Replies stream token-by-token. Pass `--show-reasoning` (or
+`HOME_SWE_HOME_SHOW_REASONING=1`) to also print provider thought summaries;
+reasoning is displayed only and never stored in context.
 
 In chat, `/model <id>` switches models, `/skill <name>` loads a skill's full
-instructions, and `/context` shows the context window. Ctrl-C aborts the
+instructions, and `/context` shows the context window with a per-message preview and token estimate. Ctrl-C aborts the
 current turn only; Ctrl-D exits.
 
-Shell commands run unsandboxed on the host by default. Pass `--sandbox` or set
-`HOME_SWE_HOME_SANDBOX=1` to run them inside an isolated Docker container.
+Shell commands run inside an isolated Docker container by default (`--network
+none`, read-only root, dropped capabilities, resource limits). Pass
+`--no-sandbox` or set `HOME_SWE_HOME_SANDBOX=0` to run them on the host instead —
+host mode has your full privileges, including environment variables.
 
 The base prompt and per-tool guidance are editable data files under
 `src/home_swe_home/harness/`. To try a modified copy without editing the installed

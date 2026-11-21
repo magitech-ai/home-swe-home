@@ -1,8 +1,8 @@
-"""Command line interface for home-swe-home.
+"""Command line interface for home-swe-home on magitech-harness.
 
-Entry point only — all capabilities are Services mounted on the anima Context
-assembled by ``build_context()``. The CLI loads config, builds the Context, and
-starts headless or REPL mode.
+Entry point only — all capabilities are Services on the mth Context assembled
+by ``build_context()``. The CLI loads config, builds the Context, creates an
+agent, and starts headless or REPL mode.
 """
 
 from __future__ import annotations
@@ -12,20 +12,17 @@ import asyncio
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
+from magitech_harness.llm.message import create_user_message
 
-from .client import ConfigurationError, MiniClaudeError, create_client
-from .context import build_context
-from .core_loop import TurnInterrupted, TurnLimitReached
+from .context import DEFAULT_MODEL, DEFAULT_PROVIDER, build_context
 from .onboard import run_wizard
-from .repl import run_repl
+from .sandbox import set_sandbox_enabled
 from .utils.home import find_home
 
-DEFAULT_MODEL = "gemini-4-hydrogen"
-DEFAULT_PROVIDER = "gemini"
 DEFAULT_EFFORT = "medium"
 
 
@@ -49,9 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"reasoning effort (default: {DEFAULT_EFFORT})",
     )
     parser.add_argument(
-        "--sandbox",
-        action="store_true",
-        help="run shell commands in a Docker sandbox (default: host execution)",
+        "--no-sandbox",
+        dest="sandbox",
+        action="store_false",
+        default=True,
+        help="run shell commands on the host instead of in a Docker sandbox",
     )
     parser.add_argument(
         "--show-reasoning",
@@ -59,20 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("HOME_SWE_HOME_SHOW_REASONING", "").lower()
         in {"1", "true", "yes"},
         help="display provider reasoning/thought summaries (never stored)",
-    )
-    parser.add_argument(
-        "--show-events",
-        action="store_true",
-        default=os.environ.get("HOME_SWE_HOME_SHOW_EVENTS", "").lower()
-        in {"1", "true", "yes"},
-        help="print all provider events (unknown events are always printed)",
-    )
-    parser.add_argument(
-        "--no-stream",
-        dest="stream",
-        action="store_false",
-        default=True,
-        help="wait for the full reply instead of streaming content deltas",
     )
     parser.add_argument(
         "--init-home",
@@ -119,40 +104,54 @@ def build_parser() -> argparse.ArgumentParser:
 async def _run_headless(
     *,
     model: str,
-    messages: list[dict[str, Any]],
-    stream: bool = True,
-    show_reasoning: bool = False,
-    show_events: bool = False,
+    prompt: str,
     effort: str = DEFAULT_EFFORT,
+    session_id: str | None = None,
 ) -> int:
+    """Run one headless task via mth's agent loop and return its exit code."""
+    from magitech_harness.cli import summarize_headless_outcome
+
     ctx = await build_context()
-    try:
-        await ctx.core_loop(
-            model=model,
-            messages=messages,
-            stream=stream,
-            show_reasoning=show_reasoning,
-            show_events=show_events,
-            effort=effort,
+
+    handle = await ctx.agents.create(
+        {
+            "sessionId": session_id or f"hsh-{uuid.uuid4()}",
+            "agentOptions": {
+                "provider": DEFAULT_PROVIDER,
+                "model": model,
+                "reasoningEffort": effort,
+            },
+        }
+    )
+    agent = handle["agent"]
+    first_seq = len(agent.session.events)
+
+    agent.followup(
+        create_user_message(
+            content=[{"type": "text", "text": prompt}],
+            source={"kind": "user"},
         )
-    except TurnInterrupted:
-        print("\nTurn interrupted.", file=sys.stderr)
-        return 130
-    except TurnLimitReached as error:
-        print(f"\nhome-swe-home: {error}", file=sys.stderr)
+    )
+    await agent.when_idle()
+
+    outcome = summarize_headless_outcome(agent.session, first_seq)
+    print(outcome.text)
+    if outcome.reason is not None and outcome.reason.get("kind") == "error":
+        err = outcome.reason.get("error")
+        if isinstance(err, dict):
+            code = err.get("code", "UNKNOWN")
+            msg = err.get("message", "")
+            print(f"home-swe-home: {code}: {msg}", file=sys.stderr)
         return 1
-    except MiniClaudeError as error:
-        print(f"\nhome-swe-home: {error}", file=sys.stderr)
-        return 1
-    return 0
+    if outcome.reason is not None and outcome.reason.get("kind") == "completed":
+        return 0
+    return 1
 
 
 async def _run_async(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # Load .env for local development. Existing env vars take precedence over
-    # .env values: exported NVIDIA_API_KEY -> .env -> error.
     load_dotenv()
 
     if args.init_home is not None:
@@ -196,43 +195,32 @@ async def _run_async(argv: list[str] | None = None) -> int:
             print(f"Home scaffolded at {args.init_home}; next: review AGENTS.md.")
         return 0 if accepted else 1
 
-    if args.sandbox:
-        os.environ["HOME_SWE_HOME_SANDBOX"] = "1"
+    # The sandbox choice is an explicit setting, not a process-wide env
+    # side effect: the run_command tool reads the same config key.
+    set_sandbox_enabled(args.sandbox)
 
     # Fail fast on missing API key before assembling the Context.
-    try:
-        create_client()
-    except ConfigurationError as error:
-        print(f"home-swe-home: {error}", file=sys.stderr)
+    if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
+        print(
+            "home-swe-home: GEMINI_API_KEY is not set. "
+            "Export it: export GEMINI_API_KEY=<your key>",
+            file=sys.stderr,
+        )
         return 2
 
-    ctx = await build_context()
-    reminders_block = ctx.reminders.due_block() if args.prompt is None else ""
-    system_content = ctx.instructions.build(
-        model=args.model,
-        skills_catalog=ctx.skills.catalog(),
-        reminders_block=reminders_block,
-    )
-    messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
-
     if args.prompt is not None:
-        messages.append({"role": "user", "content": args.prompt})
         return await _run_headless(
             model=args.model,
-            messages=messages,
-            stream=args.stream,
-            show_reasoning=args.show_reasoning,
-            show_events=args.show_events,
+            prompt=args.prompt,
             effort=args.effort,
         )
 
+    # Interactive REPL
+    from .repl import run_repl
+
     await run_repl(
         model=args.model,
-        system_content=system_content,
-        ctx=ctx,
-        stream=args.stream,
         show_reasoning=args.show_reasoning,
-        show_events=args.show_events,
         effort=args.effort,
     )
     return 0
