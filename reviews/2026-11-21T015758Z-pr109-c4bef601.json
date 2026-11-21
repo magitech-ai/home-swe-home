@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 109,
+  "commit": "c4bef601b418ffc17c997d9fbbc2a18250a8fe2a",
+  "trigger_issue": 108,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "nvidia/nemotron-3.5-super-vl:free",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 44853032294,
+  "recorded_at": "2026-11-21T01:57:58Z",
+  "verdict": "APPROVE",
+  "summary": "The diff implements orchestrate.run_cycle() driving Propose\u2192Probe\u2192Compose with validation before probing, tie/regression handling, and malformed-proposal rejection, plus the hsh-improve console script with all required flags, fail-fast behavior, and JSON CycleReport output. DESIGN.md, AGENTS.md, and README are updated, stale anima references are removed, and unit tests cover the new behavior.",
+  "findings": [],
+  "elapsed_seconds": 98.213,
+  "prompt_tokens": 21321,
+  "completion_tokens": 18198,
+  "evidence_check": []
+}
