@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 109,
+  "commit": "cfb383117c9de785993e9a9e44851e3340b50ad4",
+  "trigger_issue": 108,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "nvidia/nemotron-3.5-super-vl:free",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 44854214807,
+  "recorded_at": "2026-11-21T02:11:05Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "Criteria 1\u20135 appear satisfied by the diff, but criterion 6 (100% statement and branch coverage) is not demonstrated: `_validate_candidate` in `src/home_swe_home/orchestrate.py` has a non-string-key branch that no test exercises, and the coverage/ruff/mypy gate cannot be verified from the diff alone.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": "src/home_swe_home/orchestrate.py \u2014 `_validate_candidate`, `if not isinstance(name, str) or not isinstance(text, str):`; tests/unit/test_orchestrate.py \u2014 every `_validate_candidate` test uses string keys, so the `not isinstance(name, str)` short-circuit branch (non-string dict key) is never taken; acceptance criterion 6 requires `--cov-branch --cov-fail-under=100` at 100%.",
+      "message": "The non-string-key branch in `_validate_candidate` is uncovered, which fails the 100% branch-coverage gate. Add a test such as `_validate_candidate({42: \"...\"})` expecting `ProposalError`, then re-run `uv run pytest --cov=src/home_swe_home --cov-branch --cov-fail-under=100` and confirm ruff and mypy are clean."
+    }
+  ],
+  "elapsed_seconds": 135.611,
+  "prompt_tokens": 22148,
+  "completion_tokens": 20217,
+  "evidence_check": [
+    {
+      "evidence": "src/home_swe_home/orchestrate.py \u2014 `_validate_candidate`, `if not isinstance(name, str) or not isinstance(text, str):`; tests/unit/test_orchestrate.py \u2014 every `_validate_candidate` test uses string keys, so the `not isinstance(name, str)` short-circuit branch (non-string dict key) is never taken; acceptance criterion 6 requires `--cov-branch --cov-fail-under=100` at 100%.",
+      "status": "diff"
+    }
+  ]
+}
