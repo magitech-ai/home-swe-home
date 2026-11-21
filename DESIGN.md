@@ -59,13 +59,13 @@ the session. Ctrl-C aborts the current turn only.
 |---|---|---|
 | Foundation | **anima** micro-kernel | "Everything is a component": every capability is an anima Service on a Context. Matches the ecosystem (magitech-harness, mth-plugins) and the component pattern's proven scale. You control anima, so API changes are coordinateable. |
 | Language / runtime | Python 3.12+, `uv`-managed | anima requires 3.12+. Shared Magitech standards; strict mypy, ruff (line length 88), pytest |
-| API | NVIDIA build.nvidia.com, OpenAI-compatible, `https://integrate.api.nvidia.com/v1` | User's Nvidia API key; the `openai` Python client speaks this protocol natively |
-| Auth | `NVIDIA_API_KEY` environment variable only | Never print it, never save it in the project; checked up front so failure is a clear message, not a crash |
-| Default model | `nvidia/nemotron-3.5-lightning-30b-a3b` | Nemotron 3.5 Lightning — NVIDIA's 30B MoE model for agentic tasks; free tier available; overridable with `--model` or `/model`. (`nvidia/nemotron-3-super-vl-120b-a12b` was tried first but returned 404 on the integrate endpoint; it may need to be deployed on build.nvidia.com before it can be called.) |
+| API | Gemini Interactions API (native, via `google-genai`) | The agent loop reaches the model through mth's `ctx.llm`; `GeminiAdapter` translates Interactions stream events into mth `StreamChunk`s |
+| Auth | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | Never printed or persisted; checked up front so failure is a clear message, not a crash |
+| Default model | `gemini-4-hydrogen` | Overridable with `--model` or `/model` |
 | Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes. Each model call prints `[context: N tokens]` before sending. | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
-| Core loop | `CoreLoopService`: non-streaming: call `ctx.client` → append assistant message verbatim → if tool calls, `ctx.tools.execute` looks up the tool service on the Context, runs it, and appends tool results → repeat; stop when the model returns a final text message. Default max 20 tool-calling turns per turn (``TurnLimitReached`` if exceeded). Streaming deferred | Simple, predictable, keeps replies exactly as they came back. Streaming deferred |
-| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs`, `load_skill`, `add_repo`, `verify_repo` — each an anima `Service` | `context.py::build_context()` mounts every capability as a Service on the Context: `ctx.client` (model adapter), `ctx.instructions` (prompt + tokens), `ctx.tools` (execution), `ctx.sandbox`, `ctx.core_loop`, and the 15 tools. `service_schema()` derives model-facing tool schemas from each `__call__`. `edit_file`/`reload_module` only work on paths read via `read_file` during the *current turn* (reconstructed from the session log by `_current_turn_read_paths`); `run_command` runs **sandboxed by default** (`--no-sandbox`/`HOME_SWE_HOME_SANDBOX=0` for host execution); `web_search` uses SearXNG then DuckDuckGo. Every tool's text result is redacted at the `output.render` boundary so no tool can leak a secret |
+| Core loop | mth's `ReactLoopAgent` via `ctx.agents.create` → `agent.followup` → `agent.when_idle`. Send the task, run the requested tools, feed results back, repeat until the model stops asking. Turn/step boundaries, cancellation and tool-pairing integrity come from mth | The turn engine is the hardened substrate, not a parallel implementation |
+| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs`, `load_skill`, `add_repo`, `verify_repo` — each an mth `ToolDefinition` registered via `ctx.tools.register(define_tool({...}))` in `tools/definitions.py` | Every capability is still a component, but the component is now an mth tool definition rather than an anima Service. `edit_file`/`reload_module` only work on paths read via `read_file` during the *current turn* (reconstructed from the session log by `_current_turn_read_paths`); `run_command` runs **sandboxed by default** (`--no-sandbox`/`HOME_SWE_HOME_SANDBOX=0` for host execution); `web_search` uses SearXNG then DuckDuckGo. Every tool's text result is redacted at the `output.render` boundary so no tool can leak a secret |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
 | Sandbox | Docker container: `--network none`, `--read-only`, `--user <host UID:GID>`, `--cap-drop ALL`, `no-new-privileges`, CPU/memory/pids limits, `ulimit nofile/fsize`, `--rm`, hard timeout, workdir confined to CWD tree | `run_command` runs **sandboxed by default**; host execution is opt-in via `HOME_SWE_HOME_SANDBOX=0` or `--no-sandbox`. Fail-closed if the Docker CLI/daemon is unavailable in sandbox mode. |
@@ -94,52 +94,45 @@ what to try next.
 | `find_duplicates` | Find duplicate code blocks across Python files. Provide a directory path (defaults to `.`) and optional `min_lines` (defaults to 3). Returns matching blocks with file paths and line numbers. On error: check the directory path, retry. |
 | `generate_docs` | Generate markdown documentation from Python docstrings and comments. Provide a directory path (defaults to `.`). Lists classes and public functions with their docstrings. On error: check the directory path, retry. |
 
-## Tools as anima components
+## Tools as mth components
 
-Each tool is an anima `Service` in its own file under `src/home_swe_home/tools/`,
-with the filename matching the tool name (e.g. `read_file.py` defines
-`ReadFileService`). A tool registers itself by name in `__init__`:
+Each tool is an mth `ToolDefinition` built with `define_tool({...})` and
+registered on `ctx.tools`. All 15 live in `tools/definitions.py`; each declares
+its name, description, parameter schema, output schema and renderer, and an
+`execute(args, run_ctx)` handler:
 
 ```python
-from anima import Context, Service
+from magitech_harness.tools import define_tool
 
-
-class MyToolService(Service):
-    """Do something useful.
-
-    Args:
-        argument: What the argument is for.
-    """
-
-    def __init__(self, ctx: Context):
-        super().__init__(ctx, "my_tool")
-
-    def __call__(self, *, argument: str) -> str:
-        return f"Did something with {argument}"
+READ_FILE = define_tool(
+    {
+        "name": "read_file",
+        "description": "Read a file and return its text contents.",
+        "parameters": {"path": {"type": "string", "required": True}},
+        "isConcurrencySafe": lambda _args: True,
+        "output": {
+            "schema": {"type": "string"},
+            "render": lambda _args, val: [{"type": "text", "text": val}],
+        },
+        "execute": _read_file_execute,
+    }
+)
 ```
 
-`service_schema()` builds the model-facing JSON schema from the class:
+The `execute` handler receives `(args, run_ctx)` where `run_ctx` carries
+`signal`, `callId`, `agent`, `deferContext`, and `concludeTurn` from mth's tool
+pipeline. mth validates arguments against the declared schema, routes the call
+through the `tools/pre-execute` → execute → `tools/post-execute` waterfall, and
+projects the result into model-visible content.
 
-* Tool name from the explicit name passed to `super().__init__` (via
-  `build_context`, which passes `impl.name` to `service_schema`)
-* Tool description from the class docstring summary (first paragraph), plus
-  the matching `## <tool_name>` section of `harness/tool_guidance.md` when present
-* Parameter descriptions from the docstring `Args:` section
-* Parameter types and requiredness from the `__call__` signature annotations
-* `self` / `cls` / `read_files` are excluded (`read_files` is injected at call
-  time by `ctx.tools.execute`)
+Wiring a new tool requires: build the `ToolDefinition`, add it to `ALL_TOOLS` in
+`tools/definitions.py`, and it is registered on the context by `register_tools()`.
+mth derives the model-facing schema from the definition — there is no separate
+schema registry.
 
-Wiring a new tool requires: define the Service class, re-export it in
-`tools/__init__.py`, and add it to `TOOL_SERVICES` in `context.py`. No separate
-registry edits — schema and execution both come from the Service.
-
-## Measuring improvement
-
-Harness candidates are only adopted when an A/B evaluation shows a pass-rate
-gain on a fixed task suite. `eval.py` runs each task against a base or candidate
-harness via `HOME_SWE_HOME_HARNESS_DIR` and records per-task outcomes; `improve.py`
-supplies the candidate. No source-code self-improvement is attempted until a
-harness change is measured to help.
+The `read_files` tracker from the original anima-based tools is gone: tools that
+need to know whether a path was read reconstruct it from the session event log
+via `_current_turn_read_paths`, scoped to the current turn.
 
 ## Measuring improvement
 
@@ -149,8 +142,9 @@ harness via `HOME_SWE_HOME_HARNESS_DIR` and records per-task outcomes; `improve.
 supplies the candidate. Source-code self-improvement is not attempted until a
 harness change is measured to help.
 
-Tool results are redacted at `ToolService.execute()` so a model cannot extract
-API keys by asking a tool to read `.env`.
+Tool results are redacted at the `output.render` boundary so a model cannot
+extract API keys by asking a tool to read `.env`, print the environment, or
+grep for a token prefix.
 
 `BUILTIN_TASKS` is too easy — tool-prescribing prompts score at ceiling and
 cannot discriminate. `HARD_TASKS` uses outcome checkers instead (including
@@ -189,16 +183,27 @@ that changed each file, and persists the adopted tree plus a `cue`/`lesson`/
 `evidence` entry in a per-domain `library.Library`. Ties and regressions keep
 the base harness; invalid candidates never reach composition.
 
+`orchestrate.run_cycle()` drives that step end to end as the external
+Propose–Probe–Compose loop: it asks an injected proposer for a candidate tree
+(shaped by the current harness and the domain library index), validates it
+before any inference is spent, probes candidate against base with an
+interleaved evaluator, and on a strict pass-rate win composes, persists, and
+records the lesson. `orchestrate.build_proposer()` adapts a single-shot
+`ask(prompt) -> text` callable into a proposer, and `orchestrate.default_ask()`
+implements it against the configured provider, so the loop needs no separate
+credentials. A cycle returns a `CycleReport` carrying the scores, the
+selection reason, and whether anything was adopted — a rejection is reported,
+never silently dropped.
+
 ## Streaming
 
-`ClientService.chat_stream()` opens an OpenAI-compatible stream; `core_loop`
-consumes it with `utils/stream.consume_stream()`, printing `content` deltas as
-they arrive while accumulating tool calls. Provider differences are handled in
-the accumulator: NVIDIA streams `reasoning_content` before the answer (hidden),
-and Gemini attaches `extra_content.google.thought_signature` to tool-call
-chunks, which is preserved through `_assistant_message_dict` so the follow-up
-turn does not fail with HTTP 400. The CLI streams by default
-uses the original whole-response path.
+`GeminiAdapter` opens the native Interactions stream and translates events into
+mth `StreamChunk`s (`block-start`, `text-delta`, `reasoning-delta`,
+`tool-call-delta`, `usage`, `finish`); mth's `AssistantStreamAttempt`
+accumulates them into a durable assistant message. Reasoning deltas are
+displayed but never written to the session log, so `--show-reasoning` is
+presentation only. The REPL renders streaming from `agent/assistant-stream`
+events.
 
 ## Defaults
 
@@ -228,20 +233,20 @@ message history.
 ## Editable harness
 
 The system prompt and per-tool guidance are data files under
-`src/home_swe_home/harness/`, not Python constants. `InstructionsService.build()`
-reads `systemprompt.md`; `CoreLoopService._tool_schemas()` passes the matching
-`tool_guidance(name)` into `service_schema()`. With the shipped files, both
-outputs are byte-identical to the previous hardcoded behavior (verified by
-comparison against the pre-change implementation).
+`src/home_swe_home/harness/`, not Python constants. `instructions.base_instructions()`
+reads `systemprompt.md` and registers it as the `hsh:identity` system-prompt
+section; `utils/harness.tool_guidance(name)` is available for per-tool guidance.
 
 An outer improvement loop can roll out a candidate harness without editing the
-installed package by setting `HOME_SWE_HOME_HARNESS_DIR` to a copy of the tree. The
-loader (`utils/harness.py`) allowlists the two filenames, so a candidate cannot
-redirect reads elsewhere. `improve.py` implements the external
+installed package by setting `HOME_SWE_HOME_HARNESS_DIR` to a copy of the tree.
+The loader (`utils/harness.py`) allowlists the two filenames, so a candidate
+cannot redirect reads elsewhere. `orchestrate.run_cycle()` implements the
 Propose–Probe–Compose step: it reads a base tree, applies an injected proposer,
-validates against the editable surface, materialises the candidate, and probes
-it via the CLI with `HOME_SWE_HOME_HARNESS_DIR` set. The loop is a library for an
-external orchestrator, not an anima Service.
+validates against the editable surface *before spending any inference*,
+materialises the candidate, probes candidate against base with an interleaved
+evaluator, and on a strict pass-rate win composes, persists, and records the
+lesson in the domain `Library`. The loop is a library for an external
+orchestrator, not an anima Service.
 
 In home-first mode the **home repo's** `harness/` tree is authoritative; the
 packaged copy is only a template for `--init-home` scaffolding. See ADR 0004.
@@ -293,11 +298,12 @@ conformant skill integration; (3) the external Propose–Probe–Compose loop.
 
 ## Read-before-edit rule
 
-The turn loop tracks a `read_files` set per turn, which `ctx.tools.execute` injects
-into any tool whose `__call__` accepts it. `edit_file` and `reload_module` are
-refused for any path not in that set. The model must call `read_file` on a path
-before it can `edit_file` that path or `reload_module` a module at that path.
-`write_file` also marks a path readable (the model authored the content).
+`edit_file` and `reload_module` are refused for any path not read or written
+*during the current turn*. The set is reconstructed from the session event log by
+`_current_turn_read_paths` (scoped by the last `turn/start`), so a file read in
+turn 1 does not authorize an edit in turn 50. The model must call `read_file` on
+a path before it can `edit_file` that path or `reload_module` a module at that
+path. `write_file` also marks a path readable (the model authored the content).
 
 ## Error contract
 
@@ -335,16 +341,18 @@ read-only summary of due, upcoming, and auto-resolved passive reminders from
 
 - `pyproject.toml` — metadata, dependencies (`anima`, `openai`), entry point `home-swe-home`
 - `src/home_swe_home/__init__.py`
-- `src/home_swe_home/context.py` — builds the anima Context; mounts all services (`AGENT_SERVICES`)
-- `src/home_swe_home/client.py` — `ClientService` (model adapter) + config helpers
-- `src/home_swe_home/instructions.py` — `InstructionsService` (system prompt + token counting)
+- `src/home_swe_home/context.py` — calls `create_harness()`, mounts app services, registers the Gemini adapter, the 15 tools, and prompt sections
+- `src/home_swe_home/llm/gemini_adapter.py` — `GeminiAdapter` (Interactions API → mth `StreamChunk`)
+- `src/home_swe_home/providers.py` — provider config for the standalone review/audit tools
+- `src/home_swe_home/instructions.py` — pure system-prompt helpers (base prompt, system line, AGENTS.md)
 - `src/home_swe_home/reminders.py` — `RemindersService` (read-only passive reminder discovery)
 - `src/home_swe_home/harness/` — editable harness data (not code): `systemprompt.md`
   (base prompt), `tool_guidance.md` (`## <tool_name>` sections appended to tool
   descriptions). `HOME_SWE_HOME_HARNESS_DIR` swaps in a candidate tree for rollouts.
 - `src/home_swe_home/sandbox.py` — `SandboxService` (process confinement)
-- `src/home_swe_home/core_loop.py` — `CoreLoopService`: core model ↔ tool loop
-- `src/home_swe_home/tools/` — anima Service components, one file per tool
+- `src/home_swe_home/orchestrate.py` — the external Propose–Probe–Compose improvement loop
+- `src/home_swe_home/improve_cli.py` — `hsh-improve`, the CLI that drives one cycle
+- `src/home_swe_home/tools/definitions.py` — all 15 tools as mth `ToolDefinition`s
   - `__init__.py` — re-exports tool Service classes
   - `executor.py` — `ToolService` mounted as `ctx.tools` (looks up tool services on the Context)
   - `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`,

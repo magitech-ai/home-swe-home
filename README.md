@@ -4,17 +4,18 @@
 It explains where the factory, decision log, evidence and audit records live.
 
 A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
-micro-kernel. Everything is a
-component: the core loop and all 15 tools are anima Services mounted on a
-Context. Core loop — send the task to the model, run the tools the model asks
-for, send the results back, repeat until the model stops asking. Model replies
-are printed exactly as they came back.
+micro-kernel and [magitech-harness](https://github.com/magitech-ai/magitech-harness),
+the composable agent runtime. Everything is a component: the turn engine, session
+log, tool registry and LLM seam come from mth, and all 15 tools are mth
+`ToolDefinition`s mounted on a Context. Core loop — send the task to the model,
+run the tools the model asks for, send the results back, repeat until the model
+stops asking.
 
 ## Setup
 
 ```sh
 uv sync                      # installs anima + dependencies and this package
-export GEMINI_API_KEY=...        # default provider is Gemini; or export NVIDIA_API_KEY and set HOME_SWE_HOME_PROVIDER=nvidia
+export GEMINI_API_KEY=...        # default provider is Gemini
 ```
 
 Set `HOME_SWE_HOME_PROVIDER=gemini` and export `GEMINI_API_KEY` (or
@@ -36,11 +37,25 @@ uv run home-swe-home
 uv run home-swe-home --model gemini-4-hydrogen --effort medium -p "..."
 ```
 
-Gemini has two API modes under `HOME_SWE_HOME_PROVIDER=gemini`: native
-Interactions (default, `HOME_SWE_HOME_GEMINI_API=interactions`) and the
-OpenAI-compatible endpoint (`HOME_SWE_HOME_GEMINI_API=openai`). Native mode supports
-readable thought summaries; show them with `--show-reasoning` or
-`HOME_SWE_HOME_SHOW_REASONING=1` (display only — never stored in context). All native
+## Improve the harness
+
+`hsh-improve` runs one measured Propose–Probe–Compose cycle: a model proposes a
+rewrite of the editable harness, the candidate and base arms are run on the
+fixed task suite, and the candidate is adopted only on a strict pass-rate win.
+
+```sh
+export HOME_SWE_HOME_PROPOSER_MODEL=nvidia/nemotron-3.5-super-vl:free
+uv run hsh-improve "make skill loading more reliable" --domain coding --trials 1
+```
+
+It writes a JSON report to stdout (or `--out FILE`), and on a win writes the
+adopted tree to `<work-dir>/adopted` plus a lesson in the domain library.
+Nothing is promoted into the installed package automatically. Each candidate
+costs two CLI rollouts per task per trial, so start with `--trials 1`.
+
+The agent uses Gemini's native Interactions API. Its readable thought summaries
+can be displayed with `--show-reasoning` or `HOME_SWE_HOME_SHOW_REASONING=1`
+(display only — never stored in context). All native
 events are translated and unknown ones are printed as `UNKNOWN:` so new upstream
 events are visible.
 
