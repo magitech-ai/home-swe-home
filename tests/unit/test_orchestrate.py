@@ -516,3 +516,85 @@ async def test_cycle_uses_default_evaluator_when_none_given(tmp_path: Path) -> N
 
     assert report.adopted is True
     assert seen["candidate_dir"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Compound-expression branches (both sides exercised)
+# ---------------------------------------------------------------------------
+
+
+def test_default_ask_handles_empty_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The falsy side of `content or \"\"` returns an empty string."""
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("HOME_SWE_HOME_PROPOSER_MODEL", "some/model")
+    monkeypatch.setenv("HOME_SWE_HOME_PROPOSER_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-key")
+
+    class FakeClient:
+        def __init__(self, **kwargs: Any) -> None:
+            self.chat = SimpleNamespace(completions=self)
+
+        def create(self, **kwargs: Any) -> Any:
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=None))]
+            )
+
+    monkeypatch.setattr("openai.OpenAI", FakeClient)
+    assert default_ask("prompt") == ""
+
+
+def test_proposal_prompt_handles_empty_library_index() -> None:
+    """The falsy side of `library_index or '(empty)'` renders a placeholder."""
+    from home_swe_home import orchestrate
+
+    prompt = orchestrate._proposal_prompt("task", dict(BASE_TREE), "")
+    assert "(empty)" in prompt
+
+
+def test_proposal_prompt_shows_library_index() -> None:
+    """The truthy side of `library_index or '(empty)'` shows the real index."""
+    from home_swe_home import orchestrate
+
+    prompt = orchestrate._proposal_prompt("task", dict(BASE_TREE), "LESSON INDEX")
+    assert "LESSON INDEX" in prompt
+    assert "(empty)" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_cycle_defaults_library_root(tmp_path: Path) -> None:
+    """run_cycle's `library_root or work_dir/'library'` branch is covered both ways."""
+    base = _make_base(tmp_path)
+
+    def propose(_t: str, _b: dict[str, str], _l: str) -> dict[str, str]:
+        return {**BASE_TREE, "systemprompt.md": "better"}
+
+    def evaluator(_tasks: Any, _c: Path | None, _tr: int):
+        return _result("base", 1, 2), _result("candidate", 2, 2)
+
+    # library_root omitted -> fallback to work_dir/library
+    report = run_cycle(
+        task="t1",
+        domain="coding",
+        base_dir=base,
+        work_dir=tmp_path / "work_default",
+        tasks=(_task(),),
+        propose=propose,
+        evaluator=evaluator,
+    )
+    assert report.adopted is True
+    assert (tmp_path / "work_default" / "library" / "coding" / "INDEX.md").is_file()
+
+    # library_root explicit -> no fallback
+    explicit = tmp_path / "explicit_lib"
+    run_cycle(
+        task="t2",
+        domain="coding",
+        base_dir=base,
+        work_dir=tmp_path / "work_explicit",
+        tasks=(_task(),),
+        propose=propose,
+        evaluator=evaluator,
+        library_root=explicit,
+    )
+    assert (explicit / "coding" / "INDEX.md").is_file()
