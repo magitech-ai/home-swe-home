@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 109,
+  "commit": "8aec51eb2d1667c8da2236a00d08874d48bd8f63",
+  "trigger_issue": 108,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "nvidia/nemotron-3.5-super-vl:free",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 44855411686,
+  "recorded_at": "2026-11-21T02:22:56Z",
+  "verdict": "APPROVE",
+  "summary": "The diff implements orchestrate.run_cycle() driving the Propose\u2013Probe\u2013Compose loop, adds the hsh-improve console script with all required flags and fail-fast behavior on HOME_SWE_HOME_PROPOSER_MODEL, updates DESIGN.md/AGENTS.md/README.md, and includes unit tests for the new modules. All acceptance criteria are addressed in the diff.",
+  "findings": [],
+  "elapsed_seconds": 92.977,
+  "prompt_tokens": 23197,
+  "completion_tokens": 14306,
+  "evidence_check": []
+}
