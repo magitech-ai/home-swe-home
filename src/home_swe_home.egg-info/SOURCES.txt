@@ -8,9 +8,11 @@ src/home_swe_home/eval.py
 src/home_swe_home/evidence.py
 src/home_swe_home/gate.py
 src/home_swe_home/improve.py
+src/home_swe_home/improve_cli.py
 src/home_swe_home/instructions.py
 src/home_swe_home/library.py
 src/home_swe_home/onboard.py
+src/home_swe_home/orchestrate.py
 src/home_swe_home/providers.py
 src/home_swe_home/py.typed
 src/home_swe_home/reminders.py

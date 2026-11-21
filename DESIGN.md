@@ -351,6 +351,7 @@ read-only summary of due, upcoming, and auto-resolved passive reminders from
   descriptions). `HOME_SWE_HOME_HARNESS_DIR` swaps in a candidate tree for rollouts.
 - `src/home_swe_home/sandbox.py` — `SandboxService` (process confinement)
 - `src/home_swe_home/orchestrate.py` — the external Propose–Probe–Compose improvement loop
+- `src/home_swe_home/improve_cli.py` — `hsh-improve`, the CLI that drives one cycle
 - `src/home_swe_home/tools/definitions.py` — all 15 tools as mth `ToolDefinition`s
   - `__init__.py` — re-exports tool Service classes
   - `executor.py` — `ToolService` mounted as `ctx.tools` (looks up tool services on the Context)

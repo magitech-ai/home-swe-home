@@ -33,6 +33,7 @@ hsh-review = "home_swe_home.review:main"
 hsh-review-eval = "home_swe_home.review_eval:main"
 hsh-audit = "home_swe_home.audit:main"
 hsh-gate = "home_swe_home.gate:main"
+hsh-improve = "home_swe_home.improve_cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

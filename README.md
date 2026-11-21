@@ -37,11 +37,25 @@ uv run home-swe-home
 uv run home-swe-home --model gemini-4-hydrogen --effort medium -p "..."
 ```
 
-Gemini has two API modes under `HOME_SWE_HOME_PROVIDER=gemini`: native
-Interactions (default, `HOME_SWE_HOME_GEMINI_API=interactions`) and the
-OpenAI-compatible endpoint (`HOME_SWE_HOME_GEMINI_API=openai`). Native mode supports
-readable thought summaries; show them with `--show-reasoning` or
-`HOME_SWE_HOME_SHOW_REASONING=1` (display only — never stored in context). All native
+## Improve the harness
+
+`hsh-improve` runs one measured Propose–Probe–Compose cycle: a model proposes a
+rewrite of the editable harness, the candidate and base arms are run on the
+fixed task suite, and the candidate is adopted only on a strict pass-rate win.
+
+```sh
+export HOME_SWE_HOME_PROPOSER_MODEL=nvidia/nemotron-3.5-super-vl:free
+uv run hsh-improve "make skill loading more reliable" --domain coding --trials 1
+```
+
+It writes a JSON report to stdout (or `--out FILE`), and on a win writes the
+adopted tree to `<work-dir>/adopted` plus a lesson in the domain library.
+Nothing is promoted into the installed package automatically. Each candidate
+costs two CLI rollouts per task per trial, so start with `--trials 1`.
+
+The agent uses Gemini's native Interactions API. Its readable thought summaries
+can be displayed with `--show-reasoning` or `HOME_SWE_HOME_SHOW_REASONING=1`
+(display only — never stored in context). All native
 events are translated and unknown ones are printed as `UNKNOWN:` so new upstream
 events are visible.
 

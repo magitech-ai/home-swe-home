@@ -31,5 +31,8 @@ CI runs the full gate.
   `Author model: <id>` in every PR body (`.github/PULL_REQUEST_TEMPLATE.md`).
 - Triage labels: [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
 - Domain docs: `DESIGN.md` + [docs/adr/](docs/adr/).
+- Improvement loop: `hsh-improve` drives one measured Propose–Probe–Compose cycle;
+  `HOME_SWE_HOME_PROPOSER_MODEL` must be set. See
+  [DESIGN.md](DESIGN.md#measuring-improvement).
 - Adding a tool: [DESIGN.md](DESIGN.md#tools-as-mth-components) and the tests
   under `tests/unit/`.
