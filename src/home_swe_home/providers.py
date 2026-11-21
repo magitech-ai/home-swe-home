@@ -10,8 +10,9 @@ import os
 
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-PROVIDERS = ("gemini", "nvidia")
+PROVIDERS = ("gemini", "nvidia", "openrouter")
 
 
 class MiniClaudeError(Exception):
@@ -44,4 +45,13 @@ def config_for(provider: str) -> tuple[str, str, str]:
         return GEMINI_BASE_URL, key, "Gemini"
     if provider == "nvidia":
         return NVIDIA_BASE_URL, get_api_key(), "NVIDIA"
+    if provider == "openrouter":
+        key = os.environ.get("OPENROUTER_API_KEY")
+        if not key:
+            raise ConfigurationError(
+                "OPENROUTER_API_KEY is not set. Create a key at "
+                "https://openrouter.ai/keys, then export it: "
+                "export OPENROUTER_API_KEY=<your key>"
+            )
+        return OPENROUTER_BASE_URL, key, "OpenRouter"
     raise ConfigurationError(f"unknown HOME_SWE_HOME_PROVIDER: {provider!r}")

@@ -16,10 +16,9 @@ jobs:
     environment: agent-review
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      REVIEWER_MODEL: gemini-3.8-flash
-      REVIEWER_PROVIDER: gemini
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      REVIEWER_MODEL: nvidia/nemotron-3.5-super-vl:free
+      REVIEWER_PROVIDER: openrouter
       PR: ${{ github.event.number }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       RUN_ID: ${{ github.run_id }}

@@ -200,7 +200,11 @@ def run_review_with_usage(
     """Ask the reviewer model for a verdict, retaining token usage.
 
     ``reasoning_effort`` is a documented OpenAI-compatible field on the Gemini
-    endpoint only; it must not be sent to providers that do not declare it.
+    endpoint only; it must not be sent to providers that do not declare it
+    (OpenRouter rejects unknown parameters with a 400).
+
+    The call is deliberately non-streaming with no tools: the reviewer judges
+    the diff in one shot and CI remains the authority for tests.
     """
     params: dict[str, Any] = {
         "model": model,
@@ -317,6 +321,9 @@ def main(argv: list[str] | None = None) -> int:
             client,
             model=args.reviewer_model,
             user_prompt=user_prompt,
+            # ``reasoning_effort`` is a Gemini-only OpenAI-compatible field.
+            # Other providers reject unknown parameters (OpenRouter 400s on
+            # them), so it is sent for Gemini alone.
             reasoning_effort=(
                 REVIEWER_REASONING_EFFORT
                 if args.reviewer_provider == "gemini"

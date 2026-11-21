@@ -7,6 +7,8 @@ import pytest
 from home_swe_home.providers import (
     GEMINI_BASE_URL,
     NVIDIA_BASE_URL,
+    OPENROUTER_BASE_URL,
+    PROVIDERS,
     ConfigurationError,
     MiniClaudeError,
     config_for,
@@ -72,3 +74,26 @@ def test_config_for_nvidia_missing(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_config_for_unknown() -> None:
     with pytest.raises(ConfigurationError, match="unknown HOME_SWE_HOME_PROVIDER"):
         config_for("unknown")
+
+
+# ---------------------------------------------------------------------------
+# OpenRouter
+# ---------------------------------------------------------------------------
+
+
+def test_openrouter_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-key")
+    base_url, key, label = config_for("openrouter")
+    assert base_url == OPENROUTER_BASE_URL
+    assert key == "or-key"
+    assert label == "OpenRouter"
+
+
+def test_openrouter_missing_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    with pytest.raises(ConfigurationError, match="OPENROUTER_API_KEY is not set"):
+        config_for("openrouter")
+
+
+def test_openrouter_is_a_known_provider() -> None:
+    assert "openrouter" in PROVIDERS
