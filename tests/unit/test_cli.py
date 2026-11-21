@@ -24,7 +24,9 @@ def test_build_parser_defaults() -> None:
     parser = build_parser()
     args = parser.parse_args([])
     assert args.sandbox is True
-    assert args.model is not None
+    # Model default is provider-aware and resolved at runtime, so the parser
+    # leaves it unset and default_model_for() selects the right model.
+    assert args.model is None
 
 
 def test_build_parser_no_sandbox() -> None:

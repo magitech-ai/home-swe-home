@@ -15,11 +15,11 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 PROVIDERS = ("gemini", "nvidia", "openrouter")
 
 
-class MiniClaudeError(Exception):
+class AgentHomeError(Exception):
     """Base error for home-swe-home."""
 
 
-class ConfigurationError(MiniClaudeError):
+class ConfigurationError(AgentHomeError):
     """Configuration problem, for example a missing API key."""
 
 

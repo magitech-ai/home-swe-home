@@ -8,7 +8,10 @@ resolution-markers = [
 ]
 
 [manifest]
-overrides = [{ name = "anima", git = "https://github.com/magitech-ai/anima.git" }]
+overrides = [
+    { name = "anima", git = "https://github.com/magitech-ai/anima.git" },
+    { name = "magitech-harness", git = "https://github.com/magitech-ai/magitech-harness.git" },
+]
 
 [[package]]
 name = "anima"
@@ -578,6 +581,7 @@ dependencies = [
     { name = "anima" },
     { name = "google-genai" },
     { name = "magitech-harness" },
+    { name = "mth-plugins" },
     { name = "openai" },
     { name = "python-dotenv" },
     { name = "tiktoken" },
@@ -597,6 +601,7 @@ requires-dist = [
     { name = "anima", git = "https://github.com/magitech-ai/anima.git" },
     { name = "google-genai", specifier = ">=3.6.1" },
     { name = "magitech-harness", git = "https://github.com/magitech-ai/magitech-harness.git" },
+    { name = "mth-plugins", git = "https://github.com/magitech-ai/mth-plugins.git" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "openai", specifier = ">=3,<4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
@@ -904,6 +909,17 @@ dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pyyaml" },
+]
+
+[[package]]
+name = "mth-plugins"
+version = "0.3.0"
+source = { git = "https://github.com/magitech-ai/mth-plugins.git#4f8f1087e4d1c3c75ff86f145c4544dd26146b40" }
+dependencies = [
+    { name = "anima" },
+    { name = "httpx" },
+    { name = "magitech-harness" },
+    { name = "pydantic" },
 ]
 
 [[package]]

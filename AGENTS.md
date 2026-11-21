@@ -17,8 +17,8 @@
 ## Shared Development Guidance
 
 Shared standards, workflow and quality gates:
-[agents-home AGENTS](../agents-home/AGENTS.md) → `docs/ENGINEERING.md`,
-`docs/WORKFLOWS.md`, `CODING_STANDARDS.md`, and `scripts/check_all.py`.
+[agents-home AGENTS](../agents-home/AGENTS.md) → `knowledge/engineering-standards/index.md` (in `../agents-home`),
+`docs/WORKFLOWS.md`, `knowledge/coding-standards/index.md` (in `../agents-home`), and `scripts/check_all.py`.
 
 ### Local checks
 Run `python3 ../agents-home/scripts/check_all.py --fast` before committing;

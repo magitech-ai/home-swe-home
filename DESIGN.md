@@ -1,9 +1,8 @@
 # Design doc — home-swe-home
 
-A small coding agent in Python: a mini Claude Code. Core loop — send the task to
-the model, run the tools the model asks for, send the results back, and repeat
-until the model stops asking. Model replies are printed exactly as they came
-back.
+A small coding agent in Python. Core loop — send the task to the model, run the
+tools the model asks for, send the results back, and repeat until the model
+stops asking. Model replies are printed exactly as they came back.
 
 ## How to run
 
@@ -65,7 +64,7 @@ the session. Ctrl-C aborts the current turn only.
 | Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes. Each model call prints `[context: N tokens]` before sending. | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
 | Core loop | mth's `ReactLoopAgent` via `ctx.agents.create` → `agent.followup` → `agent.when_idle`. Send the task, run the requested tools, feed results back, repeat until the model stops asking. Turn/step boundaries, cancellation and tool-pairing integrity come from mth | The turn engine is the hardened substrate, not a parallel implementation |
-| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs`, `load_skill`, `add_repo`, `verify_repo` — each an mth `ToolDefinition` registered via `ctx.tools.register(define_tool({...}))` in `tools/definitions.py` | Every capability is still a component, but the component is now an mth tool definition rather than an anima Service. `edit_file`/`reload_module` only work on paths read via `read_file` during the *current turn* (reconstructed from the session log by `_current_turn_read_paths`); `run_command` runs **sandboxed by default** (`--no-sandbox`/`HOME_SWE_HOME_SANDBOX=0` for host execution); `web_search` uses SearXNG then DuckDuckGo. Every tool's text result is redacted at the `output.render` boundary so no tool can leak a secret |
+| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs`, `add_repo`, `verify_repo` — each an mth `ToolDefinition` registered via `ctx.tools.register(define_tool({...}))` in `tools/definitions.py`. Skill loading moved to the mth-components `skill({name})` tool; OKF bundles load via `okf_bundle({name})`. | Every capability is still a component, but the component is now an mth tool definition rather than an anima Service. `edit_file`/`reload_module` only work on paths read via `read_file` during the *current turn* (reconstructed from the session log by `_current_turn_read_paths`); `run_command` runs **sandboxed by default** (`--no-sandbox`/`HOME_SWE_HOME_SANDBOX=0` for host execution); `web_search` uses SearXNG then DuckDuckGo. Every tool's text result is redacted at the `output.render` boundary so no tool can leak a secret |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
 | Sandbox | Docker container: `--network none`, `--read-only`, `--user <host UID:GID>`, `--cap-drop ALL`, `no-new-privileges`, CPU/memory/pids limits, `ulimit nofile/fsize`, `--rm`, hard timeout, workdir confined to CWD tree | `run_command` runs **sandboxed by default**; host execution is opt-in via `HOME_SWE_HOME_SANDBOX=0` or `--no-sandbox`. Fail-closed if the Docker CLI/daemon is unavailable in sandbox mode. |
@@ -324,10 +323,13 @@ The system message contains:
 2. **System line** — OS, working folder, date, and model ID.
 3. **AGENTS.md** — if the project has an `AGENTS.md`, its full content is
    appended after a separator.
-4. **Skills & Reminders (tail)** — `SkillsService.catalog()` and, in
-   interactive REPL mode only, `RemindersService.due_block()` (appended last to
-   preserve the prompt cache prefix). Headless `-p` mode omits reminders by
-   default so one-off and automated tasks stay deterministic.
+4. **Skills & Reminders (tail)** — the mth-components `skills-loader` injects
+   the model-facing Agent Skills catalog (from `skills_registry`) and
+   `okf-loader` injects the OKF knowledge-bundle catalog, both as
+   `<system-reminder>` sections; in interactive REPL mode only,
+   `RemindersService.due_block()` is appended last to preserve the prompt cache
+   prefix. Headless `-p` mode omits reminders by default so one-off and
+   automated tasks stay deterministic.
 
 ### `/context` and `/reminders` commands
 
@@ -352,13 +354,12 @@ read-only summary of due, upcoming, and auto-resolved passive reminders from
 - `src/home_swe_home/sandbox.py` — `SandboxService` (process confinement)
 - `src/home_swe_home/orchestrate.py` — the external Propose–Probe–Compose improvement loop
 - `src/home_swe_home/improve_cli.py` — `hsh-improve`, the CLI that drives one cycle
-- `src/home_swe_home/tools/definitions.py` — all 15 tools as mth `ToolDefinition`s
-  - `__init__.py` — re-exports tool Service classes
-  - `executor.py` — `ToolService` mounted as `ctx.tools` (looks up tool services on the Context)
-  - `read_file.py`, `write_file.py`, `edit_file.py`, `delete_file.py`,
-    `list_directory.py`, `grep_files.py`, `run_command.py`,
-    `web_search.py`, `code_metrics.py`, `find_duplicates.py`,
-    `generate_docs.py`, `reload_module.py`, `load_skill.py`, `add_repo.py`, `verify_repo.py` — one `Service` per tool
+- `src/home_swe_home/tools/definitions.py` — all 14 tools as mth `ToolDefinition`s
+  - `__init__.py` — re-exports `ALL_TOOLS` and `register_tools`
+  - `executor.py` — `ToolService` mounted as `ctx.tools`
+  - Skill loading is not a home-swe-home tool: it is the mth-components
+    `skills-loader` service (`skill({name})`), and Agent Skills + OKF bundles
+    are handled entirely by the six mth-components bridges in `mth-plugins`.
 - `src/home_swe_home/utils/` — pure helpers (the documented exception to "everything
   is a component"): `schema.py` (JSON-schema inference), `text.py` (shared
   decoder), `harness.py` (readers for the editable harness tree). Stateless,

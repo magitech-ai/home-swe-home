@@ -13,34 +13,37 @@ from typing import Any
 
 from magitech_harness.llm.message import create_user_message
 
-from .context import DEFAULT_MODEL, DEFAULT_PROVIDER, build_context
+from .context import DEFAULT_PROVIDER, build_context, default_model_for
 
 PROMPT = "> "
 
 
 async def run_repl(
     *,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
     show_reasoning: bool = False,
     effort: str = "medium",
 ) -> None:
     """Run the interactive chat loop until the user exits with Ctrl-D."""
+    import os
     import uuid
 
     ctx = await build_context()
+    active_provider = os.environ.get("HOME_SWE_HOME_PROVIDER", DEFAULT_PROVIDER)
+    active_model = model or default_model_for(active_provider)
 
     handle = await ctx.agents.create(
         {
             "sessionId": f"hsh-{uuid.uuid4()}",
             "agentOptions": {
-                "provider": DEFAULT_PROVIDER,
-                "model": model,
+                "provider": active_provider,
+                "model": active_model,
                 "reasoningEffort": effort,
             },
         }
     )
     agent = handle["agent"]
-    current_model = model
+    current_model = active_model
 
     print("home-swe-home interactive chat (on magitech-harness)")
     print("  /model <id>   switch model")
@@ -132,7 +135,7 @@ async def run_repl(
                 current_model = text[len("/model ") :].strip()
                 agent.model.select(
                     {
-                        "provider": DEFAULT_PROVIDER,
+                        "provider": active_provider,
                         "model": current_model,
                     }
                 )
@@ -149,11 +152,11 @@ async def run_repl(
                     print("No reminders service mounted.")
                 continue
             if text.startswith("/skill "):
-                skills = ctx.get("skills", None, strict=False)
-                if skills is not None:
-                    print(skills.load(text[len("/skill ") :].strip()))
+                registry = ctx.get("skills_registry", None, strict=False)
+                if registry is not None:
+                    print(registry.load_for_user(text[len("/skill ") :].strip()))
                 else:
-                    print("No skills service mounted.")
+                    print("No skills registry mounted.")
                 continue
 
             sig_installed = _install_sigint(loop, _on_sigint, sig_installed)

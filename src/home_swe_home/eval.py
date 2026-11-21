@@ -74,8 +74,8 @@ BUILTIN_TASKS = (
     ),
     Task(
         "load-skill",
-        "Call the load_skill tool with name='tdd'. Report what you loaded.",
-        "[tool: load_skill]",
+        "Call the skill tool with name='tdd'. Report what you loaded.",
+        "[tool: skill]",
     ),
 )
 
@@ -106,9 +106,9 @@ HARD_TASKS = (
     ),
     Task(
         "skill-router",
-        "Which skill fits turning a conversation into tickets? Load it with "
-        "load_skill and report the exact skill name.",
-        checker=contains_all("[tool: load_skill]", "to-tickets"),
+        "Which skill fits deepening a shallow module's interface? Load it with "
+        "the skill tool and report the exact skill name.",
+        checker=contains_all("[tool: skill]", "codebase-design"),
     ),
     Task(
         "two-tools",

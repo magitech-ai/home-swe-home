@@ -386,28 +386,10 @@ RUN_COMMAND = _text_output_tool(
 
 
 # ---------------------------------------------------------------------------
-# Skill tool
+# Skill loading is provided by the mth-components skills-loader service
+# (tool name: `skill`). The native `load_skill` tool was retired with the
+# native SkillsService to keep a single skill system.
 # ---------------------------------------------------------------------------
-
-
-def _load_skill_execute(args: dict[str, Any], run_ctx: Any) -> str:
-    name = args["name"]
-    agent = _agent_of(run_ctx)
-    if agent is not None and hasattr(agent, "ctx"):
-        skills_svc = agent.ctx.get("skills", None, strict=False)
-        if skills_svc is not None:
-            return str(skills_svc.load(name))
-    return f"Error: skill '{name}' is not available."
-
-
-LOAD_SKILL = _text_output_tool(
-    name="load_skill",
-    description="Load the named skill's full instructions into context.",
-    parameters={
-        "name": {"type": "string", "required": True},
-    },
-    execute=_load_skill_execute,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -934,7 +916,6 @@ ALL_TOOLS: list[dict[str, Any]] = [
     EDIT_FILE,
     DELETE_FILE,
     LIST_DIRECTORY,
-    LOAD_SKILL,
     GREP_FILES,
     RUN_COMMAND,
     VERIFY_REPO,

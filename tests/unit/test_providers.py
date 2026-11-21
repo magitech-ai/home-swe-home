@@ -9,19 +9,19 @@ from home_swe_home.providers import (
     NVIDIA_BASE_URL,
     OPENROUTER_BASE_URL,
     PROVIDERS,
+    AgentHomeError,
     ConfigurationError,
-    MiniClaudeError,
     config_for,
     get_api_key,
 )
 
 
-def test_mini_claude_error_is_exception() -> None:
-    assert issubclass(MiniClaudeError, Exception)
+def test_agent_home_error_is_exception() -> None:
+    assert issubclass(AgentHomeError, Exception)
 
 
-def test_configuration_error_is_mini_claude_error() -> None:
-    assert issubclass(ConfigurationError, MiniClaudeError)
+def test_configuration_error_is_agent_home_error() -> None:
+    assert issubclass(ConfigurationError, AgentHomeError)
 
 
 def test_get_api_key_set(monkeypatch: pytest.MonkeyPatch) -> None:
