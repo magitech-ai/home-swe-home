@@ -460,3 +460,40 @@ def test_score_base_with_evaluator() -> None:
 
     result = orchestrate._score_base((_task(),), evaluator, 1, lambda _m: None)
     assert result.passes == 7
+
+
+@pytest.mark.asyncio
+async def test_cycle_uses_default_evaluator_when_none_given(tmp_path: Path) -> None:
+    """run_cycle's evaluator=None branch builds and calls _default_evaluator."""
+
+    base = _make_base(tmp_path)
+    seen: dict[str, Any] = {}
+
+    def propose(_t: str, _b: dict[str, str], _l: str) -> dict[str, str]:
+        return {**BASE_TREE, "systemprompt.md": "better"}
+
+    def fake_compare_arms(tasks, base_runner, candidate_runner, **kwargs):
+        seen["candidate_dir"] = kwargs.get("candidate_dir")
+        base_runner("p", None)
+        candidate_runner("p", None)
+        return _result("base", 1, 2), _result("candidate", 2, 2)
+
+    import home_swe_home.eval as eval_mod
+
+    original = eval_mod.compare_arms
+    eval_mod.compare_arms = fake_compare_arms  # type: ignore[assignment]
+    try:
+        report = run_cycle(
+            task="t1",
+            domain="coding",
+            base_dir=base,
+            work_dir=tmp_path / "work",
+            tasks=(_task(),),
+            propose=propose,
+            # Deliberately omit evaluator so the fallback branch is taken.
+        )
+    finally:
+        eval_mod.compare_arms = original  # type: ignore[assignment]
+
+    assert report.adopted is True
+    assert seen["candidate_dir"] is not None
