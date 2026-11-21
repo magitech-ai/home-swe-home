@@ -66,6 +66,12 @@ def test_validate_candidate_rejects_non_string_values() -> None:
         _validate_candidate({"systemprompt.md": 42})
 
 
+def test_validate_candidate_rejects_non_string_keys() -> None:
+    """The left side of the str-key-or-str-value guard is exercised too."""
+    with pytest.raises(ProposalError, match="map str filenames to str"):
+        _validate_candidate({42: "contents"})
+
+
 def test_validate_candidate_rejects_empty_tree() -> None:
     with pytest.raises(ProposalError, match="empty harness tree"):
         _validate_candidate({"systemprompt.md": "   "})
@@ -403,24 +409,37 @@ def test_default_evaluator_uses_compare_arms(tmp_path: Path) -> None:
     def fake_compare_arms(tasks, base_runner, candidate_runner, **kwargs):
         seen["tasks"] = tasks
         seen["candidate_dir"] = kwargs.get("candidate_dir")
-        # Exercise both runners so their wiring is covered.
+        # Exercise both runners, and both sides of `harness_dir or candidate_dir`.
         base_runner("p", None)
         candidate_runner("p", None)
+        candidate_runner("p", candidate_dir)
         return _result("base", 1, 2), _result("candidate", 2, 2)
 
     import home_swe_home.eval as eval_mod
 
+    resolved: list[Path | None] = []
+
+    def fake_cli_runner(prompt: str, harness_dir: Path | None) -> str:
+        resolved.append(harness_dir)
+        return "out"
+
     original = eval_mod.compare_arms
+    original_runner = eval_mod.cli_runner
     eval_mod.compare_arms = fake_compare_arms  # type: ignore[assignment]
+    eval_mod.cli_runner = fake_cli_runner  # type: ignore[assignment]
     try:
         evaluator = orchestrate._default_evaluator(candidate_dir, trials=3)
         base, candidate = evaluator((_task(),), candidate_dir, 3)
     finally:
         eval_mod.compare_arms = original  # type: ignore[assignment]
+        eval_mod.cli_runner = original_runner  # type: ignore[assignment]
 
     assert base.passes == 1
     assert candidate.passes == 2
     assert seen["candidate_dir"] == candidate_dir
+    # candidate_runner forwards its harness_dir, falling back to candidate_dir.
+    assert resolved[-2] == candidate_dir
+    assert resolved[-1] == candidate_dir
 
 
 def test_score_base_without_evaluator(tmp_path: Path) -> None:
