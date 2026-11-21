@@ -1,0 +1,12 @@
+{
+  "status": "error",
+  "pr": 107,
+  "commit": "b4b2370ca948e11333e1eb70437446797e1b6374",
+  "trigger_issue": 103,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "nvidia/nemotron-3.5-super-vl:free",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 44843145562,
+  "recorded_at": "2026-11-21T00:20:35Z",
+  "error": "hsh-review: OPENROUTER_API_KEY is not set. Create a key at https://openrouter.ai/keys, then export it: export OPENROUTER_API_KEY=<your key>\n"
+}
