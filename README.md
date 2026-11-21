@@ -4,17 +4,18 @@
 It explains where the factory, decision log, evidence and audit records live.
 
 A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
-micro-kernel. Everything is a
-component: the core loop and all 15 tools are anima Services mounted on a
-Context. Core loop — send the task to the model, run the tools the model asks
-for, send the results back, repeat until the model stops asking. Model replies
-are printed exactly as they came back.
+micro-kernel and [magitech-harness](https://github.com/magitech-ai/magitech-harness),
+the composable agent runtime. Everything is a component: the turn engine, session
+log, tool registry and LLM seam come from mth, and all 15 tools are mth
+`ToolDefinition`s mounted on a Context. Core loop — send the task to the model,
+run the tools the model asks for, send the results back, repeat until the model
+stops asking.
 
 ## Setup
 
 ```sh
 uv sync                      # installs anima + dependencies and this package
-export GEMINI_API_KEY=...        # default provider is Gemini; or export NVIDIA_API_KEY and set HOME_SWE_HOME_PROVIDER=nvidia
+export GEMINI_API_KEY=...        # default provider is Gemini
 ```
 
 Set `HOME_SWE_HOME_PROVIDER=gemini` and export `GEMINI_API_KEY` (or
