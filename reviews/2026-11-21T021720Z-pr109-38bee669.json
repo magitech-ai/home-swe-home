@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 109,
+  "commit": "38bee669796af261f82909212fe77f568366da51",
+  "trigger_issue": 108,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "nvidia/nemotron-3.5-super-vl:free",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 44854722263,
+  "recorded_at": "2026-11-21T02:17:20Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The diff adds orchestrate.run_cycle and the hsh-improve CLI satisfying most acceptance criteria, but a branch in default_ask's `content or \"\"` expression is only exercised with a truthy value in tests, which would prevent the 100% branch coverage required by AC 6.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": "src/home_swe_home/orchestrate.py \u2014 default_ask() return statement `str(response.choices[0].message.content or \"\")`; tests/unit/test_orchestrate.py \u2014 test_default_ask_calls_provider only mocks content=\"reply\"",
+      "message": "The `content or \"\"` boolean expression's falsy branch (proposer model returns None or empty content) is never exercised; test_default_ask_calls_provider only covers the truthy branch. AC 6 requires --cov-branch --cov-fail-under=100 at 100%, so this untested branch would fail the gate. Add a test for default_ask with content=None or content=\"\" to cover the falsy branch."
+    }
+  ],
+  "elapsed_seconds": 187.289,
+  "prompt_tokens": 22386,
+  "completion_tokens": 27276,
+  "evidence_check": [
+    {
+      "evidence": "src/home_swe_home/orchestrate.py \u2014 default_ask() return statement `str(response.choices[0].message.content or \"\")`; tests/unit/test_orchestrate.py \u2014 test_default_ask_calls_provider only mocks content=\"reply\"",
+      "status": "diff"
+    }
+  ]
+}
