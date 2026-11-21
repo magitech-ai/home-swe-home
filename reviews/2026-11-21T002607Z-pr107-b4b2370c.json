@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 107,
+  "commit": "b4b2370ca948e11333e1eb70437446797e1b6374",
+  "trigger_issue": 103,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "nvidia/nemotron-3.5-super-vl:free",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 44843145562,
+  "recorded_at": "2026-11-21T00:26:07Z",
+  "verdict": "APPROVE",
+  "summary": "The diff ports home-swe-home from bare anima to magitech-harness: the CLI builds context via create_harness(), registers the Gemini adapter, all 15 tools via define_tool + ctx.tools.register, and prompt sections via ctx.system_prompt.section/context. The turn loop now uses ctx.agents.create/followup/when_idle, and all listed removed modules (core_loop.py, client.py, native.py, contracts.py, tools/executor.py, the 15 Service classes, utils/stream.py, utils/schema.py, utils/native_events.py) are deleted. Sandbox is default-on with --no-sandbox/HOME_SWE_HOME_SANDBOX=0 opt-in, documented in README and DESIGN. Every tool's text output is redacted through the shared _render_text render step at the output boundary.",
+  "findings": [],
+  "elapsed_seconds": 135.676,
+  "prompt_tokens": 313585,
+  "completion_tokens": 16610,
+  "evidence_check": []
+}
