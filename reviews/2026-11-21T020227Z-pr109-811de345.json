@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 109,
+  "commit": "811de34504e3c65ca6753e1889286587f880b02c",
+  "trigger_issue": 108,
+  "author_model": "baidu/ernie-5.5-flash-preview:free",
+  "reviewer_model": "nvidia/nemotron-3.5-super-vl:free",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 44853400063,
+  "recorded_at": "2026-11-21T02:02:27Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The change implements orchestrate.run_cycle and the hsh-improve CLI consistent with acceptance criteria 1-5, but criterion 6 (100% statement and branch coverage) is not demonstrated: two branches in src/home_swe_home/orchestrate.py are never exercised by the tests, so the coverage gate would fail.",
+  "findings": [
+    {
+      "severity": "major",
+      "evidence": "src/home_swe_home/orchestrate.py \u2014 run_cycle: `score = evaluator or _default_evaluator(candidate_dir, trials)`; and _default_evaluator: `return cli_runner(prompt, harness_dir or candidate_dir)`",
+      "message": "Criterion 6 requires 100% branch coverage. The `evaluator or` falsy branch is never taken because every run_cycle test passes an evaluator, and the `harness_dir or candidate_dir` truthy branch is never taken because tests only invoke candidate_runner with None. Add tests exercising both branches (e.g., run_cycle without an evaluator with compare_arms mocked; candidate_runner with a truthy harness_dir) before the coverage gate can pass."
+    }
+  ],
+  "elapsed_seconds": 121.448,
+  "prompt_tokens": 21360,
+  "completion_tokens": 16782,
+  "evidence_check": [
+    {
+      "evidence": "src/home_swe_home/orchestrate.py \u2014 run_cycle: `score = evaluator or _default_evaluator(candidate_dir, trials)`; and _default_evaluator: `return cli_runner(prompt, harness_dir or candidate_dir)`",
+      "status": "diff"
+    }
+  ]
+}
