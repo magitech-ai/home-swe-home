@@ -192,7 +192,9 @@ def test_main_writes_report_json(
         == 0
     )
     payload = json.loads(out.read_text(encoding="utf-8"))
-    assert payload["adopted_dir"] == "/tmp/adopted"
+    # Path stringification is platform-specific (POSIX '/tmp/...' vs Windows
+    # '\\tmp\\...'), so compare against the platform's own rendering.
+    assert payload["adopted_dir"] == str(Path("/tmp/adopted"))
 
 
 def test_main_reports_non_adoption(
