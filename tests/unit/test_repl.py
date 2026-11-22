@@ -160,13 +160,13 @@ async def test_repl_reminders_no_service(
 
 @pytest.mark.asyncio
 async def test_repl_skill_command(capsys: pytest.CaptureFixture) -> None:
-    mock_skills = MagicMock()
-    mock_skills.load.return_value = "Skill body"
+    mock_registry = MagicMock()
+    mock_registry.load_for_user.return_value = "Skill body"
     mock_ctx = MagicMock()
     mock_ctx.agents.create = AsyncMock(
         return_value={"agent": MagicMock(), "dispose": AsyncMock()}
     )
-    mock_ctx.get = MagicMock(return_value=mock_skills)
+    mock_ctx.get = MagicMock(return_value=mock_registry)
     mock_ctx.on = MagicMock(return_value=lambda: None)
 
     inputs = iter(["/skill test"])
@@ -213,7 +213,7 @@ async def test_repl_skill_no_service(capsys: pytest.CaptureFixture) -> None:
             await run_repl(model="m")
 
     captured = capsys.readouterr().out
-    assert "No skills service" in captured
+    assert "No skills registry mounted" in captured
 
 
 @pytest.mark.asyncio

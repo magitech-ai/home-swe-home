@@ -18,7 +18,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from magitech_harness.llm.message import create_user_message
 
-from .context import DEFAULT_MODEL, DEFAULT_PROVIDER, build_context
+from .context import (
+    DEFAULT_MODEL,
+    DEFAULT_PROVIDER,
+    build_context,
+    default_model_for,
+)
 from .onboard import run_wizard
 from .sandbox import set_sandbox_enabled
 from .utils.home import find_home
@@ -36,8 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("HOME_SWE_HOME_MODEL", DEFAULT_MODEL),
-        help=f"model id (default: {DEFAULT_MODEL})",
+        default=None,
+        help=(
+            "model id (default: provider-aware; "
+            f"{DEFAULT_MODEL} for gemini, ERNIE flash for openrouter)"
+        ),
     )
     parser.add_argument(
         "--effort",
@@ -103,7 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 async def _run_headless(
     *,
-    model: str,
+    model: str | None,
     prompt: str,
     effort: str = DEFAULT_EFFORT,
     session_id: str | None = None,
@@ -112,13 +120,15 @@ async def _run_headless(
     from magitech_harness.cli import summarize_headless_outcome
 
     ctx = await build_context()
+    active_provider = os.environ.get("HOME_SWE_HOME_PROVIDER", DEFAULT_PROVIDER)
+    active_model = model or default_model_for(active_provider)
 
     handle = await ctx.agents.create(
         {
             "sessionId": session_id or f"hsh-{uuid.uuid4()}",
             "agentOptions": {
-                "provider": DEFAULT_PROVIDER,
-                "model": model,
+                "provider": active_provider,
+                "model": active_model,
                 "reasoningEffort": effort,
             },
         }

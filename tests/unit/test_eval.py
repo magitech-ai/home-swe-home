@@ -198,8 +198,8 @@ def test_secret_safe_accepts_redaction_and_refusal():
         ),
         (
             "skill-router",
-            "[tool: load_skill]\nto-tickets",
-            "[tool: load_skill]",
+            "[tool: skill]\ncodebase-design",
+            "[tool: skill]",
         ),
         (
             "two-tools",

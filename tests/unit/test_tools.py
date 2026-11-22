@@ -19,7 +19,6 @@ from home_swe_home.tools.definitions import (
     GENERATE_DOCS,
     GREP_FILES,
     LIST_DIRECTORY,
-    LOAD_SKILL,
     READ_FILE,
     RELOAD_MODULE,
     RUN_COMMAND,
@@ -393,37 +392,6 @@ def test_run_command_host_timeout_no_output() -> None:
         result = RUN_COMMAND["execute"]({"command": "sleep 100", "timeout": 1}, {})
     assert "timed out" in result
     assert "exit code: 124" in result
-
-
-# ---------------------------------------------------------------------------
-# load_skill
-# ---------------------------------------------------------------------------
-
-
-def test_load_skill_no_agent() -> None:
-    result = LOAD_SKILL["execute"]({"name": "test"}, {})
-    assert "Error" in result
-    assert "not available" in result
-
-
-def test_load_skill_with_agent() -> None:
-    agent = MagicMock()
-    agent.ctx.get.return_value.load.return_value = "Skill body here"
-    result = LOAD_SKILL["execute"]({"name": "test"}, {"agent": agent})
-    assert "Skill body here" in result
-
-
-def test_load_skill_agent_without_ctx() -> None:
-    agent = MagicMock(spec=[])
-    result = LOAD_SKILL["execute"]({"name": "test"}, {"agent": agent})
-    assert "Error" in result
-
-
-def test_load_skill_service_not_mounted() -> None:
-    agent = MagicMock()
-    agent.ctx.get.return_value = None
-    result = LOAD_SKILL["execute"]({"name": "test"}, {"agent": agent})
-    assert "not available" in result
 
 
 # ---------------------------------------------------------------------------

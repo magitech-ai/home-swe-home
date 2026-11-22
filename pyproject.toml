@@ -9,6 +9,7 @@ dependencies = [
     "tiktoken>=0.8",
     "anima",
     "magitech-harness",
+    "mth-plugins",
     "google-genai>=3.6.1",
     "openai>=3,<4",
 ]
@@ -16,12 +17,17 @@ dependencies = [
 [tool.uv.sources]
 anima = { git = "https://github.com/magitech-ai/anima.git" }
 magitech-harness = { git = "https://github.com/magitech-ai/magitech-harness.git" }
+# Git source so home-swe-home resolves in clean CI checkouts (no sibling
+# clone needed). The OKF + Skills consumption components must be merged to
+# mth-plugins main before this resolves to a version that provides them.
+mth-plugins = { git = "https://github.com/magitech-ai/mth-plugins.git" }
 
-# magitech-harness pins anima with a repo-relative path (../anima) that cannot
-# resolve when it is installed from git, so the anima source is declared here
-# and forced for every consumer in this workspace.
+# magitech-harness pins anima with a repo-relative path (../anima) and
+# mth-plugins pins both anima and magitech-harness with repo-relative paths;
+# none resolve when installed from git. All are declared here and forced for
+# every consumer so the git sources win in clean checkouts.
 [tool.uv]
-override-dependencies = ["anima"]
+override-dependencies = ["anima", "magitech-harness"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov>=6.0", "pytest-asyncio>=1.4", "mypy>=1.11", "ruff>=0.17"]
