@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      REVIEWER_MODEL: nvidia/nemotron-3.5-super-vl:free
+      REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL || 'nvidia/nemotron-3.5-super-vl:free' }}
       REVIEWER_PROVIDER: openrouter
       PR: ${{ github.event.number }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}

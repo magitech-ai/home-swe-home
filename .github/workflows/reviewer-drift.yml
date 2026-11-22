@@ -19,6 +19,7 @@ jobs:
     environment: agent-review
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL || 'nvidia/nemotron-3.5-super-vl:free' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -32,7 +33,7 @@ jobs:
         run: |
           uv run hsh-review-eval \
             --provider openrouter \
-            --model nvidia/nemotron-3.5-super-vl:free \
+            --model "$REVIEWER_MODEL" \
             --out results.json
 
       - name: Checkout audit branch
