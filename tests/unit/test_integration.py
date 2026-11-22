@@ -136,14 +136,60 @@ async def test_full_stack_read_file(tmp_path: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_tool_definitions_registered(tmp_path: Any) -> None:
-    """Verify all 15 tools are registered on the context."""
+    """Native tools plus mth-mounted tools are registered on the context."""
     from home_swe_home.context import build_context
 
     ctx = await build_context(storage_dir=tmp_path)
     defs = ctx.tools.definitions()
     names = {d["name"] for d in defs}
-    expected = {t["name"] for t in ALL_TOOLS}
+    # read_file comes from the mth component; okf_bundle and skill from the
+    # mth bridge loaders. All are now model-visible parity definitions.
+    expected = {t["name"] for t in ALL_TOOLS} | {"read_file", "okf_bundle", "skill"}
     assert names == expected, f"Tool mismatch: {names} != {expected}"
+
+
+@pytest.mark.asyncio
+async def test_mounted_read_file_pagination(tmp_path: Any) -> None:
+    """The mth read_file tool returns only the requested line window."""
+    from magitech_harness.session.events import ToolCallData
+
+    from home_swe_home.context import build_context
+
+    f = tmp_path / "lines.txt"
+    f.write_text("\n".join(f"line-{i}" for i in range(1, 11)), encoding="utf-8")
+    ctx = await build_context(storage_dir=tmp_path / "sessions")
+
+    result = await ctx.tools.execute(
+        ToolCallData(
+            call_id="paginated",
+            name="read_file",
+            arguments={"path": str(f), "offset": 3, "limit": 2},
+        )
+    )
+    assert result.content == "line-3\nline-4"
+    assert "line-1" not in result.content
+    assert "line-5" not in result.content
+
+
+@pytest.mark.asyncio
+async def test_redaction_guard_applies_to_mounted_tools(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    """The mth redaction guard hides secrets from tool output."""
+    from magitech_harness.session.events import ToolCallData
+
+    from home_swe_home.context import build_context
+
+    monkeypatch.setenv("NVIDIA_API_KEY", "super-secret-value")
+    f = tmp_path / "env.txt"
+    f.write_text("key=super-secret-value", encoding="utf-8")
+    ctx = await build_context(storage_dir=tmp_path / "sessions")
+
+    result = await ctx.tools.execute(
+        ToolCallData(call_id="redacted", name="read_file", arguments={"path": str(f)})
+    )
+    assert "super-secret-value" not in result.content
+    assert "<redacted>" in result.content
 
 
 @pytest.mark.asyncio

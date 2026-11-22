@@ -128,26 +128,6 @@ def _text_output_tool(
 # ---------------------------------------------------------------------------
 
 
-def _read_file_execute(args: dict[str, Any], _run_ctx: Any) -> str:
-    path = args["path"]
-    return Path(path).read_text(encoding="utf-8")
-
-
-READ_FILE = _text_output_tool(
-    name="read_file",
-    description=(
-        "Read a file and return its text contents.\n\n"
-        "Reading a file marks it as readable, which is required before calling\n"
-        "edit_file on that path."
-    ),
-    parameters={
-        "path": {"type": "string", "required": True},
-    },
-    execute=_read_file_execute,
-    concurrency_safe=True,
-)
-
-
 def _write_file_execute(args: dict[str, Any], _run_ctx: Any) -> str:
     path = args["path"]
     content = args["content"]
@@ -911,7 +891,6 @@ ADD_REPO = _text_output_tool(
 
 ALL_TOOLS: list[dict[str, Any]] = [
     ADD_REPO,
-    READ_FILE,
     WRITE_FILE,
     EDIT_FILE,
     DELETE_FILE,
