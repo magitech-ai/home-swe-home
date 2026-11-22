@@ -146,6 +146,8 @@ async def test_tool_definitions_registered(tmp_path: Any) -> None:
     # mth bridge loaders. All are now model-visible parity definitions.
     expected = {t["name"] for t in ALL_TOOLS} | {"read_file", "okf_bundle", "skill"}
     assert names == expected, f"Tool mismatch: {names} != {expected}"
+    schema_names = {s["name"] for s in ctx.tools.schemas()}
+    assert {"read_file", "okf_bundle", "skill"} <= schema_names
 
 
 @pytest.mark.asyncio
@@ -169,6 +171,24 @@ async def test_mounted_read_file_pagination(tmp_path: Any) -> None:
     assert result.content == "line-3\nline-4"
     assert "line-1" not in result.content
     assert "line-5" not in result.content
+
+
+@pytest.mark.asyncio
+async def test_mounted_truncation_guard_caps_large_read(tmp_path: Any) -> None:
+    """The mounted truncation guard caps oversized tool output."""
+    from magitech_harness.session.events import ToolCallData
+
+    from home_swe_home.context import build_context
+
+    f = tmp_path / "big.txt"
+    f.write_text(
+        "\n".join(f"line-{i}-" + "x" * 40 for i in range(2100)), encoding="utf-8"
+    )
+    ctx = await build_context(storage_dir=tmp_path / "sessions")
+    result = await ctx.tools.execute(
+        ToolCallData(call_id="big", name="read_file", arguments={"path": str(f)})
+    )
+    assert "[Output truncated" in result.content
 
 
 @pytest.mark.asyncio
