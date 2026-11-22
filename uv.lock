@@ -914,12 +914,13 @@ dependencies = [
 [[package]]
 name = "mth-plugins"
 version = "0.3.0"
-source = { git = "https://github.com/magitech-ai/mth-plugins.git#cf7f7fe72f835044db0254e8cba2479053ca6325" }
+source = { git = "https://github.com/magitech-ai/mth-plugins.git#674dab39560e4e37ac60b22223a971da2ee34c7a" }
 dependencies = [
     { name = "anima" },
     { name = "httpx" },
     { name = "magitech-harness" },
     { name = "pydantic" },
+    { name = "pyyaml" },
 ]
 
 [[package]]
