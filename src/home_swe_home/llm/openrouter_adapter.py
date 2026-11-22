@@ -1,10 +1,10 @@
 """OpenRouter Chat Completions adapter for magitech-harness.
 
 Translates OpenRouter's OpenAI-compatible Chat Completions SSE stream into
-mth's ``StreamChunk`` vocabulary. Uses the model
-``baidu/ernie-5.5-flash-preview:free`` with ``reasoning.effort = "high"``
-(the only reasoning effort that model supports, per the live OpenRouter
-model catalog). Reasoning is mandatory on that model.
+mth's ``StreamChunk`` vocabulary. Bound to the free, tool-capable model
+``particle-ai/particle-1:free`` with ``reasoning.effort = "high"`` (its
+catalog default). Reasoning is optional on that model; "high" is retained
+as the default effort.
 
 Registered on ctx.llm via
 ``ctx.llm.register_adapter(["openrouter"], OpenRouterAdapter())``.
@@ -40,11 +40,12 @@ from magitech_harness.llm.types import (
 
 __all__ = ["OpenRouterAdapter"]
 
-DEFAULT_MODEL = "baidu/ernie-5.5-flash-preview:free"
+DEFAULT_MODEL = "particle-ai/particle-1:free"
 DEFAULT_REASONING_EFFORT = "high"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# This adapter is bound to one model whose only supported effort is "high".
+# D-009 fail-closed: this adapter is bound to exactly one model. The adapter
+# always sends reasoning.effort = "high", so only that effort is advertised.
 KNOWN_MODELS: tuple[str, ...] = (DEFAULT_MODEL,)
 
 
@@ -102,7 +103,7 @@ class OpenRouterAdapter(LlmAdapter):
             "name": model,
             "reasoning": {
                 "efforts": [{"id": "high", "name": "High"}],
-                "defaultEffort": "high",
+                "defaultEffort": DEFAULT_REASONING_EFFORT,
             },
         }
 
@@ -148,8 +149,8 @@ class OpenRouterAdapter(LlmAdapter):
             "messages": _convert_messages(messages),
             "stream": True,
             "stream_options": {"include_usage": True},
-            # Per OpenRouter docs, reasoning.effort is the unified knob. The
-            # bound model supports only "high"; never send "none" (mandatory).
+            # Per OpenRouter docs, reasoning.effort is the unified knob.
+            # "high" is the bound model's catalog default.
             "reasoning": {"effort": DEFAULT_REASONING_EFFORT},
         }
         if tools:
