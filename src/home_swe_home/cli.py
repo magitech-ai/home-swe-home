@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "model id (default: provider-aware; "
-            f"{DEFAULT_MODEL} for gemini, particle-1 for openrouter)"
+            f"{DEFAULT_MODEL} for gemini, hy4-flash for openrouter)"
         ),
     )
     parser.add_argument(

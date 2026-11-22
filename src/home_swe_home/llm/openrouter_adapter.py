@@ -1,10 +1,10 @@
 """OpenRouter Chat Completions adapter for magitech-harness.
 
 Translates OpenRouter's OpenAI-compatible Chat Completions SSE stream into
-mth's ``StreamChunk`` vocabulary. Bound to the free, tool-capable model
-``particle-ai/particle-1:free`` with ``reasoning.effort = "high"`` (its
-catalog default). Reasoning is optional on that model; "high" is retained
-as the default effort.
+mth's ``StreamChunk`` vocabulary. Bound to ``tencent/hy4-flash`` with
+``reasoning.effort = "high"``. Reasoning is enabled by default on that model
+but not selectable through the catalog, so this adapter fixes "high" as the
+single advertised and requested effort.
 
 Registered on ctx.llm via
 ``ctx.llm.register_adapter(["openrouter"], OpenRouterAdapter())``.
@@ -40,12 +40,13 @@ from magitech_harness.llm.types import (
 
 __all__ = ["OpenRouterAdapter"]
 
-DEFAULT_MODEL = "particle-ai/particle-1:free"
+DEFAULT_MODEL = "tencent/hy4-flash"
 DEFAULT_REASONING_EFFORT = "high"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# D-009 fail-closed: this adapter is bound to exactly one model. The adapter
-# always sends reasoning.effort = "high", so only that effort is advertised.
+# D-009 fail-closed: this adapter is bound to exactly one model. The catalog
+# enables reasoning by default without selectable efforts; the adapter fixes
+# "high" as the effort it sends and therefore advertises only that value.
 KNOWN_MODELS: tuple[str, ...] = (DEFAULT_MODEL,)
 
 
