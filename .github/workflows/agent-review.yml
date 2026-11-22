@@ -25,6 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Checkout shared OKF knowledge bundles
+        uses: actions/checkout@v5
+        with:
+          repository: magitech-ai/agents-home
+          token: ${{ secrets.AGENTS_HOME_TOKEN }}
+          path: agents-home
+
       - name: Check kill switch
         env:
           HOME_SWE_HOME_REVIEW_ENABLED: ${{ vars.AGENT_REVIEW_ENABLED }}
@@ -82,6 +89,9 @@ jobs:
             --standard AGENTS=AGENTS.md \
             --standard REVIEW=docs/agents/review-standard.md \
             --standard TRIAGE=docs/agents/triage-labels.md \
+            --okf-bundle CODING=agents-home/knowledge/coding-standards \
+            --okf-bundle ENGINEERING=agents-home/knowledge/engineering-standards \
+            --okf-bundle FACTORY=agents-home/knowledge/factory-contract \
             --author-provider gemini \
             --author-model "$AUTHOR_MODEL" \
             --reviewer-provider "$REVIEWER_PROVIDER" \
