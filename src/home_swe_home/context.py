@@ -119,7 +119,7 @@ async def build_context(
     # Register LLM adapters (requires ctx.llm to be active). Both are always
     # available; the active provider is selected by HOME_SWE_HOME_PROVIDER
     # (or the CLI/programmatic agent options). OpenRouter is bound to
-    # particle-ai/particle-1:free with high reasoning effort.
+    # tencent/hy4-flash with high reasoning effort.
     from .llm.openrouter_adapter import OpenRouterAdapter
 
     ctx.llm.register_adapter(["gemini"], GeminiAdapter())
@@ -198,7 +198,7 @@ async def create_agent_async(
     """Create an agent on the context and return the handle.
 
     Provider/model/effort default to the env-adjusted defaults so the
-    OpenRouter + Particle combination can be selected with
+    OpenRouter + Hy4 combination can be selected with
     ``HOME_SWE_HOME_PROVIDER=openrouter``.
     """
     active_provider = provider or os.environ.get(

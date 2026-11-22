@@ -37,7 +37,7 @@ def _key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_constants() -> None:
-    assert DEFAULT_MODEL == "particle-ai/particle-1:free"
+    assert DEFAULT_MODEL == "tencent/hy4-flash"
     assert OPENROUTER_BASE_URL == "https://openrouter.ai/api/v1"
 
 
