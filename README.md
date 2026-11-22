@@ -22,6 +22,15 @@ Set `HOME_SWE_HOME_PROVIDER=gemini` and export `GEMINI_API_KEY` (or
 `GOOGLE_API_KEY`) to use Gemini's OpenAI-compatible endpoint; choose the model
 with `--model` or `HOME_SWE_HOME_MODEL`.
 
+For a free, tool-capable provider, set `HOME_SWE_HOME_PROVIDER=openrouter` and
+export `OPENROUTER_API_KEY`. The OpenRouter adapter is bound to
+`particle-ai/particle-1:free` with `reasoning.effort = "high"`; this is the only
+route that adapter serves. Select it explicitly with:
+
+```sh
+HOME_SWE_HOME_PROVIDER=openrouter uv run home-swe-home -p "..."
+```
+
 ## Run
 
 `hsh` is a short alias for `home-swe-home`; both run the same CLI.

@@ -121,7 +121,7 @@ async def test_create_agent_async_env_provider(
 ) -> None:
     """Provider/model come from env when not passed explicitly."""
     monkeypatch.setenv("HOME_SWE_HOME_PROVIDER", "openrouter")
-    monkeypatch.setenv("HOME_SWE_HOME_MODEL", "baidu/ernie-5.5-flash-preview:free")
+    monkeypatch.setenv("HOME_SWE_HOME_MODEL", "particle-ai/particle-1:free")
     ctx = await build_context(storage_dir=tmp_path)
     captured: dict = {}
 
@@ -133,7 +133,7 @@ async def test_create_agent_async_env_provider(
     ctx.agents.create = AsyncMock(side_effect=_create)
     handle = await create_agent_async(ctx, session_id="env-sess")
     assert captured["opts"]["provider"] == "openrouter"
-    assert captured["opts"]["model"] == "baidu/ernie-5.5-flash-preview:free"
+    assert captured["opts"]["model"] == "particle-ai/particle-1:free"
     await handle["dispose"]()
 
 
@@ -190,7 +190,7 @@ def test_default_model_for_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     """default_model_for selects a valid model per provider (no env override)."""
     monkeypatch.delenv("HOME_SWE_HOME_MODEL", raising=False)
     assert default_model_for("gemini") == "gemini-4-hydrogen"
-    assert default_model_for("openrouter") == "baidu/ernie-5.5-flash-preview:free"
+    assert default_model_for("openrouter") == "particle-ai/particle-1:free"
     monkeypatch.setenv("HOME_SWE_HOME_MODEL", "custom/model")
     assert default_model_for("gemini") == "custom/model"
     assert default_model_for("openrouter") == "custom/model"
