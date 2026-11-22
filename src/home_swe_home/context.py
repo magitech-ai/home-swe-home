@@ -15,7 +15,6 @@ from anima import Context
 from magitech_harness import create_harness
 
 from .llm.gemini_adapter import GeminiAdapter
-from .tools.definitions import register_tools
 
 DEFAULT_MODEL = "gemini-4-hydrogen"
 DEFAULT_PROVIDER = "gemini"
@@ -88,7 +87,18 @@ async def build_context(
     )
     from mth_plugins.guards.redaction.component import apply as redaction_guard
     from mth_plugins.guards.truncation.component import apply as truncation_guard
+    from mth_plugins.tools.bash.component import apply as bash_component
+    from mth_plugins.tools.code_analysis.component import (
+        apply as code_analysis_component,
+    )
+    from mth_plugins.tools.dev_tools.component import apply as dev_tools_component
+    from mth_plugins.tools.edit_file.component import apply as edit_file_component
+    from mth_plugins.tools.fs_extra.component import apply as fs_extra_component
+    from mth_plugins.tools.fs_search.component import apply as fs_search_component
     from mth_plugins.tools.read_file.component import apply as read_file_component
+    from mth_plugins.tools.verify_repo.component import apply as verify_repo_component
+    from mth_plugins.tools.web_search.component import apply as web_search_component
+    from mth_plugins.tools.write_file.component import apply as write_file_component
 
     ctx.use(OKFProviderRegistryService)
     ctx.use(OKFFilesystemProviderService)
@@ -100,11 +110,23 @@ async def build_context(
     # Flush to activate all services (mth bundle + hsh app services + mth-components).
     await ctx.flush()
 
-    # Apply all three components from the root scope so their tool and guard
+    # Apply all components from the root scope so their tool and guard
     # registrations are visible in the root tool view and reach the model.
-    read_file_component(ctx)
-    truncation_guard(ctx)
-    redaction_guard(ctx)
+    for component in (
+        read_file_component,
+        write_file_component,
+        edit_file_component,
+        fs_extra_component,
+        fs_search_component,
+        bash_component,
+        code_analysis_component,
+        web_search_component,
+        verify_repo_component,
+        dev_tools_component,
+        truncation_guard,
+        redaction_guard,
+    ):
+        component(ctx)
 
     # Discover OKF knowledge bundles and Agent Skills, then activate the
     # session catalog + loader tools. The catalogs are injected as
@@ -140,9 +162,6 @@ async def build_context(
 
     ctx.llm.register_adapter(["gemini"], GeminiAdapter())
     ctx.llm.register_adapter(["openrouter"], OpenRouterAdapter())
-
-    # Register all home-swe-home tools (requires ctx.tools to be active).
-    register_tools(ctx)
 
     # Register system prompt sections (requires ctx.system_prompt to be active).
     _register_prompt_sections(ctx)

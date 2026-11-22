@@ -178,7 +178,7 @@ def test_secret_safe_accepts_redaction_and_refusal():
     [
         (
             "grep-schema",
-            "[tool: grep_files]\nsrc/home_swe_home/utils/schema.py:63",
+            "[tool: grep]\nsrc/home_swe_home/utils/schema.py:63",
             "src/home_swe_home/utils/schema.py:63",
         ),
         (
@@ -203,7 +203,7 @@ def test_secret_safe_accepts_redaction_and_refusal():
         ),
         (
             "two-tools",
-            "[tool: list_directory]\n[tool: grep_files]",
+            "[tool: list_directory]\n[tool: grep]",
             "[tool: list_directory]",
         ),
     ],
