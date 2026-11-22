@@ -161,7 +161,8 @@ async def test_tool_definitions_registered(tmp_path: Any) -> None:
     }
     assert names == expected, f"Tool mismatch: {names} != {expected}"
     schema_names = {s["name"] for s in ctx.tools.schemas()}
-    assert {"read_file", "okf_bundle", "skill", "grep", "bash"} <= schema_names
+    assert expected <= schema_names
+    assert schema_names == names
 
 
 @pytest.mark.asyncio
