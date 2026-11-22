@@ -35,7 +35,8 @@ async def test_build_context_basic(tmp_path: Path) -> None:
     names = {d["name"] for d in defs}
     assert "read_file" in names
     assert "write_file" in names
-    assert "run_command" in names
+    assert "bash" in names
+    assert "grep" in names
 
 
 @pytest.mark.asyncio

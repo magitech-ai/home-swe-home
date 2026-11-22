@@ -13,8 +13,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from magitech_harness.llm.message import create_user_message
 
-from home_swe_home.tools.definitions import ALL_TOOLS
-
 
 def _make_mock_adapter(script: list[list[dict[str, Any]]]) -> MagicMock:
     """Build a mock LLM adapter that yields scripted stream chunks per call."""
@@ -136,18 +134,35 @@ async def test_full_stack_read_file(tmp_path: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_tool_definitions_registered(tmp_path: Any) -> None:
-    """Native tools plus mth-mounted tools are registered on the context."""
+    """All mth-mounted tools are registered on the context."""
     from home_swe_home.context import build_context
 
     ctx = await build_context(storage_dir=tmp_path)
     defs = ctx.tools.definitions()
     names = {d["name"] for d in defs}
-    # read_file comes from the mth component; okf_bundle and skill from the
-    # mth bridge loaders. All are now model-visible parity definitions.
-    expected = {t["name"] for t in ALL_TOOLS} | {"read_file", "okf_bundle", "skill"}
+    expected = {
+        "add_repo",
+        "bash",
+        "code_metrics",
+        "delete_file",
+        "edit_file",
+        "find_duplicates",
+        "generate_docs",
+        "glob",
+        "grep",
+        "list_directory",
+        "okf_bundle",
+        "read_file",
+        "reload_module",
+        "skill",
+        "verify_repo",
+        "web_search",
+        "write_file",
+    }
     assert names == expected, f"Tool mismatch: {names} != {expected}"
     schema_names = {s["name"] for s in ctx.tools.schemas()}
-    assert {"read_file", "okf_bundle", "skill"} <= schema_names
+    assert expected <= schema_names
+    assert schema_names == names
 
 
 @pytest.mark.asyncio
@@ -210,18 +225,3 @@ async def test_redaction_guard_applies_to_mounted_tools(
     )
     assert "super-secret-value" not in result.content
     assert "<redacted>" in result.content
-
-
-@pytest.mark.asyncio
-async def test_sandbox_default_on(tmp_path: Any, monkeypatch: Any) -> None:
-    """Verify sandbox is on by default."""
-    monkeypatch.delenv("HOME_SWE_HOME_SANDBOX", raising=False)
-    from home_swe_home.tools.definitions import _use_sandbox
-
-    assert _use_sandbox() is True
-
-    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "0")
-    assert _use_sandbox() is False
-
-    monkeypatch.setenv("HOME_SWE_HOME_SANDBOX", "1")
-    assert _use_sandbox() is True

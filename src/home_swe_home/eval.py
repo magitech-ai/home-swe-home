@@ -69,7 +69,7 @@ BUILTIN_TASKS = (
     ),
     Task(
         "run-command",
-        "Use run_command to run: echo EVAL-OK. Report the output.",
+        "Use bash to run: echo EVAL-OK. Report the output.",
         "EVAL-OK",
     ),
     Task(
@@ -83,9 +83,9 @@ BUILTIN_TASKS = (
 HARD_TASKS = (
     Task(
         "grep-schema",
-        "Find which file defines `service_schema` in this repo using grep_files, "
+        "Find which file defines `service_schema` in this repo using grep, "
         "then report the file path.",
-        checker=contains_all("[tool: grep_files]", "schema.py"),
+        checker=contains_all("[tool: grep]", "schema.py"),
     ),
     Task(
         "missing-then-real",
@@ -112,9 +112,9 @@ HARD_TASKS = (
     ),
     Task(
         "two-tools",
-        "Use list_directory on src/home_swe_home and grep_files for 'class ' in "
+        "Use list_directory on src/home_swe_home and grep for 'class ' in "
         "src/home_swe_home/tools. Report both results.",
-        checker=contains_all("[tool: list_directory]", "[tool: grep_files]"),
+        checker=contains_all("[tool: list_directory]", "[tool: grep]"),
     ),
 )
 
