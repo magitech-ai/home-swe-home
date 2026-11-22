@@ -19,7 +19,6 @@ from home_swe_home.tools.definitions import (
     GENERATE_DOCS,
     GREP_FILES,
     LIST_DIRECTORY,
-    READ_FILE,
     RELOAD_MODULE,
     RUN_COMMAND,
     VERIFY_REPO,
@@ -60,25 +59,11 @@ def _tool_call(seq: int, name: str, arguments: Any) -> MagicMock:
     return _event(seq, "tool/call", {"name": name, "arguments": arguments})
 
 
-# ---------------------------------------------------------------------------
-# read_file
-# ---------------------------------------------------------------------------
-
-
-def test_read_file(tmp_path: Path) -> None:
-    f = tmp_path / "hello.txt"
-    f.write_text("Hello, world!", encoding="utf-8")
-    result = READ_FILE["execute"]({"path": str(f)}, {})
-    assert "Hello, world!" in result
-
-
-def test_redaction_applies_to_every_text_tool(monkeypatch) -> None:
-    """Redaction is centralized in the render step, not per tool body."""
+def test_native_tool_render_redacts_secrets(monkeypatch) -> None:
+    """Native tools still redact at the render boundary."""
     monkeypatch.setenv("NVIDIA_API_KEY", "secret123")
-    rendered = READ_FILE["output"]["render"]({}, "key=secret123")
-    text = rendered[0]["text"]
-    assert "secret123" not in text
-    assert "<redacted>" in text
+    rendered = WRITE_FILE["output"]["render"]({}, "key=secret123")
+    assert rendered[0]["text"] == "key=<redacted>"
 
 
 # ---------------------------------------------------------------------------

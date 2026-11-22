@@ -66,6 +66,13 @@ async def build_context(
     ctx.use(RemindersService)
     ctx.use(SandboxService)
 
+    # Mount shared mth-plugins tool and guard components. Their behaviour
+    # (line-window pagination, workspace confinement, output caps and secret
+    # redaction) is owned in one place rather than duplicated in hsh's native
+    # tool definitions.
+    # Components are applied from the root context below (after flush):
+    # ctx.use() runs them in a child fiber scope, which hides their registrations
+    # from the root tool view and from the model.
     # Mount the mth-components OKF + Skills consumption services (3-component
     # pattern: provider registry, filesystem provider, session catalog/loader).
     # These live in mth-plugins and are mounted on the same mth context.
@@ -79,6 +86,9 @@ async def build_context(
     from mth_plugins.bridges.skills_registry.service import (
         SkillsProviderRegistryService,
     )
+    from mth_plugins.guards.redaction.component import apply as redaction_guard
+    from mth_plugins.guards.truncation.component import apply as truncation_guard
+    from mth_plugins.tools.read_file.component import apply as read_file_component
 
     ctx.use(OKFProviderRegistryService)
     ctx.use(OKFFilesystemProviderService)
@@ -89,6 +99,12 @@ async def build_context(
 
     # Flush to activate all services (mth bundle + hsh app services + mth-components).
     await ctx.flush()
+
+    # Apply all three components from the root scope so their tool and guard
+    # registrations are visible in the root tool view and reach the model.
+    read_file_component(ctx)
+    truncation_guard(ctx)
+    redaction_guard(ctx)
 
     # Discover OKF knowledge bundles and Agent Skills, then activate the
     # session catalog + loader tools. The catalogs are injected as
