@@ -1,7 +1,7 @@
 # home-swe-home
 
-**New here? Read [START_HERE](https://github.com/magitech-ai/agents-home/blob/main/START_HERE.md).**
-It explains where the factory, decision log, evidence and audit records live.
+**New here? Read the [agents-home README](https://github.com/magitech-ai/agents-home#readme).**
+It explains where the skills, knowledge bundles, evidence and audit records live.
 
 A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
 micro-kernel and [magitech-harness](https://github.com/magitech-ai/magitech-harness),
@@ -45,6 +45,31 @@ uv run home-swe-home
 # Pick a model
 uv run home-swe-home --model gemini-4-hydrogen --effort medium -p "..."
 ```
+
+## Review and audit
+
+Run the independent reviewer locally against a saved diff and issue spec:
+
+```sh
+uv run hsh-review --diff diff.txt --spec spec.txt --out verdict.json
+```
+
+A rebuttal can be posted on the PR as a comment containing
+`<!-- review-dispute -->`. The workflow passes the latest one to the reviewer as
+an **untrusted claim**, never as authority; a finding is withdrawn only on
+concrete, verifiable evidence (D-015).
+
+Verdicts are appended as JSON to the `audit` branch under `reviews/`, with
+weekly reviewer-eval results under `drift/`:
+
+```sh
+git fetch origin audit
+git ls-tree -r --name-only origin/audit | grep -E '^(reviews|drift)/'
+git show origin/audit:reviews/<file>.json
+```
+
+`Auto revert (dry run)` opens a revert PR on `main` CI failure but never merges
+it; promoting that to auto-merge is a separate Stage C decision (D-020).
 
 ## Improve the harness
 
