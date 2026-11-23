@@ -100,3 +100,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         time.sleep(args.interval)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

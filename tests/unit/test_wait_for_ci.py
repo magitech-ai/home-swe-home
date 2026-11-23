@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -103,3 +104,14 @@ def test_main_times_out_without_claiming_a_pass() -> None:
     ):
         rc = wait_for_ci.main(["--repo", "org/repo", "--pr", "7", "--timeout", "0"])
     assert rc == 2
+
+
+def test_script_has_a_usable_cli_entry_point() -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPTS / "wait_for_ci.py"), "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "--repo" in result.stdout
