@@ -914,7 +914,7 @@ dependencies = [
 [[package]]
 name = "mth-plugins"
 version = "0.3.0"
-source = { git = "https://github.com/magitech-ai/mth-plugins.git#e751e624d140f2f0d1cbbff1eb1af03245b9e4ca" }
+source = { git = "https://github.com/magitech-ai/mth-plugins.git#e1ca51b724bf169e41bf26d978dfcbfbb327826b" }
 dependencies = [
     { name = "anima" },
     { name = "httpx" },
