@@ -62,7 +62,10 @@ def fetch(repo: str, pr: int) -> list[dict[str, Any]]:
     )
     if not proc.stdout.strip():
         return []
-    return json.loads(proc.stdout)
+    parsed = json.loads(proc.stdout)
+    if not isinstance(parsed, list):
+        return []
+    return parsed
 
 
 def format_detail(details: list[dict[str, Any]]) -> str:
