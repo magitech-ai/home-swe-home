@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 143,
+  "commit": "796644d34cef3c59d7033a15d692c9372cebad4b",
+  "trigger_issue": 142,
+  "author_model": "opencode/hy4-flash-free",
+  "reviewer_model": "tencent/hy4-flash",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 45144127574,
+  "recorded_at": "2026-11-23T09:13:41Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The change implements the contract pre-flight, workflow wiring, lint coverage and mypy fix, and host CI shows the CI workflow passing. However, one file outside the issue's explicitly named scope was modified.",
+  "findings": [
+    {
+      "severity": "minor",
+      "evidence": ".github/workflows/auto-revert.yml:87",
+      "message": "This file is not among the files named by the issue (scripts/pr_contract.py, .github/workflows/agent-review.yml, .github/workflows/ci.yml, scripts/wait_for_ci.py). The edit is a functionally identical single-to-double-quote rewrite of the BODY printf and implements no acceptance criterion. Revert it so the diff contains only in-scope files, per REVIEW non-negotiable 4 ('Only the files the issue names are changed')."
+    }
+  ],
+  "elapsed_seconds": 91.944,
+  "prompt_tokens": 13735,
+  "completion_tokens": 16871,
+  "evidence_check": [
+    {
+      "evidence": ".github/workflows/auto-revert.yml:87",
+      "status": "unverifiable"
+    }
+  ]
+}
