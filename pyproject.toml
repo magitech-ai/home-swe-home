@@ -18,8 +18,9 @@ dependencies = [
 anima = { git = "https://github.com/magitech-ai/anima.git" }
 magitech-harness = { git = "https://github.com/magitech-ai/magitech-harness.git" }
 # Git source so home-swe-home resolves in clean CI checkouts (no sibling
-# clone needed). The OKF + Skills consumption components must be merged to
-# mth-plugins main before this resolves to a version that provides them.
+# clone needed). The OKF + Skills consumption components and the canonical
+# dev_tools.repo_map module must be merged to mth-plugins main before this
+# resolves to a version that provides them.
 mth-plugins = { git = "https://github.com/magitech-ai/mth-plugins.git" }
 
 # magitech-harness pins anima with a repo-relative path (../anima) and
