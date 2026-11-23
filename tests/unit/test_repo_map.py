@@ -84,3 +84,9 @@ def test_resolve_repo_ignores_empty_clone_url():
 def test_resolve_repo_unknown():
     entries = [RepoEntry("anima", "../anima")]
     assert resolve_repo(entries, "nope") is None
+
+
+def test_uses_the_canonical_mth_plugins_parser():
+    from mth_plugins.tools.dev_tools.repo_map import parse_repo_map as canonical
+
+    assert parse_repo_map is canonical
