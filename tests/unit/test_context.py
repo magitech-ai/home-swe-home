@@ -195,3 +195,35 @@ def test_default_model_for_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME_SWE_HOME_MODEL", "custom/model")
     assert default_model_for("gemini") == "custom/model"
     assert default_model_for("openrouter") == "custom/model"
+
+
+@pytest.mark.asyncio
+async def test_build_context_discovers_okf_from_multiple_scopes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OKF discovery uses project/home/user scope precedence like skills."""
+    from mth_plugins.bridges.okf_filesystem.service import (
+        OKFFilesystemProviderService,
+    )
+
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    monkeypatch.setattr("home_swe_home.utils.home.find_home", lambda: fake_home)
+    monkeypatch.setattr(
+        "home_swe_home.utils.home.trusted_projects", lambda: (str(Path.cwd()),)
+    )
+    seen: list[list[tuple[Path, str]]] = []
+    original = OKFFilesystemProviderService.discover_bundles
+
+    def _spy(self: object, roots: list[tuple[Path, str]] | None = None) -> list[str]:
+        seen.append(roots or [])
+        return original(self, roots)
+
+    monkeypatch.setattr(OKFFilesystemProviderService, "discover_bundles", _spy)
+    await build_context(storage_dir=tmp_path)
+    assert seen, "OKF discovery was not called"
+    roots = seen[0]
+    assert [scope for _root, scope in roots] == ["project", "home", "user"]
+    assert roots[0][0] == Path.cwd() / ".agents" / "knowledge"
+    assert roots[1][0] == fake_home / "knowledge"
+    assert roots[2][0] == Path.home() / ".agents" / "knowledge"
