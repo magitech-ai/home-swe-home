@@ -79,6 +79,18 @@ jobs:
             : > dispute.txt
           fi
 
+          # Host-generated check rollup: verifiable data, unlike the PR body.
+          # `bucket` is the pass/fail/pending field; `conclusion` is not a
+          # supported --json field on `gh pr checks`.
+          # A non-zero exit means a check is pending/failing (the Agent review
+          # check itself is pending here), not that the fetch failed. Keep the
+          # captured output; only fall back for a genuinely empty file.
+          gh pr checks "$PR" --repo "$GITHUB_REPOSITORY" \
+            --json name,state,bucket,link,workflow,completedAt > checks.json || true
+          if [ ! -s checks.json ]; then
+            echo '[]' > checks.json
+          fi
+
       - name: Run independent reviewer
         id: review
         run: |
@@ -97,6 +109,8 @@ jobs:
             --reviewer-provider "$REVIEWER_PROVIDER" \
             --reviewer-model "$REVIEWER_MODEL" \
             --dispute dispute.txt \
+            --claims pr-body.txt \
+            --checks checks.json \
             --out verdict.json > review-output.txt 2> review-error.txt
           CODE=$?
           set -e
