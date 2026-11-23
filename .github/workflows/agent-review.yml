@@ -43,6 +43,18 @@ jobs:
       - name: Install
         run: uv sync --extra dev
 
+      # Gate on GitHub's own check data, not elapsed time. The name prefix
+      # excludes this review check so it cannot wait on itself.
+      - name: Wait for CI checks
+        run: |
+          set -euo pipefail
+          python3 scripts/wait_for_ci.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --pr "$PR" \
+            --prefix "Test & Lint" \
+            --timeout 900 \
+            --interval 15
+
       - name: Collect review inputs
         run: |
           set -euo pipefail
