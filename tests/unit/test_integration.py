@@ -152,6 +152,7 @@ async def test_tool_definitions_registered(tmp_path: Any) -> None:
         "grep",
         "list_directory",
         "okf_bundle",
+        "okf_bundle_concepts",
         "read_file",
         "reload_module",
         "skill",
