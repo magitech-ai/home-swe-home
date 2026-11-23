@@ -103,6 +103,23 @@ jobs:
             echo '[]' > checks.json
           fi
 
+      # Machine facts only. The reviewer still judges whether the diff
+      # resolves the issue; this just stops obvious contract mistakes (wrong
+      # or closed issue, scope that names no changed file) from reaching it.
+      - name: Check PR contract
+        run: |
+          set -euo pipefail
+          if [ "$ISSUE" = "0" ]; then
+            echo "auto-revert PR: no trigger issue to check"
+            exit 0
+          fi
+          gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" --name-only > changed-files.txt
+          python3 scripts/pr_contract.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --issue "$ISSUE" \
+            --pr-body-file pr-body.txt \
+            --changed-files-file changed-files.txt
+
       - name: Run independent reviewer
         id: review
         run: |
@@ -166,7 +183,7 @@ jobs:
           git config user.email "audit@users.noreply.github.com"
           git add "reviews/$FILENAME"
           git commit -m "audit: review of PR #$PR"
-          for i in 1 2 3; do
+          for _ in 1 2 3; do
             git push origin audit && break
             git fetch origin audit
             git rebase origin/audit

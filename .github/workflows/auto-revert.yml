@@ -84,7 +84,7 @@ jobs:
           git remote set-url origin \
             "https://x-access-token:${REVERT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push -u origin "$BRANCH"
-          BODY=$(printf 'Automatically opened because CI failed on main.\n\n- Target: `%s`\n- Trigger: `%s`\n- This PR is **not** auto-merged. A human must review the revert and decide.\n\nThe auto-revert label prevents a second revert PR while one is open.\n' "$SHA" "${{ github.event_name }}")
+          BODY=$(printf "Automatically opened because CI failed on main.\n\n- Target: \`%s\`\n- Trigger: \`%s\`\n- This PR is **not** auto-merged. A human must review the revert and decide.\n\nThe auto-revert label prevents a second revert PR while one is open.\n" "$SHA" "${{ github.event_name }}")
           gh pr create -R "$GITHUB_REPOSITORY" \
             --base main --head "$BRANCH" \
             --label auto-revert \
