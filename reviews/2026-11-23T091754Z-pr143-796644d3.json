@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 143,
+  "commit": "796644d34cef3c59d7033a15d692c9372cebad4b",
+  "trigger_issue": 142,
+  "author_model": "opencode/hy4-flash-free",
+  "reviewer_model": "tencent/hy4-flash",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 45144127574,
+  "recorded_at": "2026-11-23T09:17:54Z",
+  "verdict": "APPROVE",
+  "summary": "The change adds the deterministic PR-contract pre-flight (open-issue and named-path checks, no resolution judgment), wires it before the reviewer with an auto-revert skip, extends CI lint/format/mypy to scripts plus a --help smoke test, fixes the wait_for_ci.py mypy error, and resolves both shellcheck warnings. Host CI shows Validate workflows and all ci legs green, and tests cover the required contract behavior.",
+  "findings": [],
+  "elapsed_seconds": 84.633,
+  "prompt_tokens": 13913,
+  "completion_tokens": 12481,
+  "evidence_check": []
+}
