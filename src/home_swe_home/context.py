@@ -135,16 +135,20 @@ async def build_context(
     from .utils.home import find_home, trusted_projects
 
     home = find_home()
-    knowledge_dir = (home / "knowledge") if home is not None else None
-
-    ctx.okf_filesystem.discover_bundles(root=knowledge_dir)
-
-    # Agent Skills discovery roots in scope-precedence order (project > home
-    # > user). Mirrors the retired native SkillsService._roots() so behavior
-    # is unchanged after consolidating onto the mth-components skills system.
-    skills_roots: list[tuple[Path, str]] = []
     cwd = Path.cwd()
-    if str(cwd) in trusted_projects():
+    trusted = str(cwd) in trusted_projects()
+
+    # OKF and Skills use the same scope-precedence order (project > home > user).
+    knowledge_roots: list[tuple[Path, str]] = []
+    if trusted:
+        knowledge_roots.append((cwd / ".agents" / "knowledge", "project"))
+    if home is not None:
+        knowledge_roots.append((home / "knowledge", "home"))
+    knowledge_roots.append((Path.home() / ".agents" / "knowledge", "user"))
+    ctx.okf_filesystem.discover_bundles(roots=knowledge_roots)
+
+    skills_roots: list[tuple[Path, str]] = []
+    if trusted:
         skills_roots.append((cwd / ".agents" / "skills", "project"))
     if home is not None:
         skills_roots.append((home / "skills", "home"))
