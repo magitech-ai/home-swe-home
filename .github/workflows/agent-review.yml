@@ -79,6 +79,10 @@ jobs:
             : > dispute.txt
           fi
 
+          # Host-generated check rollup: verifiable data, unlike the PR body.
+          gh pr checks "$PR" --repo "$GITHUB_REPOSITORY" \
+            --json name,state,conclusion,link > checks.json || true
+
       - name: Run independent reviewer
         id: review
         run: |
@@ -97,6 +101,8 @@ jobs:
             --reviewer-provider "$REVIEWER_PROVIDER" \
             --reviewer-model "$REVIEWER_MODEL" \
             --dispute dispute.txt \
+            --claims pr-body.txt \
+            --checks checks.json \
             --out verdict.json > review-output.txt 2> review-error.txt
           CODE=$?
           set -e
