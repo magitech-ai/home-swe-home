@@ -1,0 +1,29 @@
+{
+  "status": "ok",
+  "pr": 144,
+  "commit": "fed9733de0d1abcc0c4376b1e7ba7e9b4624b96b",
+  "trigger_issue": 145,
+  "author_model": "opencode/hy4-flash-free",
+  "reviewer_model": "tencent/hy4-flash",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 45330793889,
+  "recorded_at": "2026-11-24T05:10:54Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "The dependency, imports, lockfile and CI checks appear to satisfy the Animas rename criteria, but the change includes substantial edits outside the files named by the issue. Scope non-negotiable 4 is not met.",
+  "findings": [
+    {
+      "severity": "major",
+      "evidence": "scripts/check_all.py:23; AGENTS.md:5; Review standard non-negotiable 4",
+      "message": "The issue names pyproject.toml, src/, tests/ and uv.lock, but the diff also changes AGENTS.md, DESIGN.md, README.md, docs/adr/*, scripts/* and skills/*, including legacy-agent\u2192home-swe-home renames that are not the Animas rename. Revert the out-of-scope edits or get the scope explicitly expanded before approval."
+    }
+  ],
+  "elapsed_seconds": 49.997,
+  "prompt_tokens": 72424,
+  "completion_tokens": 8667,
+  "evidence_check": [
+    {
+      "evidence": "scripts/check_all.py:23; AGENTS.md:5; Review standard non-negotiable 4",
+      "status": "rule"
+    }
+  ]
+}
