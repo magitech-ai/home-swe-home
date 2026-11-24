@@ -1,0 +1,38 @@
+{
+  "status": "ok",
+  "pr": 148,
+  "commit": "1b04abec80798d6421033774961d25a8ab15eb6a",
+  "trigger_issue": 149,
+  "author_model": "opencode/hy4-flash-free",
+  "reviewer_model": "tencent/hy4-flash",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 45386543355,
+  "recorded_at": "2026-11-24T11:45:27Z",
+  "verdict": "REQUEST_CHANGES",
+  "summary": "CI Test & Lint jobs pass, and the lockfile shows animas 2.0.0 with updated SHAs. However, the diff contains no load_yaml import migration and no evidence that the new SHAs are the current upstream pins, so the acceptance criteria are not fully met.",
+  "findings": [
+    {
+      "severity": "blocker",
+      "evidence": "documented rule: REVIEW non-negotiable 1; acceptance criterion 'Imports of load_yaml use animas.profile_yaml'; diff shows only uv.lock:18-19,906,917",
+      "message": "The required import migration is not present in the diff; the PR description's claim cannot satisfy the criterion. Add the load_yaml import changes to animas.profile_yaml (or supply the missing diff) before approval."
+    },
+    {
+      "severity": "blocker",
+      "evidence": "uv.lock:19,906,917; documented rule: REVIEW non-negotiable 1",
+      "message": "The diff changes the git SHAs but no supplied data identifies them as the current upstream pins. Provide the upstream pin source or verification output so this Done-when item can be checked."
+    }
+  ],
+  "elapsed_seconds": 20.293,
+  "prompt_tokens": 10739,
+  "completion_tokens": 2828,
+  "evidence_check": [
+    {
+      "evidence": "documented rule: REVIEW non-negotiable 1; acceptance criterion 'Imports of load_yaml use animas.profile_yaml'; diff shows only uv.lock:18-19,906,917",
+      "status": "rule"
+    },
+    {
+      "evidence": "uv.lock:19,906,917; documented rule: REVIEW non-negotiable 1",
+      "status": "rule"
+    }
+  ]
+}
