@@ -2,7 +2,7 @@
 
 This module is the orchestrator DESIGN.md calls "external": it drives the
 measured harness-improvement cycle end to end. It is deliberately a library
-with injected seams rather than an anima Service, because the loop is a
+with injected seams rather than an animas Service, because the loop is a
 run-to-completion job, not a capability mounted on a Context.
 
 The cycle is:

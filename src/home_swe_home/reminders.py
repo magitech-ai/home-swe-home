@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from anima import Context, Service
+from animas import Context, Service
 
 from .utils.home import find_home
 from .utils.reminders import (

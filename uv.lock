@@ -9,14 +9,14 @@ resolution-markers = [
 
 [manifest]
 overrides = [
-    { name = "anima", git = "https://github.com/magitech-ai/anima.git" },
+    { name = "animas", git = "https://github.com/magitech-ai/animas.git" },
     { name = "magitech-harness", git = "https://github.com/magitech-ai/magitech-harness.git" },
 ]
 
 [[package]]
-name = "anima"
-version = "0.3.0"
-source = { git = "https://github.com/magitech-ai/anima.git#9dc966e578a629eaeb8b6dd742120a6ff62c43a8" }
+name = "animas"
+version = "1.0.0"
+source = { git = "https://github.com/magitech-ai/animas.git#eacd86238f4bcc5c876621351deb32443120d682" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -578,7 +578,7 @@ name = "home-swe-home"
 version = "0.3.0"
 source = { editable = "." }
 dependencies = [
-    { name = "anima" },
+    { name = "animas" },
     { name = "google-genai" },
     { name = "magitech-harness" },
     { name = "mth-plugins" },
@@ -598,7 +598,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anima", git = "https://github.com/magitech-ai/anima.git" },
+    { name = "animas", git = "https://github.com/magitech-ai/animas.git" },
     { name = "google-genai", specifier = ">=3.6.1" },
     { name = "magitech-harness", git = "https://github.com/magitech-ai/magitech-harness.git" },
     { name = "mth-plugins", git = "https://github.com/magitech-ai/mth-plugins.git" },
@@ -903,9 +903,9 @@ wheels = [
 [[package]]
 name = "magitech-harness"
 version = "0.3.0"
-source = { git = "https://github.com/magitech-ai/magitech-harness.git#14112354ec068d4fde1ef7475aec9a083fa9d9d4" }
+source = { git = "https://github.com/magitech-ai/magitech-harness.git#c46a74c30e229e72210a7779743c59c492615e5a" }
 dependencies = [
-    { name = "anima" },
+    { name = "animas" },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -914,9 +914,9 @@ dependencies = [
 [[package]]
 name = "mth-plugins"
 version = "0.3.0"
-source = { git = "https://github.com/magitech-ai/mth-plugins.git#8b8fd172f439f048cf342852097920d75201aa6f" }
+source = { git = "https://github.com/magitech-ai/mth-plugins.git#1ce02dc6f455e44ac40a09c02ef721c483f8d2f3" }
 dependencies = [
-    { name = "anima" },
+    { name = "animas" },
     { name = "httpx" },
     { name = "magitech-harness" },
     { name = "pydantic" },

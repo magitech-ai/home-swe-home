@@ -6,7 +6,7 @@ import os
 import subprocess
 from types import SimpleNamespace
 
-from anima import Context
+from animas import Context
 
 from home_swe_home.sandbox import SandboxResult, SandboxService, run_in_sandbox
 

@@ -56,15 +56,15 @@ the session. Ctrl-C aborts the current turn only.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Foundation | **anima** micro-kernel | "Everything is a component": every capability is an anima Service on a Context. Matches the ecosystem (magitech-harness, mth-plugins) and the component pattern's proven scale. You control anima, so API changes are coordinateable. |
-| Language / runtime | Python 3.12+, `uv`-managed | anima requires 3.12+. Shared Magitech standards; strict mypy, ruff (line length 88), pytest |
+| Foundation | **animas** micro-kernel | "Everything is a component": every capability is an animas Service on a Context. Matches the ecosystem (magitech-harness, mth-plugins) and the component pattern's proven scale. You control animas, so API changes are coordinateable. |
+| Language / runtime | Python 3.12+, `uv`-managed | animas requires 3.12+. Shared Magitech standards; strict mypy, ruff (line length 88), pytest |
 | API | Gemini Interactions API (native, via `google-genai`) | The agent loop reaches the model through mth's `ctx.llm`; `GeminiAdapter` translates Interactions stream events into mth `StreamChunk`s |
 | Auth | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | Never printed or persisted; checked up front so failure is a clear message, not a crash |
 | Default model | `gemini-4-hydrogen` | Overridable with `--model` or `/model` |
 | Display | Chat: user prompts `> `, assistant replies `< `. Headless: raw model output, no prefixes. Tool calls show as `[tool: name]` in both modes. Each model call prints `[context: N tokens]` before sending. | Mirrors Claude Code's `>`/`<` prompt convention so turns are easy to read |
 | Modes | Interactive REPL by default; `-p "task"` / `--prompt` for headless | Follows Claude Code conventions |
 | Core loop | mth's `ReactLoopAgent` via `ctx.agents.create` → `agent.followup` → `agent.when_idle`. Send the task, run the requested tools, feed results back, repeat until the model stops asking. Turn/step boundaries, cancellation and tool-pairing integrity come from mth | The turn engine is the hardened substrate, not a parallel implementation |
-| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs`, `add_repo`, `verify_repo` — each an mth `ToolDefinition` registered via `ctx.tools.register(define_tool({...}))` in `tools/definitions.py`. Skill loading moved to the mth-components `skill({name})` tool; OKF bundles load via `okf_bundle({name})`. | Every capability is still a component, but the component is now an mth tool definition rather than an anima Service. `edit_file`/`reload_module` only work on paths read via `read_file` during the *current turn* (reconstructed from the session log by `_current_turn_read_paths`); `run_command` runs **sandboxed by default** (`--no-sandbox`/`HOME_SWE_HOME_SANDBOX=0` for host execution); `web_search` uses SearXNG then DuckDuckGo. Every tool's text result is redacted at the `output.render` boundary so no tool can leak a secret |
+| Tool set | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_directory`, `grep_files`, `run_command`, `web_search`, `reload_module`, `code_metrics`, `find_duplicates`, `generate_docs`, `add_repo`, `verify_repo` — each an mth `ToolDefinition` registered via `ctx.tools.register(define_tool({...}))` in `tools/definitions.py`. Skill loading moved to the mth-components `skill({name})` tool; OKF bundles load via `okf_bundle({name})`. | Every capability is still a component, but the component is now an mth tool definition rather than an animas Service. `edit_file`/`reload_module` only work on paths read via `read_file` during the *current turn* (reconstructed from the session log by `_current_turn_read_paths`); `run_command` runs **sandboxed by default** (`--no-sandbox`/`HOME_SWE_HOME_SANDBOX=0` for host execution); `web_search` uses SearXNG then DuckDuckGo. Every tool's text result is redacted at the `output.render` boundary so no tool can leak a secret |
 | Errors | Missing key → clear message, exit 2. Bad model / API error / network failure → clear message, no traceback (headless exits 1; REPL reports the error and keeps running so the user can `/model` away) | Every failure mode must give a clear message, not a crash |
 | Ctrl-C | `KeyboardInterrupt` caught around a turn; prints "Turn interrupted." and returns to the REPL (headless: exits cleanly, code 130) | Stops the current turn, not the program |
 | Sandbox | Docker container: `--network none`, `--read-only`, `--user <host UID:GID>`, `--cap-drop ALL`, `no-new-privileges`, CPU/memory/pids limits, `ulimit nofile/fsize`, `--rm`, hard timeout, workdir confined to CWD tree | `run_command` runs **sandboxed by default**; host execution is opt-in via `HOME_SWE_HOME_SANDBOX=0` or `--no-sandbox`. Fail-closed if the Docker CLI/daemon is unavailable in sandbox mode. |
@@ -129,7 +129,7 @@ Wiring a new tool requires: build the `ToolDefinition`, add it to `ALL_TOOLS` in
 mth derives the model-facing schema from the definition — there is no separate
 schema registry.
 
-The `read_files` tracker from the original anima-based tools is gone: tools that
+The `read_files` tracker from the original animas-based tools is gone: tools that
 need to know whether a path was read reconstruct it from the session event log
 via `_current_turn_read_paths`, scoped to the current turn.
 
@@ -245,7 +245,7 @@ validates against the editable surface *before spending any inference*,
 materialises the candidate, probes candidate against base with an interleaved
 evaluator, and on a strict pass-rate win composes, persists, and records the
 lesson in the domain `Library`. The loop is a library for an external
-orchestrator, not an anima Service.
+orchestrator, not an animas Service.
 
 In home-first mode the **home repo's** `harness/` tree is authoritative; the
 packaged copy is only a template for `--init-home` scaffolding. See ADR 0004.
@@ -341,7 +341,7 @@ read-only summary of due, upcoming, and auto-resolved passive reminders from
 
 ## File layout
 
-- `pyproject.toml` — metadata, dependencies (`anima`, `openai`), entry point `home-swe-home`
+- `pyproject.toml` — metadata, dependencies (`animas`, `openai`), entry point `home-swe-home`
 - `src/home_swe_home/__init__.py`
 - `src/home_swe_home/context.py` — calls `create_harness()`, mounts app services, registers the Gemini adapter, the 15 tools, and prompt sections
 - `src/home_swe_home/llm/gemini_adapter.py` — `GeminiAdapter` (Interactions API → mth `StreamChunk`)
