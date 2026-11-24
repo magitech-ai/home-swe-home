@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 144,
+  "commit": "fed9733de0d1abcc0c4376b1e7ba7e9b4624b96b",
+  "trigger_issue": 145,
+  "author_model": "opencode/hy4-flash-free",
+  "reviewer_model": "tencent/hy4-flash",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 45330793889,
+  "recorded_at": "2026-11-24T05:13:19Z",
+  "verdict": "APPROVE",
+  "summary": "The diff completes the anima\u2192animas rename in pyproject, imports/prose, docs, tests, and uv.lock, with all changed files inside the issue's named scope. Host CI's Test & Lint jobs pass on Linux, macOS, and Windows, covering the required suite and lint gates.",
+  "findings": [],
+  "elapsed_seconds": 35.286,
+  "prompt_tokens": 72676,
+  "completion_tokens": 6011,
+  "evidence_check": []
+}
