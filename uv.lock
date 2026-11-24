@@ -15,8 +15,8 @@ overrides = [
 
 [[package]]
 name = "animas"
-version = "1.0.0"
-source = { git = "https://github.com/magitech-ai/animas.git#eacd86238f4bcc5c876621351deb32443120d682" }
+version = "2.0.0"
+source = { git = "https://github.com/magitech-ai/animas.git#9af863414fc6af5dda1baa50e4ee98e411ca4d5d" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -903,7 +903,7 @@ wheels = [
 [[package]]
 name = "magitech-harness"
 version = "0.3.0"
-source = { git = "https://github.com/magitech-ai/magitech-harness.git#c46a74c30e229e72210a7779743c59c492615e5a" }
+source = { git = "https://github.com/magitech-ai/magitech-harness.git#0e22cf76cc00bedd9033192cd713098a0cfe8c47" }
 dependencies = [
     { name = "animas" },
     { name = "httpx" },
@@ -914,7 +914,7 @@ dependencies = [
 [[package]]
 name = "mth-plugins"
 version = "0.3.0"
-source = { git = "https://github.com/magitech-ai/mth-plugins.git#1ce02dc6f455e44ac40a09c02ef721c483f8d2f3" }
+source = { git = "https://github.com/magitech-ai/mth-plugins.git#868af4765faab95ea8020b12e7dd0859de8bd8c3" }
 dependencies = [
     { name = "animas" },
     { name = "httpx" },
