@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 148,
+  "commit": "1b04abec80798d6421033774961d25a8ab15eb6a",
+  "trigger_issue": 149,
+  "author_model": "opencode/hy4-flash-free",
+  "reviewer_model": "tencent/hy4-flash",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 45386543355,
+  "recorded_at": "2026-11-24T11:49:17Z",
+  "verdict": "APPROVE",
+  "summary": "uv.lock updates animas to 2.0.0 and refreshes the git pins for animas, magitech-harness, and mth-plugins; host CI shows all Test & Lint jobs passing on Linux, macOS, and Windows. Both 'Done when' criteria are satisfied by the diff and CI results.",
+  "findings": [],
+  "elapsed_seconds": 41.549,
+  "prompt_tokens": 10900,
+  "completion_tokens": 7411,
+  "evidence_check": []
+}
