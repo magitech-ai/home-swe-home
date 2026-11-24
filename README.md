@@ -3,7 +3,7 @@
 **New here? Read the [agents-home README](https://github.com/magitech-ai/agents-home#readme).**
 It explains where the skills, knowledge bundles, evidence and audit records live.
 
-A small coding agent built on the [anima](https://github.com/magitech-ai/anima)
+A small coding agent built on the [animas](https://github.com/magitech-ai/animas)
 micro-kernel and [magitech-harness](https://github.com/magitech-ai/magitech-harness),
 the composable agent runtime. Everything is a component: the turn engine, session
 log, tool registry and LLM seam come from mth, and all 15 tools are mth
@@ -14,7 +14,7 @@ stops asking.
 ## Setup
 
 ```sh
-uv sync                      # installs anima + dependencies and this package
+uv sync                      # installs animas + dependencies and this package
 export GEMINI_API_KEY=...        # default provider is Gemini
 ```
 

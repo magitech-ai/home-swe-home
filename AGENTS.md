@@ -2,7 +2,7 @@
 
 ## Home-SWE-Home Architecture & Invariants
 
-- `home-swe-home` is a small coding agent on **anima** (micro-kernel) and
+- `home-swe-home` is a small coding agent on **animas** (micro-kernel) and
   **magitech-harness** (the hardened turn engine). `context.py` calls
   `create_harness()`, mounts the app services, registers the Gemini adapter and
   the 15 mth `ToolDefinition`s, and assembles the prompt from

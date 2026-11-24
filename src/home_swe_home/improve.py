@@ -1,6 +1,6 @@
 """External Propose–Probe–Compose step for harness improvement.
 
-This module is a library for an external orchestrator, not an anima Service.
+This module is a library for an external orchestrator, not an animas Service.
 The proposer and rollout runner are injected, so tests need no model or network.
 """
 

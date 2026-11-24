@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from anima import Context
+from animas import Context
 
 from home_swe_home import cli
 from home_swe_home.reminders import RemindersService

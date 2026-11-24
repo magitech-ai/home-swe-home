@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from anima import Context
+from animas import Context
 from magitech_harness import create_harness
 
 from .llm.gemini_adapter import GeminiAdapter

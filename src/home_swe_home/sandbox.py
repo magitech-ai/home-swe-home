@@ -32,7 +32,7 @@ import subprocess
 import uuid
 from dataclasses import dataclass
 
-from anima import Context, Service
+from animas import Context, Service
 
 from .utils.text import decode_text
 

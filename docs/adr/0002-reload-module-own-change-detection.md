@@ -11,7 +11,7 @@ chosen module name. It enforces read-before-edit (the path must be in the
 per-turn `read_files` set) and reports whether a reload actually changed
 anything.
 
-anima ships `HmrService`, a hot-reload service. We investigated delegating
+animas ships `HmrService`, a hot-reload service. We investigated delegating
 `reload_module` to it to avoid duplicating reload logic.
 
 ## Decision
@@ -26,7 +26,7 @@ Do **not** delegate to `HmrService`. Keep home-swe-home's own mtime tracking in
   files by path (including copies not in `sys.modules`) and enforces the
   read-before-edit contract.
 
-Adopt one technique from anima's HMR source: track `(mtime, size)` and delete
+Adopt one technique from animas's HMR source: track `(mtime, size)` and delete
 cached bytecode before executing a module.
 
 ## Consequences

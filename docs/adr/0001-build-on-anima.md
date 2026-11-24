@@ -1,4 +1,4 @@
-# 0001. Build home-swe-home on the anima micro-kernel
+# 0001. Build home-swe-home on the animas micro-kernel
 
 Date: 2026-11-17
 Status: accepted
@@ -9,10 +9,10 @@ home-swe-home is a small coding agent: a turn loop that calls the NVIDIA API, ru
 the tools the model requests, and feeds results back. It began with a plain
 function-based core loop and `@tool`-decorated functions with a hand-rolled
 registry (`_TOOLS`, `_TOOL_SCHEMAS`). The Magitech ecosystem already has a
-component micro-kernel, anima, which magitech-harness and mth-plugins build
+component micro-kernel, animas, which magitech-harness and mth-plugins build
 on. The component pattern is validated at scale by large agent harnesses.
 
-A spike (`run_command` and `greeter` as anima Services) confirmed:
+A spike (`run_command` and `greeter` as animas Services) confirmed:
 - Services mount on a `Context` and are accessible by name (`ctx.run_command`)
 - `inject = ["run_command"]` gives automatic dependency ordering
 - `await ctx.flush()` activates fibers deterministically
@@ -20,7 +20,7 @@ A spike (`run_command` and `greeter` as anima Services) confirmed:
 
 ## Decision
 
-Build home-swe-home on anima. Every capability is an anima `Service` mounted on a
+Build home-swe-home on animas. Every capability is an animas `Service` mounted on a
 `Context`:
 
 - `CoreLoopService`, all 12 tool services, and the REPL/CLI entry points
@@ -29,7 +29,7 @@ Build home-swe-home on anima. Every capability is an anima `Service` mounted on 
 - `service_schema()` replaces the `@tool` decorator's schema inference; the
   decorator and its registries were deleted
 - CLI and REPL are async and bootstrap the Context
-- Python requirement raised to 3.12+ (anima's floor); anima is a git dependency
+- Python requirement raised to 3.12+ (animas's floor); animas is a git dependency
   pinned in `uv.lock`
 
 ## Consequences
@@ -40,12 +40,12 @@ Build home-swe-home on anima. Every capability is an anima `Service` mounted on 
   `context.py::TOOL_SERVICES`) instead of decorator side effects.
 - Tests are async: mount services on a `Context`, `await ctx.flush()`, then
   call via `ctx.<service>`.
-- The git dependency on anima means `uv sync` fetches from GitHub; the
-  `uv.lock` pin keeps builds reproducible. Since Magitech controls anima,
+- The git dependency on animas means `uv sync` fetches from GitHub; the
+  `uv.lock` pin keeps builds reproducible. Since Magitech controls animas,
   breaking API changes can be coordinated.
 - Python 3.10/3.11 users must upgrade to 3.12+.
 - Deferred: `reload_module` keeps its own mtime tracking rather than using
-  anima's `HmrService` — the tool loads arbitrary files by path (via
+  animas's `HmrService` — the tool loads arbitrary files by path (via
   `spec_from_file_location`) and enforces read-before-edit, while `HmrService`
   is an async directory watcher that reloads already-imported modules. The
   one technique adopted from HMR is bytecode-cache invalidation (see the
