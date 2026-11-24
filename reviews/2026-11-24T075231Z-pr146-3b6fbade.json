@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 146,
+  "commit": "3b6fbadebd3fda16dfba5ca1074c50458f7c43fc",
+  "trigger_issue": 147,
+  "author_model": "opencode/hy4-flash-free",
+  "reviewer_model": "tencent/hy4-flash",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 45350997549,
+  "recorded_at": "2026-11-24T07:52:31Z",
+  "verdict": "APPROVE",
+  "summary": "The diff changes the CI helper invocation from `uv run python scripts/wait_for_ci.py --help` to `uv run scripts/wait_for_ci.py --help`, satisfying the requirement to run the helper via `uv run` without an interpreter wrapper. Host CI results show workflow validation and the full suite passing on ubuntu, windows, and macos.",
+  "findings": [],
+  "elapsed_seconds": 27.279,
+  "prompt_tokens": 10035,
+  "completion_tokens": 4441,
+  "evidence_check": []
+}
