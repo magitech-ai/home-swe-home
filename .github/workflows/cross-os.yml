@@ -1,0 +1,35 @@
+name: Cross-OS CI
+
+# Weekly cross-platform validation. Windows bills at 2x and macOS at 10x, so
+# the full os matrix runs on a schedule instead of every push/PR
+# (see magitech-ai/.github#12).
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test & Lint (cross-OS)
+    uses: magitech-ai/.github/.github/workflows/python-ci.yml@main
+    with:
+      python-version: "3.12"
+      # dev tools (pytest, mypy, ruff, pytest-asyncio) are optional extras
+      install-command: "uv sync --extra dev"
+      # helper scripts are first-class code: lint them too. The default
+      # lint-commands only cover src and tests, which let a script ship with a
+      # missing __main__ guard and a silently successful workflow step.
+      lint-commands: |
+        uv run ruff check src tests scripts
+        uv run ruff format --check src tests scripts
+        uv run mypy src scripts
+        uv run scripts/wait_for_ci.py --help
+      # home-swe-home's pytest config has no coverage addopts; pass them here so
+      # the reusable workflow's coverage-report step has data to check
+      test-commands: "uv run pytest --cov=src/home_swe_home --cov-branch --cov-fail-under=100"
+      coverage-floor: 100
+      os-matrix-json: '["ubuntu-latest", "windows-latest", "macos-latest"]'
