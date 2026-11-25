@@ -9,7 +9,7 @@ dependencies = [
     "tiktoken>=0.8",
     "animas",
     "magitech-harness",
-    "mth-plugins",
+    "mth-components",
     "google-genai>=3.6.1",
     "openai>=3,<4",
 ]
@@ -19,12 +19,12 @@ animas = { git = "https://github.com/magitech-ai/animas.git" }
 magitech-harness = { git = "https://github.com/magitech-ai/magitech-harness.git" }
 # Git source so home-swe-home resolves in clean CI checkouts (no sibling
 # clone needed). The OKF + Skills consumption components and the canonical
-# dev_tools.repo_map module must be merged to mth-plugins main before this
+# dev_tools.repo_map module must be merged to mth-components main before this
 # resolves to a version that provides them.
-mth-plugins = { git = "https://github.com/magitech-ai/mth-plugins.git" }
+mth-components = { git = "https://github.com/magitech-ai/mth-components.git" }
 
 # magitech-harness pins animas with a repo-relative path (../animas) and
-# mth-plugins pins both animas and magitech-harness with repo-relative paths;
+# mth-components pins both animas and magitech-harness with repo-relative paths;
 # none resolve when installed from git. All are declared here and forced for
 # every consumer so the git sources win in clean checkouts.
 [tool.uv]

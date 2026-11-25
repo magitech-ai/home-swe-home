@@ -56,7 +56,7 @@ the session. Ctrl-C aborts the current turn only.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Foundation | **animas** micro-kernel | "Everything is a component": every capability is an animas Service on a Context. Matches the ecosystem (magitech-harness, mth-plugins) and the component pattern's proven scale. You control animas, so API changes are coordinateable. |
+| Foundation | **animas** micro-kernel | "Everything is a component": every capability is an animas Service on a Context. Matches the ecosystem (magitech-harness, mth-components) and the component pattern's proven scale. You control animas, so API changes are coordinateable. |
 | Language / runtime | Python 3.12+, `uv`-managed | animas requires 3.12+. Shared Magitech standards; strict mypy, ruff (line length 88), pytest |
 | API | Gemini Interactions API (native, via `google-genai`) | The agent loop reaches the model through mth's `ctx.llm`; `GeminiAdapter` translates Interactions stream events into mth `StreamChunk`s |
 | Auth | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | Never printed or persisted; checked up front so failure is a clear message, not a crash |
@@ -359,7 +359,7 @@ read-only summary of due, upcoming, and auto-resolved passive reminders from
   - `executor.py` — `ToolService` mounted as `ctx.tools`
   - Skill loading is not a home-swe-home tool: it is the mth-components
     `skills-loader` service (`skill({name})`), and Agent Skills + OKF bundles
-    are handled entirely by the six mth-components bridges in `mth-plugins`.
+    are handled entirely by the six mth-components bridges in `mth-components`.
 - `src/home_swe_home/utils/` — pure helpers (the documented exception to "everything
   is a component"): `schema.py` (JSON-schema inference), `text.py` (shared
   decoder), `harness.py` (readers for the editable harness tree). Stateless,

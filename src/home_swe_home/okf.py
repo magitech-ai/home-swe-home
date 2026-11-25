@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mth_plugins.bridges.okf_loader.trust import (
+from mth_components.bridges.okf_loader.trust import (
     is_stale,
     parse_frontmatter,
     trust_tier,

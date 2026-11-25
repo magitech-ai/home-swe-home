@@ -581,7 +581,7 @@ dependencies = [
     { name = "animas" },
     { name = "google-genai" },
     { name = "magitech-harness" },
-    { name = "mth-plugins" },
+    { name = "mth-components" },
     { name = "openai" },
     { name = "python-dotenv" },
     { name = "tiktoken" },
@@ -601,7 +601,7 @@ requires-dist = [
     { name = "animas", git = "https://github.com/magitech-ai/animas.git" },
     { name = "google-genai", specifier = ">=3.6.1" },
     { name = "magitech-harness", git = "https://github.com/magitech-ai/magitech-harness.git" },
-    { name = "mth-plugins", git = "https://github.com/magitech-ai/mth-plugins.git" },
+    { name = "mth-components", git = "https://github.com/magitech-ai/mth-components.git" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "openai", specifier = ">=3,<4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
@@ -912,9 +912,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "mth-plugins"
+name = "mth-components"
 version = "0.3.0"
-source = { git = "https://github.com/magitech-ai/mth-plugins.git#868af4765faab95ea8020b12e7dd0859de8bd8c3" }
+source = { git = "https://github.com/magitech-ai/mth-components.git#d7074d223c188c06bf92124329852b2e9a68a86d" }
 dependencies = [
     { name = "animas" },
     { name = "httpx" },

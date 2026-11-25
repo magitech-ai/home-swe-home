@@ -86,7 +86,7 @@ def test_resolve_repo_unknown():
     assert resolve_repo(entries, "nope") is None
 
 
-def test_uses_the_canonical_mth_plugins_parser():
-    from mth_plugins.tools.dev_tools.repo_map import parse_repo_map as canonical
+def test_uses_the_canonical_mth_components_parser():
+    from mth_components.tools.dev_tools.repo_map import parse_repo_map as canonical
 
     assert parse_repo_map is canonical

@@ -154,7 +154,7 @@ async def test_skills_catalog_section(
     Register a skill explicitly so the assertion does not depend on a local
     agents-home checkout being present (CI has none).
     """
-    from mth_plugins.bridges.skills_registry.service import (
+    from mth_components.bridges.skills_registry.service import (
         SkillBundleInfo,
         SkillsProviderRegistryService,
     )
@@ -202,7 +202,7 @@ async def test_build_context_discovers_okf_from_multiple_scopes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """OKF discovery uses project/home/user scope precedence like skills."""
-    from mth_plugins.bridges.okf_filesystem.service import (
+    from mth_components.bridges.okf_filesystem.service import (
         OKFFilesystemProviderService,
     )
 
