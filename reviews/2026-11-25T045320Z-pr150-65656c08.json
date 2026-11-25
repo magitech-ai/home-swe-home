@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "pr": 150,
+  "commit": "65656c08a9864436faad5b494c5e3b7be8d8341f",
+  "trigger_issue": 151,
+  "author_model": "opencode/hy4-flash-free",
+  "reviewer_model": "tencent/hy4-flash",
+  "reviewer_provider": "openrouter",
+  "workflow_run_id": 45549619851,
+  "recorded_at": "2026-11-25T04:53:20Z",
+  "verdict": "APPROVE",
+  "summary": "The diff consistently renames mth-plugins to mth-components across pyproject.toml, all imports, docs, tests, and uv.lock, with the lockfile resolving the renamed git distribution. Host-generated CI shows all Test & Lint jobs passing on Linux, macOS, and Windows, satisfying the full-suite and ruff criterion.",
+  "findings": [],
+  "elapsed_seconds": 22.306,
+  "prompt_tokens": 14153,
+  "completion_tokens": 5127,
+  "evidence_check": []
+}
