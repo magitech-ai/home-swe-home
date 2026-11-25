@@ -9,7 +9,7 @@ home-swe-home is a small coding agent: a turn loop that calls the NVIDIA API, ru
 the tools the model requests, and feeds results back. It began with a plain
 function-based core loop and `@tool`-decorated functions with a hand-rolled
 registry (`_TOOLS`, `_TOOL_SCHEMAS`). The Magitech ecosystem already has a
-component micro-kernel, animas, which magitech-harness and mth-plugins build
+component micro-kernel, animas, which magitech-harness and mth-components build
 on. The component pattern is validated at scale by large agent harnesses.
 
 A spike (`run_command` and `greeter` as animas Services) confirmed:
@@ -35,7 +35,7 @@ Build home-swe-home on animas. Every capability is an animas `Service` mounted o
 ## Consequences
 
 - Home-SWE-Home is composable with the rest of the Magitech ecosystem and follows
-  the same invariants as magitech-harness/mth-plugins.
+  the same invariants as magitech-harness/mth-components.
 - Tool wiring has two touch points (re-export in `tools/__init__.py`, entry in
   `context.py::TOOL_SERVICES`) instead of decorator side effects.
 - Tests are async: mount services on a `Context`, `await ctx.flush()`, then

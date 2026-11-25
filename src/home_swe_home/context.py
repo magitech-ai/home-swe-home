@@ -65,7 +65,7 @@ async def build_context(
     ctx.use(RemindersService)
     ctx.use(SandboxService)
 
-    # Mount shared mth-plugins tool and guard components. Their behaviour
+    # Mount shared mth-components tool and guard components. Their behaviour
     # (line-window pagination, workspace confinement, output caps and secret
     # redaction) is owned in one place rather than duplicated in hsh's native
     # tool definitions.
@@ -74,31 +74,35 @@ async def build_context(
     # from the root tool view and from the model.
     # Mount the mth-components OKF + Skills consumption services (3-component
     # pattern: provider registry, filesystem provider, session catalog/loader).
-    # These live in mth-plugins and are mounted on the same mth context.
-    from mth_plugins.bridges.okf_filesystem.service import OKFFilesystemProviderService
-    from mth_plugins.bridges.okf_loader.service import OKFSessionCatalogService
-    from mth_plugins.bridges.okf_registry.service import OKFProviderRegistryService
-    from mth_plugins.bridges.skills_filesystem.service import (
+    # These live in mth-components and are mounted on the same mth context.
+    from mth_components.bridges.okf_filesystem.service import (
+        OKFFilesystemProviderService,
+    )
+    from mth_components.bridges.okf_loader.service import OKFSessionCatalogService
+    from mth_components.bridges.okf_registry.service import OKFProviderRegistryService
+    from mth_components.bridges.skills_filesystem.service import (
         SkillsFilesystemProviderService,
     )
-    from mth_plugins.bridges.skills_loader.service import SkillsSessionCatalogService
-    from mth_plugins.bridges.skills_registry.service import (
+    from mth_components.bridges.skills_loader.service import SkillsSessionCatalogService
+    from mth_components.bridges.skills_registry.service import (
         SkillsProviderRegistryService,
     )
-    from mth_plugins.guards.redaction.component import apply as redaction_guard
-    from mth_plugins.guards.truncation.component import apply as truncation_guard
-    from mth_plugins.tools.bash.component import apply as bash_component
-    from mth_plugins.tools.code_analysis.component import (
+    from mth_components.guards.redaction.component import apply as redaction_guard
+    from mth_components.guards.truncation.component import apply as truncation_guard
+    from mth_components.tools.bash.component import apply as bash_component
+    from mth_components.tools.code_analysis.component import (
         apply as code_analysis_component,
     )
-    from mth_plugins.tools.dev_tools.component import apply as dev_tools_component
-    from mth_plugins.tools.edit_file.component import apply as edit_file_component
-    from mth_plugins.tools.fs_extra.component import apply as fs_extra_component
-    from mth_plugins.tools.fs_search.component import apply as fs_search_component
-    from mth_plugins.tools.read_file.component import apply as read_file_component
-    from mth_plugins.tools.verify_repo.component import apply as verify_repo_component
-    from mth_plugins.tools.web_search.component import apply as web_search_component
-    from mth_plugins.tools.write_file.component import apply as write_file_component
+    from mth_components.tools.dev_tools.component import apply as dev_tools_component
+    from mth_components.tools.edit_file.component import apply as edit_file_component
+    from mth_components.tools.fs_extra.component import apply as fs_extra_component
+    from mth_components.tools.fs_search.component import apply as fs_search_component
+    from mth_components.tools.read_file.component import apply as read_file_component
+    from mth_components.tools.verify_repo.component import (
+        apply as verify_repo_component,
+    )
+    from mth_components.tools.web_search.component import apply as web_search_component
+    from mth_components.tools.write_file.component import apply as write_file_component
 
     ctx.use(OKFProviderRegistryService)
     ctx.use(OKFFilesystemProviderService)
